@@ -1,0 +1,40 @@
+name: Ellie's Book — Milestone & Decision Notifier
+
+on:
+  workflow_dispatch:
+    inputs:
+      type:
+        description: 'Notification Type (Strictly decision or milestone)'
+        required: true
+        default: 'decision'
+        type: choice
+        options:
+          - 'decision'
+          - 'milestone'
+      title:
+        description: 'Headline title'
+        required: true
+      body:
+        description: 'Decision options or milestone summary'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  notify-telegram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Send Gated Update to Telegram (@Hydrateh_bot)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 scripts/notify_telegram.py \
+            --type "${{ inputs.type }}" \
+            --title "${{ inputs.title }}" \
+            --body "${{ inputs.body }}"
