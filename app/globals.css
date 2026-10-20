@@ -1459,6 +1459,30 @@ select { appearance: auto; }
   font-weight: 400;
 }
 
+.eb-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.eb-link-btn:hover {
+  text-decoration-color: var(--accent);
+}
+
+.eb-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .eb-clickable-row {
   cursor: pointer;
 }
@@ -1477,6 +1501,10 @@ select { appearance: auto; }
 }
 
 /* Quick Capture Inline Form */
+.eb-quick-backdrop {
+  display: none;
+}
+
 .eb-quick-capture-sheet {
   display: grid;
   gap: 12px;
@@ -1500,11 +1528,40 @@ select { appearance: auto; }
   align-items: end;
 }
 
+.eb-quick-form .is-wide {
+  grid-column: 1 / -1;
+}
+
 .eb-quick-form label {
   display: grid;
   gap: 4px;
   font-size: 13px;
   font-weight: 500;
+}
+
+.eb-quick-more {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+}
+
+.eb-quick-more summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.eb-quick-more[open] summary {
+  margin-bottom: 8px;
+}
+
+.eb-quick-save {
+  min-height: 38px;
+  align-self: end;
 }
 
 /* Classic Studio Slot Wrapper */
@@ -1642,6 +1699,36 @@ select { appearance: auto; }
 }
 
 @media (max-width: 680px) {
+  .eb-quick-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    z-index: 998;
+    border: none;
+    cursor: pointer;
+  }
+
+  .eb-quick-capture-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 85vh;
+    overflow-y: auto;
+    z-index: 999;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+    border-bottom: none;
+    padding: 18px 16px 28px;
+    background: var(--surface);
+  }
+
+  .eb-quick-form {
+    grid-template-columns: 1fr;
+  }
+
   .eb-framed-shell {
     padding: 16px 18px;
   }

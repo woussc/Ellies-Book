@@ -1993,16 +1993,18 @@ export function ElliesBookWorkbench({
     (projection.summary.openCommitmentTotal / budgetDenominator) * 100,
   );
 
-  // Build rows for Step 1 Overview Deliverables & Vendor Purchase Table
+  // Build rows for the Overview "The plan" table (6 columns; audit fields kept as secondary text)
   const overviewPurchaseRows = useMemo(() => {
     const rows: Array<{
       id: string;
       deliverable: string;
       item: string;
-      vendorSplit: string;
+      glCode: string;
+      vendor: string;
+      location: string;
       quarter: string;
-      quantity: number;
-      unitCostText: string;
+      costText: string;
+      extraText: string;
       subtotal: number;
       status: string;
       statusTone: "status-positive" | "status-pending" | "status-muted";
@@ -2013,7 +2015,8 @@ export function ElliesBookWorkbench({
         (w) => w.id === line.workPackageId,
       );
       const deliverableName = wp?.name || "Core deliverable";
-      const itemLabel = `${line.itemNameSnapshot || "Requirement"} (GL ${line.glCode || "001230"})`;
+      const itemName = line.itemNameSnapshot || "Requirement";
+      const glCode = line.glCode || "001230";
       const allocs = line.allocations || [];
 
       if (allocs.length > 0) {
@@ -2029,20 +2032,18 @@ export function ElliesBookWorkbench({
           rows.push({
             id: alloc.id,
             deliverable: deliverableName,
-            item: itemLabel,
-            vendorSplit: `${alloc.vendorOrWarehouse} · ${alloc.sourceLocation || alloc.sourceCountry}`,
+            item: itemName,
+            glCode,
+            vendor: alloc.vendorOrWarehouse,
+            location: alloc.sourceLocation || alloc.sourceCountry,
             quarter: alloc.quarter,
-            quantity: alloc.quantity,
-            unitCostText:
+            costText: `${alloc.quantity} × ${money(alloc.unitPrice, currency)}`,
+            extraText:
               alloc.additionalCostEstimate > 0
-                ? `${money(alloc.unitPrice, currency)} + ${money(alloc.additionalCostEstimate, currency)} freight`
-                : money(alloc.unitPrice, currency),
+                ? `+ ${money(alloc.additionalCostEstimate, currency)} freight`
+                : "",
             subtotal: allocationSubtotal(alloc),
-            status: hasInvoice
-              ? "Invoice settled"
-              : hasPo
-                ? "Open PO"
-                : "Planned stock",
+            status: hasInvoice ? "Paid" : hasPo ? "Ordered" : "Planned",
             statusTone: hasInvoice
               ? "status-positive"
               : hasPo
@@ -2054,11 +2055,13 @@ export function ElliesBookWorkbench({
         rows.push({
           id: line.id,
           deliverable: deliverableName,
-          item: itemLabel,
-          vendorSplit: "Direct requirement estimate",
+          item: itemName,
+          glCode,
+          vendor: "No supplier yet",
+          location: "Estimate only",
           quarter: line.quarters?.[0] || "Q1",
-          quantity: line.quantity,
-          unitCostText: money(line.unitPrice, currency),
+          costText: `${line.quantity} × ${money(line.unitPrice, currency)}`,
+          extraText: "",
           subtotal: requirementTotal(line),
           status: "Planned",
           statusTone: "status-muted",
@@ -2072,6 +2075,34 @@ export function ElliesBookWorkbench({
     projection.tables.Lifecycle_Lines,
     currency,
   ]);
+
+  // Plain-language KPI helpers (finance terms stay available as tooltips)
+  const approvedRevisions = (activeProject.revisions || [])
+    .filter((r) => r.status === "Approved")
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  const latestApprovedRevision =
+    approvedRevisions[approvedRevisions.length - 1];
+  const approvedOnText = latestApprovedRevision
+    ? new Date(latestApprovedRevision.timestamp).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : null;
+  const supplierCount = new Set(
+    projection.tables.Sourcing_Allocations.map((a) =>
+      String(a.vendor_or_warehouse),
+    ),
+  ).size;
+  const quickCaptureTitle =
+    quickCaptureOpen === "item"
+      ? "Add an item"
+      : quickCaptureOpen === "allocation"
+        ? "Split an item across suppliers"
+        : quickCaptureOpen === "version"
+          ? "Propose or approve a budget change"
+          : "Record a quote, order or invoice";
 
   return (
     <div className="eb-framed-shell">
@@ -2262,7 +2293,7 @@ export function ElliesBookWorkbench({
                   {activeProject.purpose} —{" "}
                   <strong>
                     {money(projection.summary.availableToCommit, currency)}{" "}
-                    remaining to commit
+                    left to spend
                   </strong>{" "}
                   of {money(projection.summary.approvedBudget, currency)}{" "}
                   approved budget.
@@ -2294,314 +2325,353 @@ export function ElliesBookWorkbench({
               </div>
             </header>
 
-            {/* Quick Capture Inline Form (Opens on demand) */}
+            {/* Quick capture: essentials first, optional fields folded away; bottom sheet on phones */}
             {quickCaptureOpen ? (
-              <div
-                className="eb-quick-capture-sheet"
-                role="dialog"
-                aria-label={`Quick capture: ${quickCaptureOpen}`}
-              >
-                <div className="eb-quick-sheet-head">
-                  <strong>
-                    {quickCaptureOpen === "item"
-                      ? "Add Purchase Item Requirement"
-                      : quickCaptureOpen === "allocation"
-                        ? "Add Vendor Sourcing Split"
-                        : quickCaptureOpen === "version"
-                          ? "Propose or Approve Budget Version"
-                          : "Log Quotation, Purchase Order, or Invoice"}
-                  </strong>
-                  <button
-                    type="button"
-                    className="eb-btn-small"
-                    onClick={() => setQuickCaptureOpen(null)}
-                  >
-                    Close
-                  </button>
-                </div>
+              <>
+                <button
+                  type="button"
+                  className="eb-quick-backdrop"
+                  aria-label="Close form"
+                  onClick={() => setQuickCaptureOpen(null)}
+                />
+                <div
+                  className="eb-quick-capture-sheet"
+                  role="dialog"
+                  aria-label={quickCaptureTitle}
+                >
+                  <div className="eb-quick-sheet-head">
+                    <strong>{quickCaptureTitle}</strong>
+                    <button
+                      type="button"
+                      className="eb-btn-small"
+                      onClick={() => setQuickCaptureOpen(null)}
+                    >
+                      Close
+                    </button>
+                  </div>
 
-                {quickCaptureOpen === "item" ? (
-                  <div className="eb-quick-form">
-                    <label>
-                      <span>Requirement description</span>
-                      <input
-                        value={quickItemName}
-                        onChange={(e) => setQuickItemName(e.target.value)}
-                        placeholder="Acrylic Fragrance Tester Tray"
-                      />
-                    </label>
-                    <label>
-                      <span>Specification</span>
-                      <input
-                        value={quickItemSpec}
-                        onChange={(e) => setQuickItemSpec(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      <span>Quantity</span>
-                      <input
-                        type="number"
-                        min="1"
-                        value={quickItemQty}
-                        onChange={(e) =>
-                          setQuickItemQty(Number(e.target.value))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Unit price ({currency})</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={quickItemPrice}
-                        onChange={(e) =>
-                          setQuickItemPrice(Number(e.target.value))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>GL code</span>
-                      <input
-                        value={quickItemGl}
-                        onChange={(e) => setQuickItemGl(e.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="eb-btn-primary"
-                      onClick={handleAddPurchaseItem}
-                    >
-                      Save Item (
-                      {money(quickItemQty * quickItemPrice, currency)})
-                    </button>
-                  </div>
-                ) : quickCaptureOpen === "allocation" ? (
-                  <div className="eb-quick-form">
-                    <label>
-                      <span>Vendor or warehouse</span>
-                      <input
-                        value={quickAllocVendor}
-                        onChange={(e) => setQuickAllocVendor(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      <span>Country</span>
-                      <input
-                        value={quickAllocCountry}
-                        onChange={(e) => setQuickAllocCountry(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      <span>Allocated quantity</span>
-                      <input
-                        type="number"
-                        min="1"
-                        value={quickAllocQty}
-                        onChange={(e) =>
-                          setQuickAllocQty(Number(e.target.value))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Unit price ({currency})</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={quickAllocPrice}
-                        onChange={(e) =>
-                          setQuickAllocPrice(Number(e.target.value))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Freight / extra ({currency})</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="10"
-                        value={quickAllocExtra}
-                        onChange={(e) =>
-                          setQuickAllocExtra(Number(e.target.value))
-                        }
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="eb-btn-primary"
-                      onClick={handleAddAllocation}
-                    >
-                      Save Split (
-                      {money(
-                        quickAllocQty * quickAllocPrice + quickAllocExtra,
-                        currency,
-                      )}
-                      )
-                    </button>
-                  </div>
-                ) : quickCaptureOpen === "version" ? (
-                  <div className="eb-quick-form">
-                    <label>
-                      <span>Authorization state</span>
-                      <select
-                        value={quickVersionState}
-                        onChange={(e) =>
-                          setQuickVersionState(
-                            e.target.value as "Proposed" | "Approved",
-                          )
-                        }
+                  {quickCaptureOpen === "item" ? (
+                    <div className="eb-quick-form">
+                      <label className="is-wide">
+                        <span>What do you need?</span>
+                        <input
+                          value={quickItemName}
+                          onChange={(e) => setQuickItemName(e.target.value)}
+                          placeholder="e.g. Acrylic tester tray"
+                        />
+                      </label>
+                      <label>
+                        <span>Quantity</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          value={quickItemQty}
+                          onChange={(e) =>
+                            setQuickItemQty(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Price per unit ({currency})</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.5"
+                          value={quickItemPrice}
+                          onChange={(e) =>
+                            setQuickItemPrice(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <details className="eb-quick-more">
+                        <summary>More details (optional)</summary>
+                        <div className="eb-quick-form">
+                          <label className="is-wide">
+                            <span>Specification</span>
+                            <input
+                              value={quickItemSpec}
+                              onChange={(e) => setQuickItemSpec(e.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Finance (GL) code</span>
+                            <input
+                              value={quickItemGl}
+                              onChange={(e) => setQuickItemGl(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                      </details>
+                      <button
+                        type="button"
+                        className="eb-btn-primary eb-quick-save"
+                        onClick={handleAddPurchaseItem}
                       >
-                        <option value="Proposed">
-                          Proposed (Pending approval)
-                        </option>
-                        <option value="Approved">
-                          Approved (Updates baseline)
-                        </option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>Version total ({currency})</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={quickVersionTotal}
-                        onChange={(e) =>
-                          setQuickVersionTotal(Number(e.target.value))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Reason</span>
-                      <input
-                        value={quickVersionReason}
-                        onChange={(e) => setQuickVersionReason(e.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="eb-btn-primary"
-                      onClick={handleCreateBudgetVersion}
-                    >
-                      Save Version Snapshot
-                    </button>
-                  </div>
-                ) : (
-                  <div className="eb-quick-form">
-                    <label>
-                      <span>Stage</span>
-                      <select
-                        value={quickExpenseStage}
-                        onChange={(e) =>
-                          setQuickExpenseStage(
-                            e.target.value as
-                              | "Quotation"
-                              | "Purchase order"
-                              | "Invoice",
-                          )
-                        }
+                        Save item · {money(quickItemQty * quickItemPrice, currency)}
+                      </button>
+                    </div>
+                  ) : quickCaptureOpen === "allocation" ? (
+                    <div className="eb-quick-form">
+                      <label className="is-wide">
+                        <span>Supplier or warehouse</span>
+                        <input
+                          value={quickAllocVendor}
+                          onChange={(e) => setQuickAllocVendor(e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        <span>Quantity</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          value={quickAllocQty}
+                          onChange={(e) =>
+                            setQuickAllocQty(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Price per unit ({currency})</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.5"
+                          value={quickAllocPrice}
+                          onChange={(e) =>
+                            setQuickAllocPrice(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <details className="eb-quick-more">
+                        <summary>More details (optional)</summary>
+                        <div className="eb-quick-form">
+                          <label>
+                            <span>Country</span>
+                            <input
+                              value={quickAllocCountry}
+                              onChange={(e) =>
+                                setQuickAllocCountry(e.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>Freight / extra ({currency})</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="10"
+                              value={quickAllocExtra}
+                              onChange={(e) =>
+                                setQuickAllocExtra(Number(e.target.value))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </details>
+                      <button
+                        type="button"
+                        className="eb-btn-primary eb-quick-save"
+                        onClick={handleAddAllocation}
                       >
-                        <option value="Quotation">Quotation</option>
-                        <option value="Purchase order">
-                          Purchase order (Commitment)
-                        </option>
-                        <option value="Invoice">
-                          Invoice / Actual (Settles PO)
-                        </option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>Vendor</span>
-                      <input
-                        value={quickExpenseVendor}
-                        onChange={(e) => setQuickExpenseVendor(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      <span>Amount ({currency})</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="50"
-                        value={quickExpenseAmount}
-                        onChange={(e) =>
-                          setQuickExpenseAmount(Number(e.target.value))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span>Quarter</span>
-                      <select
-                        value={quickExpenseQuarter}
-                        onChange={(e) =>
-                          setQuickExpenseQuarter(
-                            e.target.value as WorkbenchQuarter,
-                          )
-                        }
-                      >
-                        {QUARTERS.map((q) => (
-                          <option key={q} value={q}>
-                            {q}
+                        Save split ·{" "}
+                        {money(
+                          quickAllocQty * quickAllocPrice + quickAllocExtra,
+                          currency,
+                        )}
+                      </button>
+                    </div>
+                  ) : quickCaptureOpen === "version" ? (
+                    <div className="eb-quick-form">
+                      <label className="is-wide">
+                        <span>What should happen?</span>
+                        <select
+                          value={quickVersionState}
+                          onChange={(e) =>
+                            setQuickVersionState(
+                              e.target.value as "Proposed" | "Approved",
+                            )
+                          }
+                        >
+                          <option value="Proposed">
+                            Propose a change (needs approval)
                           </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      className="eb-btn-primary"
-                      onClick={handleLogQuickExpense}
-                    >
-                      Record {quickExpenseStage}
-                    </button>
-                  </div>
-                )}
-              </div>
+                          <option value="Approved">
+                            Approve now (changes the budget)
+                          </option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>New total ({currency})</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="100"
+                          value={quickVersionTotal}
+                          onChange={(e) =>
+                            setQuickVersionTotal(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Reason</span>
+                        <input
+                          value={quickVersionReason}
+                          onChange={(e) => setQuickVersionReason(e.target.value)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="eb-btn-primary eb-quick-save"
+                        onClick={handleCreateBudgetVersion}
+                      >
+                        Save budget change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="eb-quick-form">
+                      <label className="is-wide">
+                        <span>What is it?</span>
+                        <select
+                          value={quickExpenseStage}
+                          onChange={(e) =>
+                            setQuickExpenseStage(
+                              e.target.value as
+                                | "Quotation"
+                                | "Purchase order"
+                                | "Invoice",
+                            )
+                          }
+                        >
+                          <option value="Quotation">Quote (no money yet)</option>
+                          <option value="Purchase order">
+                            Purchase order (money committed)
+                          </option>
+                          <option value="Invoice">Invoice (money paid)</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Supplier</span>
+                        <input
+                          value={quickExpenseVendor}
+                          onChange={(e) => setQuickExpenseVendor(e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        <span>Amount ({currency})</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="50"
+                          value={quickExpenseAmount}
+                          onChange={(e) =>
+                            setQuickExpenseAmount(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <details className="eb-quick-more">
+                        <summary>More details (optional)</summary>
+                        <div className="eb-quick-form">
+                          <label>
+                            <span>Quarter</span>
+                            <select
+                              value={quickExpenseQuarter}
+                              onChange={(e) =>
+                                setQuickExpenseQuarter(
+                                  e.target.value as WorkbenchQuarter,
+                                )
+                              }
+                            >
+                              {QUARTERS.map((q) => (
+                                <option key={q} value={q}>
+                                  {q}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      </details>
+                      <button
+                        type="button"
+                        className="eb-btn-primary eb-quick-save"
+                        onClick={handleLogQuickExpense}
+                      >
+                        Save {quickExpenseStage === "Quotation"
+                          ? "quote"
+                          : quickExpenseStage === "Invoice"
+                            ? "invoice"
+                            : "purchase order"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
             ) : null}
 
-            {/* Divided 4-Column KPI Strip */}
+            {/* KPI strip: plain-language labels; finance terms kept as tooltips for auditors */}
             <div
               className="eb-kpi-strip"
               role="region"
-              aria-label="Project Budget Summary"
+              aria-label="Project budget summary"
             >
-              <div className="eb-kpi-cell eb-kpi-lead">
-                <span className="eb-kpi-label">Available to commit</span>
+              <div
+                className="eb-kpi-cell eb-kpi-lead"
+                title="Finance term: available to commit = approved budget − actuals − open purchase orders"
+              >
+                <span className="eb-kpi-label">Left to spend</span>
                 <strong
                   className={`eb-kpi-figure ${projection.summary.availableToCommit < 0 ? "is-negative" : "is-positive"}`}
                 >
                   {money(projection.summary.availableToCommit, currency)}
                 </strong>
                 <span className="eb-kpi-sub">
-                  Approved {money(projection.summary.approvedBudget, currency)}{" "}
-                  minus actuals &amp; open PO
+                  Budget minus what is paid or ordered
                 </span>
               </div>
 
-              <div className="eb-kpi-cell">
+              <div
+                className="eb-kpi-cell"
+                title={`Latest approved budget version: ${versionGovernance.baselineVersionId || latestApprovedRevision?.id || "none"}`}
+              >
                 <span className="eb-kpi-label">Approved budget</span>
                 <strong className="eb-kpi-figure">
                   {money(projection.summary.approvedBudget, currency)}
                 </strong>
                 <span className="eb-kpi-sub">
-                  Baseline {versionGovernance.baselineVersionId || "ver-posm-1"}{" "}
-                  (Approved)
+                  {approvedOnText
+                    ? `Signed off ${approvedOnText}`
+                    : "Not signed off yet"}
+                  {versionGovernance.latestProposedVersion
+                    ? " · 1 change waiting"
+                    : ""}
                 </span>
               </div>
 
-              <div className="eb-kpi-cell">
+              <div
+                className="eb-kpi-cell"
+                title="Finance term: planned cost = sum of supplier splits (replaces the base estimate)"
+              >
                 <span className="eb-kpi-label">Planned cost</span>
                 <strong className="eb-kpi-figure">
                   {money(projection.summary.plannedTotal, currency)}
                 </strong>
                 <span className="eb-kpi-sub">
-                  {projection.tables.Sourcing_Allocations.length} vendor splits
-                  replace base estimate
+                  Across {supplierCount}{" "}
+                  {supplierCount === 1 ? "supplier" : "suppliers"}
                 </span>
               </div>
 
-              <div className="eb-kpi-cell">
-                <span className="eb-kpi-label">Actuals &amp; open PO</span>
+              <div
+                className="eb-kpi-cell"
+                title="Finance term: actuals + open purchase-order commitments"
+              >
+                <span className="eb-kpi-label">Paid &amp; ordered</span>
                 <strong className="eb-kpi-figure">
                   {money(
                     projection.summary.actualTotal +
@@ -2610,38 +2680,36 @@ export function ElliesBookWorkbench({
                   )}
                 </strong>
                 <span className="eb-kpi-sub">
-                  Settled {money(projection.summary.actualTotal, currency)} ·
-                  Open PO{" "}
-                  {money(projection.summary.openCommitmentTotal, currency)}
+                  Paid {money(projection.summary.actualTotal, currency)} ·
+                  Ordered {money(projection.summary.openCommitmentTotal, currency)}
                 </span>
               </div>
             </div>
 
-            {/* Clean Visual Budget Progress Bar */}
+            {/* Budget progress bar */}
             <div className="eb-progress-block">
               <div className="eb-progress-legend">
-                <span>
+                <span title="Finance term: actuals">
                   <i className="eb-dot eb-dot-actual" />
-                  Actuals settled{" "}
-                  {money(projection.summary.actualTotal, currency)} ({actualPct}
-                  %)
+                  Paid {money(projection.summary.actualTotal, currency)} (
+                  {actualPct}%)
                 </span>
-                <span>
+                <span title="Finance term: open purchase-order commitment">
                   <i className="eb-dot eb-dot-open" />
-                  Open PO commitment{" "}
+                  Ordered, not yet paid{" "}
                   {money(projection.summary.openCommitmentTotal, currency)} (
                   {openPoPct}%)
                 </span>
-                <span>
+                <span title="Finance term: available to commit">
                   <i className="eb-dot eb-dot-avail" />
-                  Remaining headroom{" "}
+                  Still available{" "}
                   {money(projection.summary.availableToCommit, currency)}
                 </span>
               </div>
               <div
                 className="eb-progress-track"
                 role="img"
-                aria-label={`Budget progress: ${actualPct}% actuals, ${openPoPct}% open PO`}
+                aria-label={`Budget used: ${actualPct}% paid, ${openPoPct}% ordered`}
               >
                 <span
                   className="eb-progress-seg eb-seg-actual"
@@ -2685,51 +2753,67 @@ export function ElliesBookWorkbench({
                   </div>
 
                   <div className="eb-table-scroll">
-                    <table className="eb-relational-table">
+                    <table className="eb-relational-table eb-plan-table">
                       <thead>
                         <tr>
-                          <th>Deliverable</th>
-                          <th>Purchase item</th>
-                          <th>Vendor &amp; location</th>
+                          <th>Item</th>
+                          <th>Supplier</th>
                           <th>Quarter</th>
-                          <th className="is-numeric">Quantity</th>
-                          <th>Unit price &amp; freight</th>
-                          <th className="is-numeric">Subtotal</th>
+                          <th className="is-numeric">Quantity × price</th>
+                          <th className="is-numeric">Total</th>
                           <th>Status</th>
-                          <th>Inspect</th>
                         </tr>
                       </thead>
                       <tbody>
                         {overviewPurchaseRows.map((row) => (
                           <tr key={row.id}>
-                            <td>
-                              <strong>{row.deliverable}</strong>
+                            <td data-label="Item">
+                              <button
+                                type="button"
+                                className="eb-link-btn"
+                                title="Show on the workflow map"
+                                onClick={() => jumpToNode(row.id)}
+                              >
+                                {row.item}
+                              </button>
+                              <span className="eb-id-muted">
+                                {row.deliverable} · GL {row.glCode}
+                              </span>
                             </td>
-                            <td>{row.item}</td>
-                            <td>{row.vendorSplit}</td>
-                            <td>{row.quarter}</td>
-                            <td className="is-numeric eb-tabular">
-                              {row.quantity}
+                            <td data-label="Supplier">
+                              <div className="eb-cell">
+                                {row.vendor}
+                                <span className="eb-id-muted">
+                                  {row.location}
+                                </span>
+                              </div>
                             </td>
-                            <td className="eb-tabular">{row.unitCostText}</td>
-                            <td className="is-numeric eb-tabular">
+                            <td data-label="Quarter">{row.quarter}</td>
+                            <td
+                              data-label="Quantity × price"
+                              className="is-numeric eb-tabular"
+                            >
+                              <div className="eb-cell">
+                                {row.costText}
+                                {row.extraText ? (
+                                  <span className="eb-id-muted">
+                                    {row.extraText}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td
+                              data-label="Total"
+                              className="is-numeric eb-tabular"
+                            >
                               <strong>{money(row.subtotal, currency)}</strong>
                             </td>
-                            <td>
+                            <td data-label="Status">
                               <span
                                 className={`status-pill ${row.statusTone}`}
                               >
                                 {row.status}
                               </span>
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className="eb-btn-small"
-                                onClick={() => jumpToNode(row.id)}
-                              >
-                                Map →
-                              </button>
                             </td>
                           </tr>
                         ))}

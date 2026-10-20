@@ -18,3 +18,30 @@
 - **Audit IDs:** still shown, but as secondary `.eb-id-muted` text under the human label.
 - **Verification:** `pnpm run lint` 0 problems · `pnpm run build` OK · 16/16 tests · taste inspector 0 FAIL / 0 WARN at 1440/768/390.
 - **Known follow-ups:** overview plan table still needs horizontal scroll at 1440px (9 columns; Status/Map clipped); KPI sub-labels still use "open PO" / "baseline ver-…" finance terms; quick-capture forms are long on mobile.
+
+
+## Wave 6 — 3 Core Approachability Enhancements (2026-10-20)
+
+- **Status:** completed, verified, ready to commit and push.
+- **Feature 1 (Plan Table Consolidation):**
+  - Consolidated Overview "The plan" table from 9 columns to 6 responsive columns: `Item` | `Supplier` | `Quarter` | `Quantity × price` | `Total` | `Status`.
+  - Item name is an interactive link button (`.eb-link-btn`) that jumps directly into the visual workflow map with that node highlighted.
+  - Deliverable and GL code (`001230`) remain accessible as secondary metadata (`.eb-id-muted`).
+  - Result: 0 horizontal clipping at 1440px desktop; fits seamlessly within the white sheet.
+- **Feature 2 (Plain-Language KPIs & Auditor Tooltips):**
+  - Replaced internal financial jargon in primary metric displays:
+    - "Available to commit" → "Left to spend" ($400.00) · "Budget minus what is paid or ordered".
+    - "Baseline ver-posm-1" → "Approved budget" ($11,600.00) · "Signed off 15 Aug 2026".
+    - "Planned cost" → "Planned cost" ($11,600.00) · "Across 3 suppliers".
+    - "Actuals & open PO" → "Paid & ordered" ($11,200.00) · "Paid $6,500.00 · Ordered $4,700.00".
+    - Progress legend: "Paid $6,500.00 (56%)", "Ordered, not yet paid $4,700.00 (41%)", "Still available $400.00".
+  - Preserved accounting definitions in HTML `title` tooltips for auditors and finance partners.
+- **Feature 3 (Mobile Quick Capture & Progressive Disclosure):**
+  - Refactored all quick-capture dialogs (`item`, `allocation`, `version`, `expense`) to present essentials first.
+  - Folded secondary/advanced fields (GL code, technical specification, origin country, additional freight buffer, quarterly selection) into a clean `<details className="eb-quick-more">` disclosure element.
+  - Implemented responsive bottom-sheet mode on screens `< 680px` with backdrop overlay (`.eb-quick-backdrop`) and comfortable touch targets (`inputMode="decimal"`, `inputMode="numeric"`).
+- **Verification:**
+  - `pnpm run lint`: 0 problems.
+  - `pnpm run build`: successful production bundle (`vinext build`).
+  - Automated tests: 16/16 passing (`tests/budget-domain.test.mjs` and `tests/rendered-html.test.mjs`).
+  - Browser inspector (`inspect.mjs --app http://localhost:3000/ --out .taste-skill/after3`): 0 FAIL, 0 WARN across 1440px, 768px, 390px.
