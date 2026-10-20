@@ -15,8 +15,11 @@ import {
   formatCanonicalTableDelimited,
   formatCanonicalTableMarkdown,
   matchDefinition,
+  parseObsidianVaultBundle,
   requirementTotal,
   safeSpreadsheetText,
+  serializeProjectToObsidianVault,
+  buildHybridSyncReceipt,
   unallocatedQuantity,
   validateRequirementAllocations,
 } from "../app/budget-domain.mjs";
@@ -487,3 +490,245 @@ test("ElliesBookWorkbench and app/page.tsx wire Dual-Mode Node Graph, Obsidian V
   assert.match(cssSource, /\.eb-graph-workspace/);
   assert.match(cssSource, /\.eb-command-bar/);
 });
+
+test("serializeProjectToObsidianVault and parseObsidianVaultBundle deterministically round-trip interlinked Obsidian Markdown vault files with 001230 GL codes, [[wikilinks]], #tags, and canonical tables", () => {
+  const sampleProjectData = {
+    project: {
+      recordId: "proj-rec-posm",
+      id: "MKT-003",
+      name: "FY27 Launch Campaign",
+      functionId: "Marketing & Brand",
+      period: "FY2027",
+      currency: "USD",
+      approvedAmount: 11600,
+    },
+    workPackages: [
+      {
+        id: "wp-general",
+        name: "POSM Production",
+        description: "Print and finish countertop stands",
+      },
+    ],
+    purchaseItems: [{ ...posm, glCode: "001230" }],
+    lifecycleRecords: [
+      {
+        id: "doc-po-1",
+        type: "Purchase order",
+        reference: "PO-2026-001",
+        vendor: "Shenzhen Print Co",
+        date: "2026-10-01",
+        status: "Open commitment",
+      },
+      {
+        id: "doc-inv-1",
+        type: "Invoice",
+        reference: "INV-2026-001",
+        vendor: "Shenzhen Print Co",
+        date: "2026-10-15",
+        status: "Posted",
+      },
+    ],
+    lifecycleLines: [
+      {
+        id: "po-line-1",
+        documentId: "doc-po-1",
+        stage: "PO",
+        amount: 6500,
+        quantity: 600,
+        currency: "USD",
+        spendingLineId: "spend-line-posm",
+        allocationId: "alloc-1",
+        spendQuarter: "Q1",
+      },
+      {
+        id: "inv-line-1",
+        documentId: "doc-inv-1",
+        stage: "Invoice",
+        amount: 6500,
+        quantity: 600,
+        currency: "USD",
+        spendingLineId: "spend-line-posm",
+        allocationId: "alloc-1",
+        spendQuarter: "Q1",
+      },
+    ],
+    lifecycleTransitions: [
+      {
+        id: "tr-1",
+        fromLineId: "po-line-1",
+        toLineId: "inv-line-1",
+        transitionType: "PO->Invoice",
+        convertedAmount: 6500,
+        currency: "USD",
+      },
+    ],
+    knowledgeNotes: [
+      {
+        id: "note-posm-sourcing",
+        projectId: "MKT-003",
+        title: "POSM Multi-Country Split Decision",
+        attachedToType: "Purchase_Items",
+        attachedToId: "spend-line-posm",
+        updatedAt: "2026-10-19T10:30:00Z",
+        content: [
+          "---",
+          "author: Visual merchandising lead",
+          "status: confirmed",
+          "---",
+          "Split [[spend-line-posm|Shelf tester unit]] across [[alloc-1|Shenzhen 600u]] and [[alloc-2|Milan 400u]] under [[wp-general|POSM Production]].",
+          "#posm #sourcing-split #gl-001230",
+        ].join("\n"),
+      },
+    ],
+  };
+
+  const vault = serializeProjectToObsidianVault(sampleProjectData);
+  const filePaths = Object.keys(vault);
+
+  assert.equal(filePaths.includes("00_Project_Overview.md"), true);
+  assert.equal(filePaths.includes("WorkPackages/wp-general.md"), true);
+  assert.equal(filePaths.includes("PurchaseItems/spend-line-posm.md"), true);
+  assert.equal(filePaths.includes("Documents/doc-po-1.md"), true);
+  assert.equal(filePaths.includes("Documents/doc-inv-1.md"), true);
+  assert.equal(filePaths.includes("Notes/note-posm-sourcing.md"), true);
+
+  // Verify 00_Project_Overview.md frontmatter, tables, and [[wikilinks]]
+  const overviewMd = vault["00_Project_Overview.md"];
+  assert.match(overviewMd, /^---\n[\s\S]*project_id: MKT-003[\s\S]*approved_budget: 11600[\s\S]*---/);
+  assert.match(overviewMd, /\[\[wp-general\|POSM Production\]\]/);
+  assert.match(overviewMd, /\[\[spend-line-posm\|Shelf tester unit\]\]/);
+  assert.match(overviewMd, /\[\[doc-po-1\|PO-2026-001\]\]/);
+  assert.match(overviewMd, /\[\[note-posm-sourcing\|POSM Multi-Country Split Decision\]\]/);
+
+  // Verify PurchaseItems/spend-line-posm.md preserves GL code "001230" and 3 perspectives + allocations table
+  const itemMd = vault["PurchaseItems/spend-line-posm.md"];
+  assert.match(itemMd, /gl_code: "001230"/);
+  assert.match(itemMd, /001230/);
+  assert.match(itemMd, /Operational View/);
+  assert.match(itemMd, /Managerial View/);
+  assert.match(itemMd, /Accounting View/);
+  assert.match(itemMd, /Shenzhen Print Co/);
+  assert.match(itemMd, /\[\[alloc-1\|Shenzhen Print Co\]\]/);
+
+  // Round-trip parse via parseObsidianVaultBundle
+  const parsedBundle = parseObsidianVaultBundle(vault);
+  assert.equal(parsedBundle.project.id, "MKT-003");
+  assert.equal(parsedBundle.project.approvedBudget, 11600);
+  assert.equal(parsedBundle.purchaseItems.length, 1);
+  assert.equal(parsedBundle.purchaseItems[0].glCode, "001230");
+  assert.equal(parsedBundle.knowledgeNotes.length, 1);
+
+  const roundTrippedNote = parsedBundle.knowledgeNotes[0];
+  assert.equal(roundTrippedNote.id, "note-posm-sourcing");
+  assert.equal(roundTrippedNote.title, "POSM Multi-Country Split Decision");
+  assert.equal(roundTrippedNote.attachedToId, "spend-line-posm");
+  assert.equal(roundTrippedNote.frontmatter.author, "Visual merchandising lead");
+  assert.equal(
+    roundTrippedNote.targets.includes("spend-line-posm") &&
+      roundTrippedNote.targets.includes("alloc-1") &&
+      roundTrippedNote.targets.includes("wp-general"),
+    true,
+  );
+  assert.equal(roundTrippedNote.tags.includes("posm"), true);
+  assert.equal(roundTrippedNote.tags.includes("gl-001230"), true);
+  assert.equal(
+    parsedBundle.backlinkIndex.byTarget["spend-line-posm"].length >= 1,
+    true,
+  );
+});
+
+test("buildHybridSyncReceipt and /api/sync route normalize 11 canonical tables, validate allocations, and return deterministic sync receipts", async () => {
+  const payload = {
+    project: {
+      recordId: "proj-rec-posm",
+      id: "MKT-003",
+      name: "FY27 Launch Campaign",
+      functionId: "Marketing & Brand",
+      period: "FY2027",
+      currency: "USD",
+      approvedAmount: 11600,
+    },
+    workPackages: [{ id: "wp-general", name: "General" }],
+    purchaseItems: [{ ...posm, glCode: "001230" }],
+    knowledgeNotes: [
+      {
+        id: "note-1",
+        projectId: "MKT-003",
+        title: "Sync Note",
+        content: "Linked to [[spend-line-posm]] #sync",
+      },
+    ],
+    viewState: {
+      "wp-general": { x: 120, y: 200, collapsed: false },
+    },
+  };
+
+  const receipt1 = buildHybridSyncReceipt(payload, {
+    timestamp: "2026-10-20T08:00:00.000Z",
+  });
+  const receipt2Moved = buildHybridSyncReceipt(
+    {
+      ...payload,
+      viewState: {
+        "wp-general": { x: 8888, y: -3333, collapsed: true },
+      },
+    },
+    {
+      timestamp: "2026-10-20T08:00:00.000Z",
+    },
+  );
+
+  assert.equal(receipt1.ok, true);
+  assert.equal(receipt1.mode, "local-first-verified");
+  assert.equal(receipt1.timestamp, "2026-10-20T08:00:00.000Z");
+  assert.equal(typeof receipt1.checksum, "string");
+  assert.equal(receipt1.checksum.length >= 8, true);
+  // Checksum is invariant to canvas (x, y) coordinates and collapse state
+  assert.equal(receipt1.checksum, receipt2Moved.checksum);
+
+  for (const tableName of CANONICAL_TABLE_NAMES) {
+    assert.equal(typeof receipt1.rowCounts[tableName], "number");
+  }
+  assert.equal(receipt1.rowCounts.Project, 1);
+  assert.equal(receipt1.rowCounts.Purchase_Items, 1);
+  assert.equal(receipt1.rowCounts.Sourcing_Allocations, 3);
+  assert.equal(receipt1.allAllocationsValid, true);
+
+  // Over-allocated requirement fails validation in sync receipt
+  const invalidReceipt = buildHybridSyncReceipt({
+    ...payload,
+    purchaseItems: [
+      {
+        ...posm,
+        quantity: 500, // less than 1200 allocated
+      },
+    ],
+  });
+  assert.equal(invalidReceipt.ok, false);
+  assert.equal(invalidReceipt.allAllocationsValid, false);
+  assert.equal(invalidReceipt.status, "validation-error");
+
+  // Verify app/api/sync/route.ts contract and ElliesBookWorkbench Vault & Sync controls
+  const syncRouteSource = await readFile(
+    new URL("../app/api/sync/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(syncRouteSource, /export async function GET/);
+  assert.match(syncRouteSource, /export async function POST/);
+  assert.match(syncRouteSource, /buildProjectGraphProjection/);
+  assert.match(syncRouteSource, /validateRequirementAllocations/);
+  assert.match(syncRouteSource, /buildHybridSyncReceipt/);
+  assert.match(syncRouteSource, /getDb/);
+
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(workbenchSource, /serializeProjectToObsidianVault/);
+  assert.match(workbenchSource, /parseObsidianVaultBundle/);
+  assert.match(workbenchSource, /buildHybridSyncReceipt/);
+  assert.match(workbenchSource, /\/api\/sync/);
+  assert.match(workbenchSource, /00_Project_Overview\.md/);
+  assert.match(workbenchSource, /Hybrid Sync Snapshot/);
+});
+

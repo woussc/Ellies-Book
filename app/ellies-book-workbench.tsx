@@ -12,6 +12,7 @@ import {
   allocatedQuantity,
   allocationSubtotal,
   buildBacklinkIndex,
+  buildHybridSyncReceipt,
   buildProjectGraphProjection,
   computeLifecycleLineage,
   createBudgetVersion,
@@ -19,8 +20,10 @@ import {
   extractWikilinks,
   formatCanonicalTableDelimited,
   formatCanonicalTableMarkdown,
+  parseObsidianVaultBundle,
   requirementTotal,
   safeSpreadsheetText,
+  serializeProjectToObsidianVault,
   unallocatedQuantity,
   validateRequirementAllocations,
 } from "./budget-domain.mjs";
@@ -820,14 +823,14 @@ export function ElliesBookWorkbench({
       return data.projects;
     }
     return SEED_PROJECTS;
-  }, [data?.projects]);
+  }, [data]);
 
   const effectiveDocuments = useMemo<WorkbenchDocument[]>(() => {
     if (Array.isArray(data?.documents) && data.documents.length > 0) {
       return data.documents;
     }
     return SEED_DOCUMENTS;
-  }, [data?.documents]);
+  }, [data]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>("MKT-003");
   const activeProject = useMemo<WorkbenchProject>(() => {
@@ -912,9 +915,20 @@ export function ElliesBookWorkbench({
   const [quickExpenseQuarter, setQuickExpenseQuarter] = useState<WorkbenchQuarter>("Q1");
 
   const currency = data?.settings?.currency || activeProject?.approvedCurrency || "USD";
+  const [selectedVaultFile, setSelectedVaultFile] = useState<string>(
+    "00_Project_Overview.md",
+  );
+  const [syncNotice, setSyncNotice] = useState<string>("");
+  const [lastSyncReceipt, setLastSyncReceipt] = useState<{
+    mode: string;
+    checksum: string;
+    timestamp: string;
+    totalRows: number;
+    vaultFileCount: number;
+  } | null>(null);
 
-  // Build governed input payload for buildProjectGraphProjection
-  const projection = useMemo<GraphProjectionResult>(() => {
+  // Build governed input payload for buildProjectGraphProjection, serializeProjectToObsidianVault, and buildHybridSyncReceipt
+  const governedPayload = useMemo(() => {
     const projId = activeProject.id;
     const projectDocs = effectiveDocuments.filter((doc) =>
       doc.lines.some((line) => line.projectId === projId),
@@ -1035,7 +1049,7 @@ export function ElliesBookWorkbench({
     const projectNotes = notes.filter((n) => n.projectId === projId);
     const projectAudit = auditEvents.filter((ev) => ev.projectId === projId);
 
-    return buildProjectGraphProjection({
+    return {
       project: {
         recordId: activeProject.recordId,
         id: activeProject.id,
@@ -1055,7 +1069,7 @@ export function ElliesBookWorkbench({
       knowledgeNotes: projectNotes,
       auditEvents: projectAudit,
       viewState: nodeViewState,
-    }) as GraphProjectionResult;
+    };
   }, [
     activeProject,
     effectiveDocuments,
@@ -1066,6 +1080,26 @@ export function ElliesBookWorkbench({
     auditEvents,
     nodeViewState,
   ]);
+
+  const projection = useMemo<GraphProjectionResult>(
+    () => buildProjectGraphProjection(governedPayload) as GraphProjectionResult,
+    [governedPayload],
+  );
+
+  const obsidianVaultFiles = useMemo<Record<string, string>>(
+    () => serializeProjectToObsidianVault(governedPayload) as Record<string, string>,
+    [governedPayload],
+  );
+
+  const parsedVaultBundle = useMemo(
+    () => parseObsidianVaultBundle(obsidianVaultFiles),
+    [obsidianVaultFiles],
+  );
+
+  const liveSyncReceipt = useMemo(
+    () => buildHybridSyncReceipt(governedPayload),
+    [governedPayload],
+  );
 
   // Budget Version governance state
   const versionGovernance = useMemo(
@@ -1651,6 +1685,85 @@ export function ElliesBookWorkbench({
     }
   };
 
+  // Download or Copy Obsidian Markdown Vault Bundle
+  const handleDownloadObsidianVault = () => {
+    const bundleText = Object.entries(obsidianVaultFiles)
+      .map(([path, content]) => `<!-- OBSIDIAN_VAULT_FILE: ${path} -->\n${content}`)
+      .join("\n\n---\n\n");
+    const blob = new Blob([bundleText], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `ellies-book-vault-${activeProject.id.toLowerCase()}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setSyncNotice(
+      `Downloaded Obsidian Vault bundle (${Object.keys(obsidianVaultFiles).length} .md files · ${parsedVaultBundle.knowledgeNotes.length} notes)`,
+    );
+  };
+
+  const handleCopyObsidianVaultFile = async (filePath: string) => {
+    const content =
+      obsidianVaultFiles[filePath] ||
+      obsidianVaultFiles["00_Project_Overview.md"] ||
+      "";
+    try {
+      await navigator.clipboard.writeText(content);
+      setSyncNotice(`Copied ${filePath} to clipboard`);
+    } catch {
+      setSyncNotice(`Selected ${filePath} ready for inspection`);
+    }
+  };
+
+  // 1-Click Hybrid Sync Snapshot (Local-First Storage + /api/sync Drizzle D1 Validation Receipt)
+  const handleHybridSyncSnapshot = async () => {
+    const fallbackReceipt = buildHybridSyncReceipt(governedPayload);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          `ellies-book-vault-sync-${activeProject.id}`,
+          JSON.stringify({
+            receipt: fallbackReceipt,
+            vaultFiles: obsidianVaultFiles,
+          }),
+        );
+      }
+      const response = await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(governedPayload),
+      });
+      if (response.ok) {
+        const remoteReceipt = await response.json();
+        setLastSyncReceipt({
+          mode: String(remoteReceipt.mode || fallbackReceipt.mode),
+          checksum: String(remoteReceipt.checksum || fallbackReceipt.checksum),
+          timestamp: String(remoteReceipt.timestamp || fallbackReceipt.timestamp),
+          totalRows: Number(remoteReceipt.totalRows ?? fallbackReceipt.totalRows),
+          vaultFileCount: Number(
+            remoteReceipt.vaultFileCount ?? fallbackReceipt.vaultFileCount,
+          ),
+        });
+        setSyncNotice(
+          `Hybrid Sync Snapshot verified (${remoteReceipt.mode || fallbackReceipt.mode} · Checksum ${remoteReceipt.checksum || fallbackReceipt.checksum})`,
+        );
+        return;
+      }
+    } catch {
+      // Fallback to verified local-first receipt when offline
+    }
+    setLastSyncReceipt({
+      mode: fallbackReceipt.mode,
+      checksum: fallbackReceipt.checksum,
+      timestamp: fallbackReceipt.timestamp,
+      totalRows: fallbackReceipt.totalRows,
+      vaultFileCount: fallbackReceipt.vaultFileCount,
+    });
+    setSyncNotice(
+      `Hybrid Sync Snapshot saved locally (${fallbackReceipt.mode} · Checksum ${fallbackReceipt.checksum})`,
+    );
+  };
+
   // Filtered rows for active canonical table
   const filteredTableRows = useMemo(() => {
     const rows = projection.tables[activeTable] || [];
@@ -1688,7 +1801,7 @@ export function ElliesBookWorkbench({
       activeProject.lines.find((l) => l.id === (itemRow?.spending_line_id ?? "")) ??
       activeProject.lines[0];
     const allocValidation = validateRequirementAllocations(rawItem || {});
-    const allocQty = allocatedQuantity(rawItem || {});
+    const allocQty = allocatedQuantity(rawItem?.allocations || []);
     const unallocQty = unallocatedQuantity(rawItem || {});
 
     const glCodeString = String(
@@ -2333,6 +2446,85 @@ export function ElliesBookWorkbench({
                       </div>
                     </div>
                   </div>
+
+                  {/* Obsidian Vault Bundle Explorer & Hybrid Cloud Sync Panel */}
+                  <div className="eb-backlink-explorer" aria-label="Obsidian Vault Bundle and Hybrid Cloud Sync">
+                    <div className="eb-vault-editor-head">
+                      <div>
+                        <span className="eyebrow">
+                          Obsidian Vault Bundle ({Object.keys(obsidianVaultFiles).length} .md files) &amp; Drizzle D1 Sync
+                        </span>
+                        <strong>
+                          Checksum: <code>{(lastSyncReceipt ?? liveSyncReceipt).checksum}</code> · Mode:{" "}
+                          <code>{(lastSyncReceipt ?? liveSyncReceipt).mode}</code>
+                        </strong>
+                      </div>
+                      <div className="eb-mode-pills">
+                        <button
+                          type="button"
+                          className="eb-btn-secondary"
+                          onClick={() =>
+                            handleCopyObsidianVaultFile(
+                              selectedVaultFile in obsidianVaultFiles
+                                ? selectedVaultFile
+                                : "00_Project_Overview.md",
+                            )
+                          }
+                        >
+                          Copy Active .md
+                        </button>
+                        <button
+                          type="button"
+                          className="eb-btn-secondary"
+                          onClick={handleDownloadObsidianVault}
+                        >
+                          Download Obsidian Vault (.md)
+                        </button>
+                        <button
+                          type="button"
+                          className="eb-btn-primary"
+                          onClick={handleHybridSyncSnapshot}
+                        >
+                          Hybrid Sync Snapshot
+                        </button>
+                      </div>
+                    </div>
+
+                    {syncNotice ? (
+                      <p className="eb-export-notice" role="status">
+                        {syncNotice}
+                      </p>
+                    ) : null}
+
+                    <div className="eb-tag-filter-row" role="tablist" aria-label="Generated Obsidian Vault Markdown files">
+                      {Object.keys(obsidianVaultFiles).map((filePath) => {
+                        const isActiveFile =
+                          (selectedVaultFile in obsidianVaultFiles
+                            ? selectedVaultFile
+                            : "00_Project_Overview.md") === filePath;
+                        return (
+                          <button
+                            key={filePath}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActiveFile}
+                            className={`eb-tag-chip ${isActiveFile ? "is-active" : ""}`}
+                            onClick={() => setSelectedVaultFile(filePath)}
+                          >
+                            {filePath}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <pre className="eb-markdown-preview" style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono), monospace", fontSize: "11.5px", maxHeight: "220px", overflow: "auto", margin: 0 }}>
+                      {obsidianVaultFiles[
+                        selectedVaultFile in obsidianVaultFiles
+                          ? selectedVaultFile
+                          : "00_Project_Overview.md"
+                      ] || ""}
+                    </pre>
+                  </div>
                 </div>
               </div>
             ) : outlineFallback ? (
@@ -2370,9 +2562,16 @@ export function ElliesBookWorkbench({
                       <div
                         key={node.id}
                         role="treeitem"
+                        tabIndex={0}
                         aria-selected={selectedNode?.id === node.id}
                         className={`eb-outline-row eb-depth-${depth} ${selectedNode?.id === node.id ? "is-selected" : ""}`}
                         onClick={() => setSelectedNodeId(node.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedNodeId(node.id);
+                          }
+                        }}
                       >
                         <div className="eb-outline-main">
                           <span className={`eb-node-badge ${NODE_TYPE_META[node.nodeType]?.toneClass || ""}`}>
@@ -2934,8 +3133,16 @@ export function ElliesBookWorkbench({
                   return (
                     <div
                       key={String(alloc.allocation_id)}
+                      role="button"
+                      tabIndex={0}
                       className="eb-bar-row"
                       onClick={() => jumpToNode(String(alloc.allocation_id))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          jumpToNode(String(alloc.allocation_id));
+                        }
+                      }}
                     >
                       <div className="eb-bar-row-top">
                         <strong>
@@ -3390,7 +3597,8 @@ export function ElliesBookWorkbench({
           <span className="eb-command-kicker">On-the-Fly Command Bar (390px–1440px)</span>
           <strong>
             Active: <code>{selectedNode?.id}</code> · Headroom{" "}
-            {money(projection.summary.availableToCommit, currency)}
+            {money(projection.summary.availableToCommit, currency)} · Sync{" "}
+            <code>{(lastSyncReceipt ?? liveSyncReceipt).checksum}</code>
           </strong>
         </div>
 
@@ -3420,6 +3628,14 @@ export function ElliesBookWorkbench({
             onClick={() => setQuickCaptureOpen("version")}
           >
             + Propose Version
+          </button>
+
+          <button
+            type="button"
+            className="eb-cmd-btn"
+            onClick={handleHybridSyncSnapshot}
+          >
+            Hybrid Sync Snapshot ({Object.keys(obsidianVaultFiles).length} .md)
           </button>
 
           {versionGovernance.latestProposedVersion ? (

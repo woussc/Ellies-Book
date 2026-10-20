@@ -3,11 +3,13 @@ export function allocationSubtotal(allocation) {
 }
 
 export function allocationTotal(allocations = []) {
-  return allocations.reduce((total, allocation) => total + allocationSubtotal(allocation), 0);
+  const list = Array.isArray(allocations) ? allocations : (allocations?.allocations || []);
+  return list.reduce((total, allocation) => total + allocationSubtotal(allocation), 0);
 }
 
 export function allocatedQuantity(allocations = []) {
-  return allocations.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0);
+  const list = Array.isArray(allocations) ? allocations : (allocations?.allocations || []);
+  return list.reduce((total, allocation) => total + Number(allocation.quantity || 0), 0);
 }
 
 export function requirementTotal(requirement) {
@@ -971,6 +973,646 @@ export function formatCanonicalTableMarkdown(tables = {}, tableName = "ALL") {
     })
     .join("\n\n");
 }
+
+function formatMarkdownTableFromRows(rows = [], columns = []) {
+  const effectiveCols =
+    columns.length > 0
+      ? columns
+      : rows.length > 0
+        ? Object.keys(rows[0])
+        : ["status"];
+  const effectiveRows = rows.length > 0 ? rows : [{ status: "—" }];
+  const headerLine = `| ${effectiveCols.join(" | ")} |`;
+  const dividerLine = `| ${effectiveCols.map(() => "---").join(" | ")} |`;
+  const bodyLines = effectiveRows.map(
+    (row) =>
+      `| ${effectiveCols
+        .map((col) => {
+          const val = row[col];
+          const raw = Array.isArray(val) ? val.join(", ") : val ?? "—";
+          return (
+            safeSpreadsheetText(raw)
+              .replaceAll("|", "\\|")
+              .replaceAll("\n", " ") || "—"
+          );
+        })
+        .join(" | ")} |`,
+  );
+  return [headerLine, dividerLine, ...bodyLines].join("\n");
+}
+
+export function serializeProjectToObsidianVault(projectData = {}) {
+  const projection = buildProjectGraphProjection(projectData);
+  const projectRow = projection.tables.Project[0] || {
+    record_id: "proj-rec-default",
+    project_id: "PROJ-0001",
+    name: "Untitled Project",
+    function_id: "fn-default",
+    period: "FY27",
+    currency: "USD",
+    approved_budget: 0,
+    planned_total: 0,
+    open_commitment: 0,
+    actual_total: 0,
+    available_to_commit: 0,
+    forecast_spend: 0,
+    projected_headroom: 0,
+  };
+
+  const projectId = String(projectRow.project_id);
+  const projectName = String(projectRow.name);
+  const currency = String(projectRow.currency || "USD");
+  const workPackages = projection.tables.Work_Packages || [];
+  const purchaseItems = projection.tables.Purchase_Items || [];
+  const sourcingAllocations = projection.tables.Sourcing_Allocations || [];
+  const lifecycleRecords = projection.tables.Lifecycle_Records || [];
+  const lifecycleLines = projection.tables.Lifecycle_Lines || [];
+  const lifecycleTransitions = projection.tables.Lifecycle_Transitions || [];
+  const rawNotes = Array.isArray(projectData.knowledgeNotes || projectData.notes)
+    ? projectData.knowledgeNotes || projectData.notes
+    : [];
+
+  const vaultMap = {};
+
+  // 1. 00_Project_Overview.md
+  const wpLinks = workPackages
+    .map(
+      (wp) =>
+        `- [[${wp.work_package_id}|${wp.name}]] — Planned: ${wp.planned_total} ${currency} (${wp.item_count} item(s))`,
+    )
+    .join("\n");
+  const itemLinks = purchaseItems
+    .map(
+      (item) =>
+        `- [[${item.spending_line_id}|${item.description || item.spending_line_id}]] — GL: \`"${String(item.gl_code || "001230")}"\` · Planned: ${item.planned_total} ${currency}`,
+    )
+    .join("\n");
+  const docLinks = lifecycleRecords
+    .map(
+      (doc) =>
+        `- [[${doc.document_id}|${doc.reference || doc.document_id}]] — ${doc.type} (${doc.vendor || "Vendor"} · ${doc.total_amount} ${doc.currency})`,
+    )
+    .join("\n");
+  const noteLinks = rawNotes
+    .map((n, idx) => {
+      const nId = String(n.id || n.note_id || `note-${idx + 1}`);
+      const nTitle = String(n.title || nId);
+      const attachedId = String(n.attachedToId || n.attached_to_id || projectId);
+      return `- [[${nId}|${nTitle}]] → Attached to [[${attachedId}]]`;
+    })
+    .join("\n");
+
+  const periodTag = String(projectRow.period || "fy27")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "");
+
+  vaultMap["00_Project_Overview.md"] = [
+    "---",
+    "entity_type: Project",
+    `record_id: ${projectRow.record_id}`,
+    `project_id: ${projectId}`,
+    `name: "${projectName.replaceAll('"', '\\"')}"`,
+    `function_id: "${String(projectRow.function_id).replaceAll('"', '\\"')}"`,
+    `period: ${projectRow.period}`,
+    `currency: ${currency}`,
+    `approved_budget: ${projectRow.approved_budget}`,
+    `planned_total: ${projectRow.planned_total}`,
+    `open_commitment: ${projectRow.open_commitment}`,
+    `actual_total: ${projectRow.actual_total}`,
+    `available_to_commit: ${projectRow.available_to_commit}`,
+    `forecast_spend: ${projectRow.forecast_spend}`,
+    `projected_headroom: ${projectRow.projected_headroom}`,
+    "---",
+    `# ${projectId} — ${projectName}`,
+    "",
+    `#ellies-book #project #${periodTag || "fy27"}`,
+    "",
+    "## Financial Headroom Summary",
+    formatMarkdownTableFromRows([projectRow], [
+      "project_id",
+      "approved_budget",
+      "planned_total",
+      "open_commitment",
+      "actual_total",
+      "available_to_commit",
+      "forecast_spend",
+      "projected_headroom",
+    ]),
+    "",
+    "## Work Packages",
+    wpLinks || "- —",
+    "",
+    formatCanonicalTableMarkdown(projection.tables, "Work_Packages"),
+    "",
+    "## Purchase Items (Operational, Managerial & Accounting)",
+    itemLinks || "- —",
+    "",
+    formatCanonicalTableMarkdown(projection.tables, "Purchase_Items"),
+    "",
+    "## Lifecycle Documents & Commitment Lineage",
+    docLinks || "- —",
+    "",
+    formatCanonicalTableMarkdown(projection.tables, "Lifecycle_Records"),
+    "",
+    "## Knowledge Notes",
+    noteLinks || "- —",
+  ].join("\n");
+
+  // 2. WorkPackages/<wp_id>.md
+  for (const wp of workPackages) {
+    const wpId = String(wp.work_package_id);
+    const wpItems = purchaseItems.filter((it) => it.work_package_id === wpId);
+    const wpItemLinks = wpItems
+      .map(
+        (it) =>
+          `- [[${it.spending_line_id}|${it.description || it.spending_line_id}]] (${it.planned_total} ${currency} · GL \`"${it.gl_code || "001230"}"\`)`,
+      )
+      .join("\n");
+
+    vaultMap[`WorkPackages/${wpId}.md`] = [
+      "---",
+      "entity_type: WorkPackage",
+      `work_package_id: ${wpId}`,
+      `project_id: ${projectId}`,
+      `name: "${String(wp.name || "General").replaceAll('"', '\\"')}"`,
+      `description: "${String(wp.description || "").replaceAll('"', '\\"')}"`,
+      `planned_total: ${wp.planned_total}`,
+      `item_count: ${wp.item_count}`,
+      "---",
+      `# Work Package: ${wp.name} (${wpId})`,
+      "",
+      `Parent Project: [[${projectId}|${projectName}]]`,
+      "#work-package #ellies-book",
+      "",
+      "## Contained Purchase Items",
+      wpItemLinks || "- —",
+      "",
+      formatMarkdownTableFromRows(wpItems, [
+        "spending_line_id",
+        "description",
+        "quantity",
+        "unit_price",
+        "planned_total",
+        "gl_code",
+      ]),
+    ].join("\n");
+  }
+
+  // 3. PurchaseItems/<spending_line_id>.md
+  for (const item of purchaseItems) {
+    const itemId = String(item.spending_line_id);
+    const glCodeStr = String(item.gl_code || "001230");
+    const itemAllocs = sourcingAllocations.filter((a) => a.spending_line_id === itemId);
+    const itemLines = lifecycleLines.filter((l) => l.spending_line_id === itemId);
+    const itemNotes = rawNotes.filter(
+      (n) =>
+        String(n.attachedToId || n.attached_to_id) === itemId ||
+        extractWikilinks(n.content || n.markdown || "").targets.includes(itemId),
+    );
+
+    const allocBulletLinks = itemAllocs
+      .map(
+        (a) =>
+          `- [[${a.allocation_id}|${a.vendor_or_warehouse || a.allocation_id}]] (${a.source_country || "Global"} · ${a.quantity}u @ ${a.unit_price} ${a.currency} + ${a.additional_cost_estimate} extra = ${a.subtotal} ${a.currency})`,
+      )
+      .join("\n");
+
+    const docLineBulletLinks = itemLines
+      .map(
+        (l) =>
+          `- [[${l.document_line_id}|${l.stage}: ${l.document_line_id}]] (${l.amount} ${l.currency} · Open Commitment: ${l.open_commitment} ${l.currency})`,
+      )
+      .join("\n");
+
+    const noteBulletLinks = itemNotes
+      .map((n, idx) => {
+        const nId = String(n.id || n.note_id || `note-${idx + 1}`);
+        return `- [[${nId}|${n.title || nId}]]`;
+      })
+      .join("\n");
+
+    vaultMap[`PurchaseItems/${itemId}.md`] = [
+      "---",
+      "entity_type: PurchaseItem",
+      `spending_line_id: ${itemId}`,
+      `project_id: ${projectId}`,
+      `work_package_id: ${item.work_package_id}`,
+      `description: "${String(item.description || "").replaceAll('"', '\\"')}"`,
+      `specification: "${String(item.specification || "").replaceAll('"', '\\"')}"`,
+      `unit_of_measure: "${String(item.unit_of_measure || "unit").replaceAll('"', '\\"')}"`,
+      `quantity: ${item.quantity}`,
+      `unit_price: ${item.unit_price}`,
+      `planned_total: ${item.planned_total}`,
+      `allocated_quantity: ${item.allocated_quantity}`,
+      `unallocated_quantity: ${item.unallocated_quantity}`,
+      `gl_code: "${glCodeStr}"`,
+      "---",
+      `# Purchase Item: ${item.description || itemId} (${itemId})`,
+      "",
+      `Project: [[${projectId}|${projectName}]] · Work Package: [[${item.work_package_id}]]`,
+      `#purchase-item #gl-${glCodeStr}`,
+      "",
+      "## 1. Operational View",
+      `- **Item Description**: ${item.description || itemId}`,
+      `- **Specification**: ${item.specification || "Standard specification"}`,
+      `- **Required Quantity**: ${item.quantity} ${item.unit_of_measure}`,
+      `- **Sourcing Allocations (${itemAllocs.length})**:`,
+      allocBulletLinks || "- Base estimate (Quantity × Unit Price)",
+      "",
+      "## 2. Managerial View",
+      `- **Project Initiative**: [[${projectId}|${projectName}]]`,
+      `- **Work Package Stream**: [[${item.work_package_id}]]`,
+      `- **Requirement Planned Total**: ${item.planned_total} ${currency}`,
+      `- **Quantity Reconciliation**: ${item.allocated_quantity} allocated / ${item.quantity} required (${item.unallocated_quantity} unallocated)`,
+      "",
+      "## 3. Accounting View",
+      `- **Official GL Code (String-Preserved)**: \`"${glCodeStr}"\``,
+      `- **Reporting Currency**: ${currency}`,
+      `- **Governance Rule**: Contextual human confirmation required; allocations replace parent estimate without double counting.`,
+      "",
+      "## Sourcing Allocations Table",
+      formatMarkdownTableFromRows(itemAllocs, [
+        "allocation_id",
+        "vendor_or_warehouse",
+        "source_country",
+        "source_type",
+        "quantity",
+        "unit_price",
+        "additional_cost_estimate",
+        "subtotal",
+        "quarter",
+      ]),
+      "",
+      "## Linked Lifecycle Lines & Knowledge Notes",
+      docLineBulletLinks || "- No lifecycle lines attached yet.",
+      noteBulletLinks || "- No knowledge notes attached yet.",
+    ].join("\n");
+  }
+
+  // 4. Documents/<document_id>.md
+  for (const doc of lifecycleRecords) {
+    const docId = String(doc.document_id);
+    const docLines = lifecycleLines.filter((l) => l.document_id === docId);
+    const docLineIds = new Set(docLines.map((l) => l.document_line_id));
+    const docTransitions = lifecycleTransitions.filter(
+      (tr) => docLineIds.has(tr.from_line_id) || docLineIds.has(tr.to_line_id),
+    );
+
+    const linkedTargets = docLines
+      .map(
+        (l) =>
+          `- Line \`${l.document_line_id}\` (${l.stage}) → Item [[${l.spending_line_id}]]${l.allocation_id ? ` · Allocation [[${l.allocation_id}]]` : ""} (${l.amount} ${l.currency} · Open Commitment: ${l.open_commitment} ${l.currency})`,
+      )
+      .join("\n");
+
+    const transitionBullets = docTransitions
+      .map(
+        (tr) =>
+          `- \`${tr.transition_id}\`: [[${tr.from_line_id}]] → [[${tr.to_line_id}]] (${tr.transition_type} · Converted: ${tr.converted_amount} ${tr.currency})`,
+      )
+      .join("\n");
+
+    vaultMap[`Documents/${docId}.md`] = [
+      "---",
+      "entity_type: LifecycleRecord",
+      `document_id: ${docId}`,
+      `project_id: ${projectId}`,
+      `type: "${String(doc.type || "Purchase order").replaceAll('"', '\\"')}"`,
+      `reference: "${String(doc.reference || docId).replaceAll('"', '\\"')}"`,
+      `vendor: "${String(doc.vendor || "").replaceAll('"', '\\"')}"`,
+      `date: "${String(doc.date || "")}"`,
+      `status: "${String(doc.status || "Draft").replaceAll('"', '\\"')}"`,
+      `total_amount: ${doc.total_amount}`,
+      `currency: ${doc.currency}`,
+      "---",
+      `# Lifecycle Document: ${doc.reference || docId} (${doc.type})`,
+      "",
+      `Project: [[${projectId}|${projectName}]] · Vendor: ${doc.vendor || "—"} · Status: ${doc.status}`,
+      "#lifecycle-document #commitment-lineage",
+      "",
+      "## Attributed Spend Lines",
+      linkedTargets || "- —",
+      "",
+      formatMarkdownTableFromRows(docLines, [
+        "document_line_id",
+        "stage",
+        "spending_line_id",
+        "allocation_id",
+        "quantity",
+        "amount",
+        "open_commitment",
+        "spend_quarter",
+      ]),
+      "",
+      "## Commitment Progression Transitions",
+      transitionBullets || "- —",
+    ].join("\n");
+  }
+
+  // 5. Notes/<note_id>.md
+  rawNotes.forEach((note, idx) => {
+    const noteId = String(note.id || note.note_id || `note-${idx + 1}`);
+    const noteTitle = String(note.title || noteId);
+    const attachedToType = String(note.attachedToType || note.attached_to_type || "Project");
+    const attachedToId = String(note.attachedToId || note.attached_to_id || projectId);
+    const updatedAt = String(note.updatedAt || note.updated_at || "");
+    const rawContent = String(note.content ?? note.markdown ?? note.body ?? "");
+
+    const parsed = extractWikilinks(rawContent);
+    const fmMatch = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    const bodyOnly = fmMatch ? rawContent.slice(fmMatch[0].length) : rawContent;
+
+    const mergedFrontmatter = {
+      entity_type: "KnowledgeNote",
+      note_id: noteId,
+      project_id: String(note.projectId || note.project_id || projectId),
+      title: noteTitle,
+      attached_to_type: attachedToType,
+      attached_to_id: attachedToId,
+      updated_at: updatedAt,
+      ...parsed.frontmatter,
+    };
+
+    const fmLines = Object.entries(mergedFrontmatter).map(([k, v]) => {
+      const strVal = String(v ?? "");
+      const needsQuotes = strVal.includes(":") || strVal.includes('"');
+      return `${k}: ${needsQuotes ? `"${strVal.replaceAll('"', '\\"')}"` : strVal}`;
+    });
+
+    vaultMap[`Notes/${noteId}.md`] = [
+      "---",
+      ...fmLines,
+      "---",
+      bodyOnly.trim(),
+    ].join("\n");
+  });
+
+  const bundleMarkdown = Object.entries(vaultMap)
+    .map(([filePath, content]) => `<!-- FILE: ${filePath} -->\n${content}`)
+    .join("\n\n---\n\n");
+
+  Object.defineProperties(vaultMap, {
+    files: { value: vaultMap, enumerable: false },
+    fileCount: { value: Object.keys(vaultMap).length, enumerable: false },
+    projectId: { value: projectId, enumerable: false },
+    bundleMarkdown: { value: bundleMarkdown, enumerable: false },
+  });
+
+  return vaultMap;
+}
+
+export function parseObsidianVaultBundle(vaultFiles = {}) {
+  const normalizedFiles = {};
+  if (Array.isArray(vaultFiles)) {
+    for (const entry of vaultFiles) {
+      if (entry && entry.path) {
+        normalizedFiles[String(entry.path)] = String(entry.content ?? "");
+      }
+    }
+  } else if (vaultFiles && typeof vaultFiles === "object") {
+    const source =
+      vaultFiles.files && typeof vaultFiles.files === "object"
+        ? vaultFiles.files
+        : vaultFiles;
+    for (const [k, v] of Object.entries(source)) {
+      if (typeof v === "string") {
+        normalizedFiles[k] = v;
+      }
+    }
+  }
+
+  let project = {
+    id: "PROJ-0001",
+    project_id: "PROJ-0001",
+    recordId: "proj-rec-default",
+    record_id: "proj-rec-default",
+    name: "Untitled Project",
+    functionId: "fn-default",
+    period: "FY27",
+    currency: "USD",
+    approvedBudget: 0,
+    plannedTotal: 0,
+    openCommitment: 0,
+    actualTotal: 0,
+    availableToCommit: 0,
+    forecastSpend: 0,
+    projectedHeadroom: 0,
+    frontmatter: {},
+    wikilinks: [],
+    targets: [],
+    tags: [],
+  };
+
+  const workPackages = [];
+  const purchaseItems = [];
+  const documents = [];
+  const knowledgeNotes = [];
+  const allVaultNoteRecords = [];
+
+  for (const [filePath, rawContent] of Object.entries(normalizedFiles)) {
+    const parsed = extractWikilinks(rawContent);
+    const fm = parsed.frontmatter || {};
+    const fmMatch = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    const body = (fmMatch ? rawContent.slice(fmMatch[0].length) : rawContent).trim();
+    const baseName = filePath
+      .split("/")
+      .pop()
+      .replace(/\.md$/i, "");
+
+    allVaultNoteRecords.push({
+      id: fm.note_id || fm.spending_line_id || fm.work_package_id || fm.document_id || fm.project_id || baseName,
+      title: fm.title || fm.description || fm.name || fm.reference || baseName,
+      content: rawContent,
+    });
+
+    if (filePath === "00_Project_Overview.md" || fm.entity_type === "Project") {
+      const pid = String(fm.project_id || fm.id || baseName);
+      project = {
+        id: pid,
+        project_id: pid,
+        recordId: String(fm.record_id || fm.recordId || "proj-rec-default"),
+        record_id: String(fm.record_id || fm.recordId || "proj-rec-default"),
+        name: String(fm.name || "Untitled Project"),
+        functionId: String(fm.function_id || "fn-default"),
+        period: String(fm.period || "FY27"),
+        currency: String(fm.currency || "USD"),
+        approvedBudget: Number(fm.approved_budget ?? 0),
+        plannedTotal: Number(fm.planned_total ?? 0),
+        openCommitment: Number(fm.open_commitment ?? 0),
+        actualTotal: Number(fm.actual_total ?? 0),
+        availableToCommit: Number(fm.available_to_commit ?? 0),
+        forecastSpend: Number(fm.forecast_spend ?? 0),
+        projectedHeadroom: Number(fm.projected_headroom ?? 0),
+        frontmatter: fm,
+        wikilinks: parsed.wikilinks,
+        targets: parsed.targets,
+        tags: parsed.tags,
+      };
+    } else if (filePath.startsWith("WorkPackages/") || fm.entity_type === "WorkPackage") {
+      const wpId = String(fm.work_package_id || baseName);
+      workPackages.push({
+        id: wpId,
+        work_package_id: wpId,
+        projectId: String(fm.project_id || project.id),
+        name: String(fm.name || wpId),
+        description: String(fm.description || ""),
+        plannedTotal: Number(fm.planned_total ?? 0),
+        itemCount: Number(fm.item_count ?? 0),
+        frontmatter: fm,
+        wikilinks: parsed.wikilinks,
+        targets: parsed.targets,
+        tags: parsed.tags,
+        path: filePath,
+      });
+    } else if (filePath.startsWith("PurchaseItems/") || fm.entity_type === "PurchaseItem") {
+      const itemId = String(fm.spending_line_id || baseName);
+      const glCode = String(fm.gl_code || "001230");
+      purchaseItems.push({
+        id: itemId,
+        spending_line_id: itemId,
+        projectId: String(fm.project_id || project.id),
+        workPackageId: String(fm.work_package_id || "wp-general"),
+        description: String(fm.description || itemId),
+        specification: String(fm.specification || ""),
+        unitOfMeasure: String(fm.unit_of_measure || "unit"),
+        quantity: Number(fm.quantity ?? 0),
+        unitPrice: Number(fm.unit_price ?? 0),
+        plannedTotal: Number(fm.planned_total ?? 0),
+        allocatedQuantity: Number(fm.allocated_quantity ?? 0),
+        unallocatedQuantity: Number(fm.unallocated_quantity ?? 0),
+        glCode,
+        gl_code: glCode,
+        frontmatter: fm,
+        wikilinks: parsed.wikilinks,
+        targets: parsed.targets,
+        tags: parsed.tags,
+        path: filePath,
+      });
+    } else if (filePath.startsWith("Documents/") || fm.entity_type === "LifecycleRecord") {
+      const docId = String(fm.document_id || baseName);
+      documents.push({
+        id: docId,
+        document_id: docId,
+        projectId: String(fm.project_id || project.id),
+        type: String(fm.type || "Purchase order"),
+        reference: String(fm.reference || docId),
+        vendor: String(fm.vendor || ""),
+        date: String(fm.date || ""),
+        status: String(fm.status || "Draft"),
+        totalAmount: Number(fm.total_amount ?? 0),
+        currency: String(fm.currency || project.currency),
+        frontmatter: fm,
+        wikilinks: parsed.wikilinks,
+        targets: parsed.targets,
+        tags: parsed.tags,
+        path: filePath,
+      });
+    } else {
+      const noteId = String(fm.note_id || fm.id || baseName);
+      knowledgeNotes.push({
+        id: noteId,
+        note_id: noteId,
+        projectId: String(fm.project_id || fm.projectId || project.id),
+        title: String(fm.title || noteId),
+        attachedToType: String(fm.attached_to_type || fm.attachedToType || "Project"),
+        attachedToId: String(fm.attached_to_id || fm.attachedToId || fm.project_id || project.id),
+        updatedAt: String(fm.updated_at || fm.updatedAt || ""),
+        frontmatter: fm,
+        content: rawContent,
+        body,
+        wikilinks: parsed.wikilinks,
+        targets: parsed.targets,
+        tags: parsed.tags,
+        hashtags: parsed.hashtags,
+        path: filePath,
+      });
+    }
+  }
+
+  return {
+    project,
+    workPackages,
+    purchaseItems,
+    documents,
+    knowledgeNotes,
+    backlinkIndex: buildBacklinkIndex(knowledgeNotes),
+    vaultBacklinkIndex: buildBacklinkIndex(allVaultNoteRecords),
+    files: normalizedFiles,
+  };
+}
+
+function computeDeterministicChecksum(text = "") {
+  let h1 = 0xdeadbeef ^ text.length;
+  let h2 = 0x41c6ce57 ^ text.length;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex1 = (h1 >>> 0).toString(16).padStart(8, "0");
+  const hex2 = (h2 >>> 0).toString(16).padStart(8, "0");
+  return `eb-v1-${hex1}${hex2}`;
+}
+
+export function buildHybridSyncReceipt(projectData = {}, options = {}) {
+  const projection = buildProjectGraphProjection(projectData);
+  const rawProject = projectData.project || projectData;
+  const rawItems = Array.isArray(projectData.purchaseItems || rawProject.purchaseItems || rawProject.lines)
+    ? projectData.purchaseItems || rawProject.purchaseItems || rawProject.lines
+    : [];
+
+  const allocationValidations = rawItems.map((item, idx) => {
+    const itemId = String(item.id || item.spending_line_id || `item-${idx + 1}`);
+    const check = validateRequirementAllocations(item);
+    return {
+      spendingLineId: itemId,
+      ...check,
+    };
+  });
+
+  const allAllocationsValid = allocationValidations.every((v) => v.valid);
+
+  const rowCounts = {};
+  let totalRows = 0;
+  for (const tableName of CANONICAL_TABLE_NAMES) {
+    const count = Array.isArray(projection.tables[tableName])
+      ? projection.tables[tableName].length
+      : 0;
+    rowCounts[tableName] = count;
+    totalRows += count;
+  }
+
+  const canonicalPayload = JSON.stringify({
+    tables: projection.tables,
+    summary: projection.summary,
+  });
+  const checksum = computeDeterministicChecksum(canonicalPayload);
+  const vault = serializeProjectToObsidianVault(projectData);
+  const vaultPaths = Object.keys(vault);
+
+  const mode = options.d1Synced ? "cloud-d1-synced" : "local-first-verified";
+  const timestamp = String(options.timestamp || new Date().toISOString());
+
+  return {
+    ok: allAllocationsValid,
+    status: allAllocationsValid ? "synced" : "validation-error",
+    mode,
+    checksum,
+    timestamp,
+    projectId: projection.tables.Project[0]?.project_id || "PROJ-0001",
+    rowCounts,
+    totalRows,
+    allocationValidations,
+    allAllocationsValid,
+    summary: projection.summary,
+    tables: projection.tables,
+    vaultFileCount: vaultPaths.length,
+    vaultPaths,
+  };
+}
+
 
 
 
