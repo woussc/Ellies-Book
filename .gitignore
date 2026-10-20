@@ -40,3 +40,6 @@ yarn-error.log*
 /work/
 /dev.stdout.log
 /dev.stderr.log
+
+# taste-skill inspector screenshots (local only)
+/.taste-skill/

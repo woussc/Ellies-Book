@@ -7,3 +7,14 @@
 | **Active Assumptions** | 1. `[Assumption]` `Ellies-Book` repository is hosted privately under `woussc/Ellies-Book` on GitHub.<br>2. `[Assumption]` Original vault folder `d:\MyVault\MyVault-Open\01_project\Business Function Budget Tracker` remains untouched as read-only provenance. |
 | **Open Issues / Decisions Needed** | All Wave 1, Wave 2, Wave 3, and Wave 4 tickets completed, reviewed, built, and verified. |
 | **Next Step** | Inspect the live workbench at `http://localhost:3000/` or proceed to Cloudflare D1 / SaaS multi-tenant auth deployment when ready. |
+
+
+## Wave 5 — Approachability Redesign (2026-10-20)
+
+- **Status:** completed, verified, pushed.
+- **Shell:** single framed-sheet app. `app/page.tsx` no longer stacks the classic studio; it is reached via the sidebar "Setup" group (`classicStudioSlot`).
+- **Journey (plain language):** `1. Overview` (default; "The plan" vs "The reality") → `2. Workflow map` (Map / List) → `3. Notes` → `4. Reports & export`. Bottom bar = "Quick actions".
+- **Copy rule:** visible UI must not use developer jargon. Enforced by a `doesNotMatch` guard in `tests/budget-domain.test.mjs` (Mode A/B, Financial Lineage DAG, On-the-Fly Command Bar, canonical switcher, `Attach [[Note]]`).
+- **Audit IDs:** still shown, but as secondary `.eb-id-muted` text under the human label.
+- **Verification:** `pnpm run lint` 0 problems · `pnpm run build` OK · 16/16 tests · taste inspector 0 FAIL / 0 WARN at 1440/768/390.
+- **Known follow-ups:** overview plan table still needs horizontal scroll at 1440px (9 columns; Status/Map clipped); KPI sub-labels still use "open PO" / "baseline ver-…" finance terms; quick-capture forms are long on mobile.

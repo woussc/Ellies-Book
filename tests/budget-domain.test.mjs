@@ -477,12 +477,15 @@ test("ElliesBookWorkbench and app/page.tsx wire Dual-Mode Node Graph, Obsidian V
   assert.match(workbenchSource, /computeLifecycleLineage/);
   assert.match(workbenchSource, /effectiveApprovedBudget/);
   assert.match(workbenchSource, /CANONICAL_TABLE_NAMES/);
-  assert.match(workbenchSource, /Mode A · Financial Lineage DAG/);
-  assert.match(workbenchSource, /Mode B · Obsidian \[\[Knowledge Vault\]\]/);
+  // Plain-language user journey (approachability redesign): 4 steps a non-finance user can read
+  for (const label of ["1. Overview", "2. Workflow map", "3. Notes", "4. Reports &amp; export", "Quick actions"]) {
+    assert.ok(workbenchSource.includes(label), `missing journey label: ${label}`);
+  }
+  // Developer jargon must not leak into visible UI copy
+  assert.doesNotMatch(workbenchSource, /Mode A ·|Mode B ·|Financial Lineage DAG|On-the-Fly Command Bar|Canonical relational table switcher|Attach \[\[Note\]\]/);
   assert.match(workbenchSource, /1\. Operational/);
   assert.match(workbenchSource, /2\. Managerial/);
   assert.match(workbenchSource, /3\. Accounting/);
-  assert.match(workbenchSource, /On-the-Fly Command Bar \(390px–1440px\)/);
 
   // Verify responsive CSS breakpoints and flat hairline KPI strip in app/globals.css
   assert.match(cssSource, /\.eb-workbench/);

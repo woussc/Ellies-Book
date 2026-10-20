@@ -3,6 +3,7 @@
 import {
   Dispatch,
   PointerEvent as ReactPointerEvent,
+  ReactNode,
   SetStateAction,
   useMemo,
   useState,
@@ -311,6 +312,8 @@ export type WorkbenchStudioData = Record<string, any> & {
   documents: WorkbenchDocument[];
 };
 
+type JourneyStep = "overview" | "graph" | "vault" | "tables" | "classic";
+
 const QUARTERS: WorkbenchQuarter[] = ["Q1", "Q2", "Q3", "Q4"];
 
 const SEED_PROJECTS: WorkbenchProject[] = [
@@ -318,12 +321,19 @@ const SEED_PROJECTS: WorkbenchProject[] = [
     id: "MKT-003",
     recordId: "record-mkt-003",
     generatedId: "GUC-MU+FRAG-0001",
-    idSnapshot: "1:Brand house=Gucci(GUC) | 2:Product category=Make-up(MU)+Perfume(FRAG)",
+    idSnapshot:
+      "1:Brand house=Gucci(GUC) | 2:Product category=Make-up(MU)+Perfume(FRAG)",
     name: "FY27 Launch Campaign",
-    purpose: "Coordinate a traceable POSM launch across sourcing allocations.",
+    purpose: "Coordinate a traceable POSM launch across sourcing allocations",
     description:
-      "Synthetic POSM launch scenario: one requirement split across China, Vietnam, and a European warehouse.",
-    tagIds: ["tag-intent-growth", "tag-campaign", "tag-gucci", "tag-makeup", "tag-perfume"],
+      "One POSM requirement split across Shenzhen, Ho Chi Minh City, and Dusseldorf warehouse stock.",
+    tagIds: [
+      "tag-intent-growth",
+      "tag-campaign",
+      "tag-gucci",
+      "tag-makeup",
+      "tag-perfume",
+    ],
     period: "FY2027",
     spendingQuarters: ["Q1", "Q2"],
     ownerIds: ["member-growth", "member-vm"],
@@ -412,7 +422,8 @@ const SEED_PROJECTS: WorkbenchProject[] = [
             notes: "Internal stock drawdown",
             financeMappingStatus: "Needs Finance review",
             suggestedFinanceCode: "001230",
-            mappingRationale: "Internal warehouse handling requires Finance review.",
+            mappingRationale:
+              "Internal warehouse handling requires Finance review.",
           },
         ],
         adjustmentComment: "",
@@ -432,14 +443,16 @@ const SEED_PROJECTS: WorkbenchProject[] = [
     ],
     approvedAmount: 11600,
     approvedCurrency: "USD",
-    approvedAdjustmentComment: "Initial project approval for synthetic POSM scenario.",
+    approvedAdjustmentComment:
+      "Initial project approval for synthetic POSM scenario.",
     revisions: [
       {
         id: "ver-posm-1",
         status: "Approved",
         versionType: "Original",
         timestamp: "2026-08-15T09:00:00.000Z",
-        comment: "Original approved baseline; allocation totals replace parent estimate.",
+        comment:
+          "Original approved baseline; allocation totals replace parent estimate.",
         lines: [],
         outcomes: [],
         approvedAmount: 11600,
@@ -456,7 +469,7 @@ const SEED_PROJECTS: WorkbenchProject[] = [
     recordId: "record-mkt-001",
     generatedId: "MKT-001",
     name: "Q3 Demand Pilot",
-    purpose: "Test a focused demand-generation motion with traceable spend.",
+    purpose: "Test a focused demand-generation motion with traceable spend",
     description: "Bounded Q3/Q4 paid media and shelf tester pilot.",
     tagIds: ["tag-intent-growth", "tag-campaign", "tag-gucci"],
     period: "FY2026",
@@ -711,7 +724,8 @@ const INITIAL_AUDIT_EVENTS: AuditEventItem[] = [
     timestamp: "2026-08-15T09:00:00Z",
     action: "APPROVE_BASELINE_VERSION",
     targetId: "ver-posm-1",
-    reason: "Approved Original baseline ($11,600.00 USD) across 3 sourcing allocations",
+    reason:
+      "Approved Original baseline ($11,600.00 USD) across 3 sourcing allocations",
     sourceRef: "QTE-POSM-2026-01",
   },
   {
@@ -721,7 +735,8 @@ const INITIAL_AUDIT_EVENTS: AuditEventItem[] = [
     timestamp: "2026-09-14T16:20:00Z",
     action: "CONVERT_PO_TO_ACTUAL",
     targetId: "doc-line-inv-china",
-    reason: "Converted $6,500.00 from PO-POSM-2026-01 to INV-POSM-2026-01 without double counting",
+    reason:
+      "Converted $6,500.00 from PO-POSM-2026-01 to INV-POSM-2026-01 without double counting",
     sourceRef: "INV-POSM-2026-01",
   },
 ];
@@ -748,11 +763,15 @@ const NODE_TYPE_META: Record<
   CanonicalTableName,
   { badge: string; toneClass: string; columnTitle: string }
 > = {
-  Project: { badge: "Project", toneClass: "eb-node-project", columnTitle: "1 · Project" },
+  Project: {
+    badge: "Project",
+    toneClass: "eb-node-project",
+    columnTitle: "1 · Project",
+  },
   Work_Packages: {
-    badge: "Work Package",
+    badge: "Deliverable",
     toneClass: "eb-node-wp",
-    columnTitle: "2 · Work Package",
+    columnTitle: "2 · Deliverable",
   },
   Budget_Versions: {
     badge: "Budget Version",
@@ -765,19 +784,19 @@ const NODE_TYPE_META: Record<
     columnTitle: "3 · Purchase Item",
   },
   Sourcing_Allocations: {
-    badge: "Sourcing Allocation",
+    badge: "Vendor Split",
     toneClass: "eb-node-alloc",
-    columnTitle: "4 · Sourcing Split",
+    columnTitle: "4 · Vendor Split",
   },
   Lifecycle_Records: {
-    badge: "Document Header",
+    badge: "Document",
     toneClass: "eb-node-doc",
     columnTitle: "Document",
   },
   Lifecycle_Lines: {
-    badge: "Lifecycle Line",
+    badge: "Order / Invoice",
     toneClass: "eb-node-lifecycle",
-    columnTitle: "5 · Quote / PO / Actual",
+    columnTitle: "5 · Quote / PO / Invoice",
   },
   Purchase_Links: {
     badge: "Purchase Link",
@@ -790,9 +809,9 @@ const NODE_TYPE_META: Record<
     columnTitle: "Conversion",
   },
   Knowledge_Notes: {
-    badge: "[[Knowledge Note]]",
+    badge: "Knowledge Note",
     toneClass: "eb-node-note",
-    columnTitle: "Obsidian Vault Note",
+    columnTitle: "Obsidian Note",
   },
   Audit_Events: {
     badge: "Audit Event",
@@ -805,32 +824,40 @@ export function ElliesBookWorkbench({
   data,
   setData,
   mode,
+  classicStudioSlot,
+  onOpenClassicTab,
+  attentionCount = 0,
 }: {
   data: WorkbenchStudioData;
   setData: Dispatch<SetStateAction<WorkbenchStudioData>>;
   mode: "working" | "training";
+  classicStudioSlot?: ReactNode;
+  onOpenClassicTab?: (
+    tab: "profile" | "library" | "plan" | "spend" | "monitor",
+  ) => void;
+  attentionCount?: number;
 }) {
-  // Active Pillar Tab: Surface 1 (Node Graph & Vault) vs Surface 2 (Modular Tables & Charts)
-  const [surface, setSurface] = useState<"graph" | "tables">("graph");
-  // Within Surface 1: Mode A (Financial DAG) vs Mode B (Obsidian Knowledge Vault)
-  const [graphMode, setGraphMode] = useState<"dag" | "obsidian">("dag");
-  // Responsive Outline Fallback toggle for mobile (390px) or keyboard accessibility
+  // Primary User Journey Step: defaults to Step 1 (Overview & Plan) for calm, approachable onboarding
+  const [journeyStep, setJourneyStep] = useState<JourneyStep>("overview");
+  // Mobile navigation drawer state (< 960px)
+  const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
+  // Responsive Outline Fallback toggle inside Step 2 (Visual Workflow Map)
   const [outlineFallback, setOutlineFallback] = useState<boolean>(false);
 
-  // Active Project Selection
   const effectiveProjects = useMemo<WorkbenchProject[]>(() => {
     if (Array.isArray(data?.projects) && data.projects.length > 0) {
       return data.projects;
     }
     return SEED_PROJECTS;
-  }, [data]);
+  }, [data?.projects]);
 
+  const dataDocuments = data?.documents;
   const effectiveDocuments = useMemo<WorkbenchDocument[]>(() => {
-    if (Array.isArray(data?.documents) && data.documents.length > 0) {
-      return data.documents;
+    if (Array.isArray(dataDocuments) && dataDocuments.length > 0) {
+      return dataDocuments;
     }
     return SEED_DOCUMENTS;
-  }, [data]);
+  }, [dataDocuments]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>("MKT-003");
   const activeProject = useMemo<WorkbenchProject>(() => {
@@ -842,58 +869,65 @@ export function ElliesBookWorkbench({
   }, [effectiveProjects, selectedProjectId]);
 
   // View State: Node coordinates (x, y), zoom, pan, and collapse state (strictly view metadata)
-  const [nodeViewState, setNodeViewState] = useState<Record<string, NodeCanvasView>>({
-    "MKT-003": { x: 28, y: 110, collapsed: false },
-    "wp-posm-production": { x: 265, y: 50, collapsed: false },
-    "wp-warehouse": { x: 265, y: 205, collapsed: false },
-    "wp-installation": { x: 265, y: 340, collapsed: false },
-    "line-paper-stand": { x: 510, y: 80, collapsed: false },
-    "alloc-china": { x: 760, y: 34, collapsed: false },
-    "alloc-vietnam": { x: 760, y: 170, collapsed: false },
-    "alloc-eu": { x: 760, y: 306, collapsed: false },
-    "doc-line-q-paper": { x: 1020, y: 24, collapsed: false },
-    "doc-line-po-china": { x: 1020, y: 126, collapsed: false },
-    "doc-line-inv-china": { x: 1020, y: 228, collapsed: false },
-    "doc-line-po-vn": { x: 1020, y: 330, collapsed: false },
-    "note-posm-sourcing": { x: 510, y: 315, collapsed: false },
-    "note-customs-audit": { x: 760, y: 425, collapsed: false },
+  const [nodeViewState, setNodeViewState] = useState<
+    Record<string, NodeCanvasView>
+  >({
+    "MKT-003": { x: 24, y: 110, collapsed: false },
+    "wp-posm-production": { x: 255, y: 46, collapsed: false },
+    "wp-warehouse": { x: 255, y: 196, collapsed: false },
+    "wp-installation": { x: 255, y: 336, collapsed: false },
+    "line-paper-stand": { x: 490, y: 76, collapsed: false },
+    "alloc-china": { x: 730, y: 32, collapsed: false },
+    "alloc-vietnam": { x: 730, y: 168, collapsed: false },
+    "alloc-eu": { x: 730, y: 304, collapsed: false },
+    "doc-line-q-paper": { x: 970, y: 24, collapsed: false },
+    "doc-line-po-china": { x: 970, y: 124, collapsed: false },
+    "doc-line-inv-china": { x: 970, y: 224, collapsed: false },
+    "doc-line-po-vn": { x: 970, y: 324, collapsed: false },
+    "note-posm-sourcing": { x: 490, y: 310, collapsed: false },
+    "note-customs-audit": { x: 730, y: 420, collapsed: false },
   });
 
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number }>({
+    dx: 0,
+    dy: 0,
+  });
 
-  // Obsidian Knowledge Notes & Audit Trail State
   const [notes, setNotes] = useState<KnowledgeNoteItem[]>(INITIAL_NOTES);
-  const [auditEvents, setAuditEvents] = useState<AuditEventItem[]>(INITIAL_AUDIT_EVENTS);
+  const [auditEvents, setAuditEvents] =
+    useState<AuditEventItem[]>(INITIAL_AUDIT_EVENTS);
 
-  // Selected Node in Inspector Drawer
-  const [selectedNodeId, setSelectedNodeId] = useState<string>("line-paper-stand");
+  const [selectedNodeId, setSelectedNodeId] =
+    useState<string>("line-paper-stand");
   const [inspectorViewTab, setInspectorViewTab] = useState<
     "operational" | "managerial" | "accounting"
   >("operational");
 
-  // Obsidian Editor Active Note & Tag Filter
-  const [activeNoteId, setActiveNoteId] = useState<string>("note-posm-sourcing");
+  const [activeNoteId, setActiveNoteId] =
+    useState<string>("note-posm-sourcing");
   const [activeTagFilter, setActiveTagFilter] = useState<string>("all");
 
-  // Surface 2: Active Canonical Table & Search Filter
-  const [activeTable, setActiveTable] = useState<CanonicalTableName>("Purchase_Items");
+  const [activeTable, setActiveTable] =
+    useState<CanonicalTableName>("Purchase_Items");
   const [tableSearch, setTableSearch] = useState<string>("");
   const [exportBanner, setExportBanner] = useState<string>("");
 
-  // Quick Action Modals / Inline Drawers
   const [quickCaptureOpen, setQuickCaptureOpen] = useState<
-    null | "item" | "allocation" | "version" | "note" | "expense"
+    null | "item" | "allocation" | "version" | "expense"
   >(null);
   const [quickItemName, setQuickItemName] = useState<string>("");
-  const [quickItemSpec, setQuickItemSpec] = useState<string>("Counter display unit");
+  const [quickItemSpec, setQuickItemSpec] = useState<string>(
+    "Counter display unit",
+  );
   const [quickItemQty, setQuickItemQty] = useState<number>(200);
   const [quickItemPrice, setQuickItemPrice] = useState<number>(12);
   const [quickItemGl, setQuickItemGl] = useState<string>("001230");
 
-  const [quickAllocVendor, setQuickAllocVendor] = useState<string>("Milan Display Hub");
+  const [quickAllocVendor, setQuickAllocVendor] =
+    useState<string>("Milan Display Hub");
   const [quickAllocCountry, setQuickAllocCountry] = useState<string>("Italy");
   const [quickAllocQty, setQuickAllocQty] = useState<number>(150);
   const [quickAllocPrice, setQuickAllocPrice] = useState<number>(9.5);
@@ -903,32 +937,24 @@ export function ElliesBookWorkbench({
     "Air-freight buffer for Q1 store installation",
   );
   const [quickVersionTotal, setQuickVersionTotal] = useState<number>(13400);
-  const [quickVersionState, setQuickVersionState] = useState<"Proposed" | "Approved">(
-    "Proposed",
-  );
+  const [quickVersionState, setQuickVersionState] = useState<
+    "Proposed" | "Approved"
+  >("Proposed");
 
   const [quickExpenseStage, setQuickExpenseStage] = useState<
     "Quotation" | "Purchase order" | "Invoice"
   >("Invoice");
-  const [quickExpenseVendor, setQuickExpenseVendor] = useState<string>("Vietnam vendor");
+  const [quickExpenseVendor, setQuickExpenseVendor] =
+    useState<string>("Vietnam vendor");
   const [quickExpenseAmount, setQuickExpenseAmount] = useState<number>(2000);
-  const [quickExpenseQuarter, setQuickExpenseQuarter] = useState<WorkbenchQuarter>("Q1");
+  const [quickExpenseQuarter, setQuickExpenseQuarter] =
+    useState<WorkbenchQuarter>("Q1");
 
-  const currency = data?.settings?.currency || activeProject?.approvedCurrency || "USD";
-  const [selectedVaultFile, setSelectedVaultFile] = useState<string>(
-    "00_Project_Overview.md",
-  );
-  const [syncNotice, setSyncNotice] = useState<string>("");
-  const [lastSyncReceipt, setLastSyncReceipt] = useState<{
-    mode: string;
-    checksum: string;
-    timestamp: string;
-    totalRows: number;
-    vaultFileCount: number;
-  } | null>(null);
+  const currency =
+    data?.settings?.currency || activeProject?.approvedCurrency || "USD";
 
   // Build governed input payload for buildProjectGraphProjection, serializeProjectToObsidianVault, and buildHybridSyncReceipt
-  const governedPayload = useMemo(() => {
+  const projectPayload = useMemo(() => {
     const projId = activeProject.id;
     const projectDocs = effectiveDocuments.filter((doc) =>
       doc.lines.some((line) => line.projectId === projId),
@@ -938,7 +964,8 @@ export function ElliesBookWorkbench({
         .filter((line) => line.projectId === projId)
         .map((line) => {
           const isPostedActual =
-            doc.type === "Invoice" && /actual|posted|settled/i.test(doc.status || "");
+            doc.type === "Invoice" &&
+            /actual|posted|settled|converted/i.test(doc.status || "");
           return {
             id: line.id,
             document_line_id: line.id,
@@ -989,23 +1016,25 @@ export function ElliesBookWorkbench({
         };
       });
 
-    // Enrich purchase items with glCode from library if not directly on line
     const enrichedItems = (activeProject.lines || []).map((line) => {
       const libItem = data?.library?.spendingItems?.find(
         (it) => it.id === line.spendingItemId,
       );
       const allocGl =
-        line.allocations?.find((a) => a.confirmedFinanceCode || a.suggestedFinanceCode)
-          ?.confirmedFinanceCode ||
-        line.allocations?.find((a) => a.suggestedFinanceCode)?.suggestedFinanceCode;
+        line.allocations?.find(
+          (a) => a.confirmedFinanceCode || a.suggestedFinanceCode,
+        )?.confirmedFinanceCode ||
+        line.allocations?.find((a) => a.suggestedFinanceCode)
+          ?.suggestedFinanceCode;
       return {
         ...line,
         glCode: line.glCode || libItem?.glCode || allocGl || "001230",
       };
     });
 
-    // Build canonical BudgetVersion snapshots using createBudgetVersion
-    const rawRevs = Array.isArray(activeProject.revisions) ? activeProject.revisions : [];
+    const rawRevs = Array.isArray(activeProject.revisions)
+      ? activeProject.revisions
+      : [];
     const builtVersions: ReturnType<typeof createBudgetVersion>[] = [];
     if (rawRevs.length === 0) {
       builtVersions.push(
@@ -1016,7 +1045,9 @@ export function ElliesBookWorkbench({
           versionType: "Original",
           authorizationState: "Approved",
           reason: "Initial project baseline",
-          total: activeProject.approvedAmount || requirementTotal(enrichedItems[0] || {}),
+          total:
+            activeProject.approvedAmount ||
+            requirementTotal(enrichedItems[0] || {}),
           currency,
           purchaseItems: enrichedItems,
         }),
@@ -1024,17 +1055,23 @@ export function ElliesBookWorkbench({
     } else {
       rawRevs.forEach((rev, idx) => {
         const isApproved =
-          rev.status === "Approved" || (idx === 0 && activeProject.approvedAmount > 0);
+          rev.status === "Approved" ||
+          (idx === 0 && activeProject.approvedAmount > 0);
         const v = createBudgetVersion(
           {
             versionId: rev.id || `ver-${projId}-${idx + 1}`,
             projectId: projId,
             sequence: idx + 1,
-            versionType: rev.versionType || (idx === 0 ? "Original" : "Adjustment"),
+            versionType:
+              rev.versionType || (idx === 0 ? "Original" : "Adjustment"),
             authorizationState: isApproved ? "Approved" : "Proposed",
             reason: rev.comment || rev.approvedComment || "Version snapshot",
             total: isApproved
-              ? Number(rev.approvedAmount || activeProject.approvedAmount || rev.plannedTotal)
+              ? Number(
+                  rev.approvedAmount ||
+                    activeProject.approvedAmount ||
+                    rev.plannedTotal,
+                )
               : Number(rev.plannedTotal || activeProject.approvedAmount),
             currency: rev.approvedCurrency || currency,
             purchaseItems: rev.lines?.length ? rev.lines : enrichedItems,
@@ -1082,13 +1119,13 @@ export function ElliesBookWorkbench({
   ]);
 
   const projection = useMemo<GraphProjectionResult>(
-    () => buildProjectGraphProjection(governedPayload) as GraphProjectionResult,
-    [governedPayload],
+    () => buildProjectGraphProjection(projectPayload) as GraphProjectionResult,
+    [projectPayload],
   );
 
   const obsidianVaultFiles = useMemo<Record<string, string>>(
-    () => serializeProjectToObsidianVault(governedPayload) as Record<string, string>,
-    [governedPayload],
+    () => serializeProjectToObsidianVault(projectPayload),
+    [projectPayload],
   );
 
   const parsedVaultBundle = useMemo(
@@ -1096,12 +1133,38 @@ export function ElliesBookWorkbench({
     [obsidianVaultFiles],
   );
 
-  const liveSyncReceipt = useMemo(
-    () => buildHybridSyncReceipt(governedPayload),
-    [governedPayload],
+  const syncReceipt = useMemo(
+    () => buildHybridSyncReceipt(projectPayload),
+    [projectPayload],
   );
 
-  // Budget Version governance state
+  const [selectedVaultFile, setSelectedVaultFile] = useState<string>(
+    "00_Project_Overview.md",
+  );
+  const [syncMessage, setSyncMessage] = useState<string>("");
+
+  async function triggerHybridSync() {
+    try {
+      const res = await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(projectPayload),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setSyncMessage(
+          `Hybrid Sync Snapshot verified (${json?.receipt?.checksum || syncReceipt.checksum})`,
+        );
+        return;
+      }
+    } catch {
+      // Fallback to local-first verified receipt
+    }
+    setSyncMessage(
+      `Hybrid Sync Snapshot verified locally (${syncReceipt.checksum})`,
+    );
+  }
+
   const versionGovernance = useMemo(
     () =>
       effectiveApprovedBudget(
@@ -1117,7 +1180,6 @@ export function ElliesBookWorkbench({
     [projection.tables.Budget_Versions],
   );
 
-  // Selected Node Resolution
   const selectedNode = useMemo<ProjectedNode>(() => {
     return (
       projection.nodes.find(
@@ -1134,19 +1196,18 @@ export function ElliesBookWorkbench({
     };
   }, [projection.edges, selectedNode]);
 
-  // Explicit bidirectional backlink index & commitment lineage check
   const vaultBacklinkIndex = useMemo(
     () =>
-      buildBacklinkIndex(
-        notes.filter((n) => n.projectId === activeProject.id),
-      ),
+      buildBacklinkIndex(notes.filter((n) => n.projectId === activeProject.id)),
     [notes, activeProject.id],
   );
 
   const directLineageCheck = useMemo(
     () =>
       computeLifecycleLineage({
-        poLines: projection.tables.Lifecycle_Lines.filter((l) => l.stage === "PO"),
+        poLines: projection.tables.Lifecycle_Lines.filter(
+          (l) => l.stage === "PO",
+        ),
         lifecycleLines: projection.tables.Lifecycle_Lines,
         transitions: projection.tables.Lifecycle_Transitions,
         approvedBudget: projection.summary.approvedBudget,
@@ -1165,9 +1226,12 @@ export function ElliesBookWorkbench({
       projection.backlinkIndex.byTarget[selectedNode.id] ??
       []
     );
-  }, [vaultBacklinkIndex.byTarget, projection.backlinkIndex.byTarget, selectedNode]);
+  }, [
+    vaultBacklinkIndex.byTarget,
+    projection.backlinkIndex.byTarget,
+    selectedNode,
+  ]);
 
-  // Active Note for Obsidian Mode B
   const activeNote = useMemo<KnowledgeNoteItem>(() => {
     const projectNotes = notes.filter((n) => n.projectId === activeProject.id);
     return (
@@ -1189,7 +1253,6 @@ export function ElliesBookWorkbench({
     [activeNote.content],
   );
 
-  // Quarter-by-Quarter Plan-vs-Reality Trajectory Data (Q1-Q4)
   const quarterChartRows = useMemo(() => {
     const items = activeProject.lines || [];
     const totalPlanned = Math.max(
@@ -1210,7 +1273,9 @@ export function ElliesBookWorkbench({
           );
         }
         if (item.quarters?.includes(q)) {
-          return sum + requirementTotal(item) / Math.max(1, item.quarters.length);
+          return (
+            sum + requirementTotal(item) / Math.max(1, item.quarters.length)
+          );
         }
         return sum;
       }, 0);
@@ -1237,11 +1302,17 @@ export function ElliesBookWorkbench({
         forecast: forecastInQ,
       };
     });
-  }, [activeProject.lines, projection.summary.approvedBudget, projection.tables.Lifecycle_Lines]);
+  }, [
+    activeProject.lines,
+    projection.summary.approvedBudget,
+    projection.tables.Lifecycle_Lines,
+  ]);
 
-  // Helper to ensure seed projects are hydrated into StudioData before mutating
   const mutateStudioAndProject = (
-    updater: (project: WorkbenchProject, docs: WorkbenchDocument[]) => {
+    updater: (
+      project: WorkbenchProject,
+      docs: WorkbenchDocument[],
+    ) => {
       project: WorkbenchProject;
       docs: WorkbenchDocument[];
     },
@@ -1288,7 +1359,6 @@ export function ElliesBookWorkbench({
     ]);
   };
 
-  // Toggle collapse state on a node (Graph-to-Table Equivalence: view state only)
   const toggleNodeCollapse = (nodeId: string) => {
     const existing = projection.nodes.find((n) => n.id === nodeId);
     if (!existing) return;
@@ -1298,20 +1368,6 @@ export function ElliesBookWorkbench({
         x: prev[nodeId]?.x ?? existing.x,
         y: prev[nodeId]?.y ?? existing.y,
         collapsed: !(prev[nodeId]?.collapsed ?? existing.mode === "collapsed"),
-      },
-    }));
-  };
-
-  // Nudge or drag node coordinates (proves financial invariance)
-  const moveNodeBy = (nodeId: string, dx: number, dy: number) => {
-    const existing = projection.nodes.find((n) => n.id === nodeId);
-    if (!existing) return;
-    setNodeViewState((prev) => ({
-      ...prev,
-      [nodeId]: {
-        x: Math.max(12, (prev[nodeId]?.x ?? existing.x) + dx),
-        y: Math.max(12, (prev[nodeId]?.y ?? existing.y) + dy),
-        collapsed: prev[nodeId]?.collapsed ?? existing.mode === "collapsed",
       },
     }));
   };
@@ -1329,10 +1385,18 @@ export function ElliesBookWorkbench({
     });
   };
 
-  const handleCanvasPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const handleCanvasPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
     if (!draggingNodeId) return;
-    const nextX = Math.max(12, Math.round(event.clientX / zoom - dragOffset.dx));
-    const nextY = Math.max(12, Math.round(event.clientY / zoom - dragOffset.dy));
+    const nextX = Math.max(
+      12,
+      Math.round(event.clientX / zoom - dragOffset.dx),
+    );
+    const nextY = Math.max(
+      12,
+      Math.round(event.clientY / zoom - dragOffset.dy),
+    );
     setNodeViewState((prev) => ({
       ...prev,
       [draggingNodeId]: {
@@ -1349,7 +1413,6 @@ export function ElliesBookWorkbench({
     }
   };
 
-  // Navigate to any node ID from a [[Wikilink]] or Table Row
   const jumpToNode = (targetId: string) => {
     const cleanId = targetId.trim();
     const matched = projection.nodes.find(
@@ -1359,7 +1422,6 @@ export function ElliesBookWorkbench({
         n.label.toLowerCase() === cleanId.toLowerCase(),
     );
     if (matched) {
-      // Ensure ancestors are expanded if hidden
       if (matched.hiddenByCollapse) {
         setNodeViewState((prev) => {
           const next = { ...prev };
@@ -1370,11 +1432,10 @@ export function ElliesBookWorkbench({
         });
       }
       setSelectedNodeId(matched.id);
-      setSurface("graph");
+      setJourneyStep("graph");
     }
   };
 
-  // Quick Action 1: + Add Purchase Item
   const handleAddPurchaseItem = () => {
     const name = quickItemName.trim() || "Acrylic Fragrance Tester Tray";
     const lineId = makeId("line");
@@ -1399,7 +1460,7 @@ export function ElliesBookWorkbench({
           workPackageId: targetWpId,
           glCode: quickItemGl.trim() || "001230",
           allocations: [],
-          adjustmentComment: "Added from Node Graph workbench",
+          adjustmentComment: "Added from project workbench",
         };
         return {
           project: { ...proj, lines: [...proj.lines, newLine] },
@@ -1411,7 +1472,7 @@ export function ElliesBookWorkbench({
         action: "ADD_PURCHASE_ITEM",
         targetId: lineId,
         reason: `Added requirement "${name}" (${quickItemQty}u @ ${money(quickItemPrice, currency)}) under ${targetWpId}`,
-        sourceRef: "Graph Workbench",
+        sourceRef: "Project Workbench",
       },
     );
     setSelectedNodeId(lineId);
@@ -1419,7 +1480,6 @@ export function ElliesBookWorkbench({
     setQuickCaptureOpen(null);
   };
 
-  // Quick Action 2: + Add Sourcing Allocation
   const handleAddAllocation = () => {
     const parentLineId =
       selectedNode?.nodeType === "Purchase_Items"
@@ -1447,7 +1507,8 @@ export function ElliesBookWorkbench({
             notes: "Added from Node Inspector",
             financeMappingStatus: "Suggested",
             suggestedFinanceCode: line.glCode || "001230",
-            mappingRationale: "Contextual allocation inherits GL precedent 001230",
+            mappingRationale:
+              "Contextual allocation inherits GL precedent 001230",
           };
           return {
             ...line,
@@ -1468,7 +1529,6 @@ export function ElliesBookWorkbench({
     setQuickCaptureOpen(null);
   };
 
-  // Quick Action 3: + Propose or Approve Budget Version
   const handleCreateBudgetVersion = () => {
     const verId = makeId("ver");
     const isApproved = quickVersionState === "Approved";
@@ -1482,7 +1542,9 @@ export function ElliesBookWorkbench({
           comment: quickVersionReason.trim() || "Budget version update",
           lines: proj.lines,
           outcomes: proj.outcomes,
-          approvedAmount: isApproved ? Number(quickVersionTotal) : proj.approvedAmount,
+          approvedAmount: isApproved
+            ? Number(quickVersionTotal)
+            : proj.approvedAmount,
           approvedCurrency: currency,
           approvedComment: quickVersionReason.trim(),
           plannedTotal: Number(quickVersionTotal),
@@ -1491,7 +1553,9 @@ export function ElliesBookWorkbench({
         return {
           project: {
             ...proj,
-            approvedAmount: isApproved ? Number(quickVersionTotal) : proj.approvedAmount,
+            approvedAmount: isApproved
+              ? Number(quickVersionTotal)
+              : proj.approvedAmount,
             revisions: [...proj.revisions, nextRev],
             currentRevisionId: verId,
           },
@@ -1500,7 +1564,9 @@ export function ElliesBookWorkbench({
       },
       {
         actor: data?.profile?.plannerName || "Planner",
-        action: isApproved ? "APPROVE_BUDGET_VERSION" : "PROPOSE_BUDGET_VERSION",
+        action: isApproved
+          ? "APPROVE_BUDGET_VERSION"
+          : "PROPOSE_BUDGET_VERSION",
         targetId: verId,
         reason: `${quickVersionState} version (${money(quickVersionTotal, currency)}): ${quickVersionReason}`,
         sourceRef: activeProject.id,
@@ -1509,7 +1575,6 @@ export function ElliesBookWorkbench({
     setQuickCaptureOpen(null);
   };
 
-  // 1-Click Approve Latest Proposed Version from Command Bar
   const handleApprovePendingVersion = () => {
     const pending = versionGovernance.latestProposedVersion;
     if (!pending) return;
@@ -1527,7 +1592,7 @@ export function ElliesBookWorkbench({
           outcomes: proj.outcomes,
           approvedAmount: nextAmount,
           approvedCurrency: currency,
-          approvedComment: "Approved via Command Bar governance action",
+          approvedComment: "Approved via governance action",
           plannedTotal: nextAmount,
           changedFields: ["approvedAmount"],
         };
@@ -1551,7 +1616,6 @@ export function ElliesBookWorkbench({
     );
   };
 
-  // Quick Action 4: + Attach [[Knowledge Note]]
   const handleAttachNote = (targetNode: ProjectedNode) => {
     const newNoteId = makeId("note");
     const newNote: KnowledgeNoteItem = {
@@ -1567,9 +1631,7 @@ export function ElliesBookWorkbench({
         "status: active",
         "---",
         `Context note attached to [[${targetNode.id}|${targetNode.label}]] inside [[${activeProject.id}|${activeProject.name}]].`,
-        "Verify vendor specification, delivery milestone, and GL code `" +
-          "001230" +
-          "`.",
+        "Verify vendor specification, delivery milestone, and GL code `001230`.",
         "#field-note #posm #audit-ready",
       ].join("\n"),
     };
@@ -1588,11 +1650,9 @@ export function ElliesBookWorkbench({
       ...prev,
     ]);
     setActiveNoteId(newNoteId);
-    setGraphMode("obsidian");
-    setSurface("graph");
+    setJourneyStep("vault");
   };
 
-  // Quick Action 5: Log On-the-Fly Expense / Quotation / PO / Invoice Line
   const handleLogQuickExpense = () => {
     const docId = makeId("doc");
     const lineId = makeId("doc-line");
@@ -1615,7 +1675,9 @@ export function ElliesBookWorkbench({
           date: new Date().toISOString().slice(0, 10),
           vendor: quickExpenseVendor.trim() || "Regional partner",
           status:
-            quickExpenseStage === "Invoice" ? "Posted to Actuals" : "Open commitment",
+            quickExpenseStage === "Invoice"
+              ? "Posted to Actuals"
+              : "Open commitment",
           source: "Synthetic",
           lines: [
             {
@@ -1649,7 +1711,6 @@ export function ElliesBookWorkbench({
     setQuickCaptureOpen(null);
   };
 
-  // Export Canonical Table(s)
   const handleExportCanonical = async (
     format: "tsv" | "csv" | "markdown",
     scope: CanonicalTableName | "ALL",
@@ -1681,104 +1742,25 @@ export function ElliesBookWorkbench({
         `Copied ${scope} ${format === "markdown" ? "Markdown" : "Excel-safe TSV"} to clipboard`,
       );
     } catch {
-      setExportBanner(`Prepared ${scope} export (use CSV download if clipboard is blocked)`);
+      setExportBanner(
+        `Prepared ${scope} export (use CSV download if clipboard is blocked)`,
+      );
     }
   };
 
-  // Download or Copy Obsidian Markdown Vault Bundle
-  const handleDownloadObsidianVault = () => {
-    const bundleText = Object.entries(obsidianVaultFiles)
-      .map(([path, content]) => `<!-- OBSIDIAN_VAULT_FILE: ${path} -->\n${content}`)
-      .join("\n\n---\n\n");
-    const blob = new Blob([bundleText], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `ellies-book-vault-${activeProject.id.toLowerCase()}.md`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setSyncNotice(
-      `Downloaded Obsidian Vault bundle (${Object.keys(obsidianVaultFiles).length} .md files · ${parsedVaultBundle.knowledgeNotes.length} notes)`,
-    );
-  };
-
-  const handleCopyObsidianVaultFile = async (filePath: string) => {
-    const content =
-      obsidianVaultFiles[filePath] ||
-      obsidianVaultFiles["00_Project_Overview.md"] ||
-      "";
-    try {
-      await navigator.clipboard.writeText(content);
-      setSyncNotice(`Copied ${filePath} to clipboard`);
-    } catch {
-      setSyncNotice(`Selected ${filePath} ready for inspection`);
-    }
-  };
-
-  // 1-Click Hybrid Sync Snapshot (Local-First Storage + /api/sync Drizzle D1 Validation Receipt)
-  const handleHybridSyncSnapshot = async () => {
-    const fallbackReceipt = buildHybridSyncReceipt(governedPayload);
-    try {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          `ellies-book-vault-sync-${activeProject.id}`,
-          JSON.stringify({
-            receipt: fallbackReceipt,
-            vaultFiles: obsidianVaultFiles,
-          }),
-        );
-      }
-      const response = await fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(governedPayload),
-      });
-      if (response.ok) {
-        const remoteReceipt = await response.json();
-        setLastSyncReceipt({
-          mode: String(remoteReceipt.mode || fallbackReceipt.mode),
-          checksum: String(remoteReceipt.checksum || fallbackReceipt.checksum),
-          timestamp: String(remoteReceipt.timestamp || fallbackReceipt.timestamp),
-          totalRows: Number(remoteReceipt.totalRows ?? fallbackReceipt.totalRows),
-          vaultFileCount: Number(
-            remoteReceipt.vaultFileCount ?? fallbackReceipt.vaultFileCount,
-          ),
-        });
-        setSyncNotice(
-          `Hybrid Sync Snapshot verified (${remoteReceipt.mode || fallbackReceipt.mode} · Checksum ${remoteReceipt.checksum || fallbackReceipt.checksum})`,
-        );
-        return;
-      }
-    } catch {
-      // Fallback to verified local-first receipt when offline
-    }
-    setLastSyncReceipt({
-      mode: fallbackReceipt.mode,
-      checksum: fallbackReceipt.checksum,
-      timestamp: fallbackReceipt.timestamp,
-      totalRows: fallbackReceipt.totalRows,
-      vaultFileCount: fallbackReceipt.vaultFileCount,
-    });
-    setSyncNotice(
-      `Hybrid Sync Snapshot saved locally (${fallbackReceipt.mode} · Checksum ${fallbackReceipt.checksum})`,
-    );
-  };
-
-  // Filtered rows for active canonical table
   const filteredTableRows = useMemo(() => {
     const rows = projection.tables[activeTable] || [];
     const q = tableSearch.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((row) =>
       Object.values(row).some((val) =>
-        String(Array.isArray(val) ? val.join(" ") : val ?? "")
+        String(Array.isArray(val) ? val.join(" ") : (val ?? ""))
           .toLowerCase()
           .includes(q),
       ),
     );
   }, [projection.tables, activeTable, tableSearch]);
 
-  // Render details for the selected node across Operational, Managerial, and Accounting views
   const selectedNodePerspectives = useMemo(() => {
     const node = selectedNode;
     if (!node) return null;
@@ -1794,14 +1776,16 @@ export function ElliesBookWorkbench({
       (r) => r.document_line_id === node.id,
     );
     const wpRow =
-      projection.tables.Work_Packages.find((r) => r.work_package_id === node.id) ??
-      projection.tables.Work_Packages[0];
+      projection.tables.Work_Packages.find(
+        (r) => r.work_package_id === node.id,
+      ) ?? projection.tables.Work_Packages[0];
 
     const rawItem =
-      activeProject.lines.find((l) => l.id === (itemRow?.spending_line_id ?? "")) ??
-      activeProject.lines[0];
+      activeProject.lines.find(
+        (l) => l.id === (itemRow?.spending_line_id ?? ""),
+      ) ?? activeProject.lines[0];
     const allocValidation = validateRequirementAllocations(rawItem || {});
-    const allocQty = allocatedQuantity(rawItem?.allocations || []);
+    const allocQty = allocatedQuantity(rawItem || {});
     const unallocQty = unallocatedQuantity(rawItem || {});
 
     const glCodeString = String(
@@ -1811,12 +1795,12 @@ export function ElliesBookWorkbench({
     return {
       operational: [
         {
-          label: "Node Entity & Table",
-          value: `${NODE_TYPE_META[node.nodeType]?.badge || node.nodeType} → ${node.nodeType}`,
+          label: "Node type & table",
+          value: `${NODE_TYPE_META[node.nodeType]?.badge || node.nodeType} (${node.nodeType})`,
         },
-        { label: "Governed Record ID", value: node.recordId },
+        { label: "Record ID", value: node.recordId },
         {
-          label: "Item / Deliverable",
+          label: "Item or deliverable",
           value: String(
             allocRow?.vendor_or_warehouse ||
               lineRow?.description ||
@@ -1825,15 +1809,15 @@ export function ElliesBookWorkbench({
           ),
         },
         {
-          label: "Specification & Unit",
+          label: "Specification & unit",
           value: `${itemRow?.specification || "A4, 350 gsm"} · ${itemRow?.unit_of_measure || "units"}`,
         },
         {
-          label: "Quantity Reconciliation",
+          label: "Quantity reconciliation",
           value: `${allocQty} allocated / ${allocValidation.required} required (${unallocQty} unallocated · ${allocValidation.status})`,
         },
         {
-          label: "Vendor / Country / Basis",
+          label: "Vendor & country",
           value: allocRow
             ? `${allocRow.vendor_or_warehouse} · ${allocRow.source_country} (${allocRow.source_type})`
             : "Multi-vendor split (China, Vietnam, Germany)",
@@ -1841,56 +1825,56 @@ export function ElliesBookWorkbench({
       ],
       managerial: [
         {
-          label: "Project Initiative",
+          label: "Project initiative",
           value: `${activeProject.id} · ${activeProject.name}`,
         },
         {
-          label: "Work Package Stream",
+          label: "Deliverable stream",
           value: `${wpRow?.name || "General"} (${wpRow?.work_package_id || "wp-general"})`,
         },
         {
-          label: "Authorization Boundary",
-          value: `Approved Baseline ${money(projection.summary.approvedBudget, currency)} · ${versionGovernance.pendingDelta !== 0 ? `Pending Proposed Delta ${money(versionGovernance.pendingDelta, currency)}` : "Baseline Aligned"}`,
+          label: "Authorization boundary",
+          value: `Approved baseline ${money(projection.summary.approvedBudget, currency)} · ${versionGovernance.pendingDelta !== 0 ? `Pending delta ${money(versionGovernance.pendingDelta, currency)}` : "Aligned"}`,
         },
         {
-          label: "Available to Commit",
+          label: "Remaining to commit",
           value: money(projection.summary.availableToCommit, currency),
         },
         {
-          label: "Outcome KPI (Non-Composite)",
+          label: "Outcome progress",
           value: activeProject.outcomes[0]
             ? `${activeProject.outcomes[0].outcomeNameSnapshot || "Shelf execution coverage"}: ${activeProject.outcomes[0].current} / ${activeProject.outcomes[0].target} (Expected contribution, never proven causation)`
-            : "Expected contribution tracked separately from financial spend",
+            : "Expected contribution tracked separately from spend",
         },
         {
-          label: "Obsidian Knowledge Links",
-          value: `${selectedNodeBacklinks.length} bidirectional backlink(s) attached`,
+          label: "Knowledge backlinks",
+          value: `${selectedNodeBacklinks.length} linked note(s)`,
         },
       ],
       accounting: [
         {
-          label: "Official GL Code (String-Preserved)",
+          label: "Official GL code",
           value: glCodeString,
         },
         {
-          label: "Fiscal Period & Quarter",
+          label: "Fiscal period & quarter",
           value: `${activeProject.period || "FY2027"} · ${String(allocRow?.quarter || lineRow?.spend_quarter || "Q1")}`,
         },
         {
-          label: "Reporting Currency",
+          label: "Reporting currency",
           value: `${currency} (Stationary rate basis)`,
         },
         {
-          label: "Recognized Actuals (Settled)",
+          label: "Recognized actuals",
           value: money(projection.summary.actualTotal, currency),
         },
         {
-          label: "Open Commitment (Deduped PO)",
+          label: "Open PO commitment",
           value: `${money(projection.summary.openCommitmentTotal, currency)} (Lineage verified: ${money(directLineageCheck.openCommitmentTotal, currency)})`,
         },
         {
-          label: "Finance Mapping Status",
-          value: "Contextual human confirmation required (Never auto-approved by AI)",
+          label: "Finance mapping status",
+          value: "Contextual human confirmation required",
         },
       ],
       allocValidation,
@@ -1907,14 +1891,15 @@ export function ElliesBookWorkbench({
     directLineageCheck.openCommitmentTotal,
   ]);
 
-  // All available tag strings across notes
   const allNoteTags = useMemo(() => {
     return Object.keys(projection.backlinkIndex.byTag);
   }, [projection.backlinkIndex.byTag]);
 
-  // Render interactive markdown preview with clickable [[TargetID|Alias]] pills
   const renderNotePreviewWithWikilinks = (markdown: string) => {
-    const bodyWithoutFm = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+    const bodyWithoutFm = markdown.replace(
+      /^---\r?\n[\s\S]*?\r?\n---\r?\n?/,
+      "",
+    );
     const lines = bodyWithoutFm.split(/\r?\n/);
 
     return lines.map((line, lineIdx) => {
@@ -1923,7 +1908,8 @@ export function ElliesBookWorkbench({
         text: string;
         target?: string;
       }> = [];
-      const tokenRegex = /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|#[a-zA-Z][a-zA-Z0-9/_-]*/g;
+      const tokenRegex =
+        /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|#[a-zA-Z][a-zA-Z0-9/_-]*/g;
       let lastIndex = 0;
       let match: RegExpExecArray | null;
 
@@ -1961,7 +1947,6 @@ export function ElliesBookWorkbench({
                   type="button"
                   className="eb-wikilink-pill"
                   onClick={() => jumpToNode(part.target!)}
-                  title={`Jump to governed node ${part.target}`}
                 >
                   [[{part.text}]]
                 </button>
@@ -1996,37 +1981,130 @@ export function ElliesBookWorkbench({
     return Math.max(2000, ...vals, 1);
   }, [quarterChartRows]);
 
+  const budgetDenominator = Math.max(
+    projection.summary.approvedBudget,
+    projection.summary.actualTotal + projection.summary.openCommitmentTotal,
+    1,
+  );
+  const actualPct = Math.round(
+    (projection.summary.actualTotal / budgetDenominator) * 100,
+  );
+  const openPoPct = Math.round(
+    (projection.summary.openCommitmentTotal / budgetDenominator) * 100,
+  );
+
+  // Build rows for Step 1 Overview Deliverables & Vendor Purchase Table
+  const overviewPurchaseRows = useMemo(() => {
+    const rows: Array<{
+      id: string;
+      deliverable: string;
+      item: string;
+      vendorSplit: string;
+      quarter: string;
+      quantity: number;
+      unitCostText: string;
+      subtotal: number;
+      status: string;
+      statusTone: "status-positive" | "status-pending" | "status-muted";
+    }> = [];
+
+    for (const line of activeProject.lines || []) {
+      const wp = (activeProject.workPackages || []).find(
+        (w) => w.id === line.workPackageId,
+      );
+      const deliverableName = wp?.name || "Core deliverable";
+      const itemLabel = `${line.itemNameSnapshot || "Requirement"} (GL ${line.glCode || "001230"})`;
+      const allocs = line.allocations || [];
+
+      if (allocs.length > 0) {
+        for (const alloc of allocs) {
+          const hasInvoice = projection.tables.Lifecycle_Lines.some(
+            (dl) =>
+              dl.allocation_id === alloc.id &&
+              (dl.stage === "Actual" || dl.stage === "Invoice"),
+          );
+          const hasPo = projection.tables.Lifecycle_Lines.some(
+            (dl) => dl.allocation_id === alloc.id && dl.stage === "PO",
+          );
+          rows.push({
+            id: alloc.id,
+            deliverable: deliverableName,
+            item: itemLabel,
+            vendorSplit: `${alloc.vendorOrWarehouse} · ${alloc.sourceLocation || alloc.sourceCountry}`,
+            quarter: alloc.quarter,
+            quantity: alloc.quantity,
+            unitCostText:
+              alloc.additionalCostEstimate > 0
+                ? `${money(alloc.unitPrice, currency)} + ${money(alloc.additionalCostEstimate, currency)} freight`
+                : money(alloc.unitPrice, currency),
+            subtotal: allocationSubtotal(alloc),
+            status: hasInvoice
+              ? "Invoice settled"
+              : hasPo
+                ? "Open PO"
+                : "Planned stock",
+            statusTone: hasInvoice
+              ? "status-positive"
+              : hasPo
+                ? "status-pending"
+                : "status-muted",
+          });
+        }
+      } else {
+        rows.push({
+          id: line.id,
+          deliverable: deliverableName,
+          item: itemLabel,
+          vendorSplit: "Direct requirement estimate",
+          quarter: line.quarters?.[0] || "Q1",
+          quantity: line.quantity,
+          unitCostText: money(line.unitPrice, currency),
+          subtotal: requirementTotal(line),
+          status: "Planned",
+          statusTone: "status-muted",
+        });
+      }
+    }
+    return rows;
+  }, [
+    activeProject.lines,
+    activeProject.workPackages,
+    projection.tables.Lifecycle_Lines,
+    currency,
+  ]);
+
   return (
-    <section
-      className="eb-workbench"
-      data-ui="ellies-book-workbench"
-      aria-label="Ellie's Book Dual-Mode Graph, Obsidian Vault and Modular Table Workbench"
-    >
-      {/* Top Workbench Header & Scope Switcher */}
-      <div className="eb-header">
-        <div className="eb-header-title">
-          <div className="eb-title-row">
+    <div className="eb-framed-shell">
+      {/* LEFT SIDEBAR (228px on desktop, compact 48px top bar on <960px) */}
+      <aside className="eb-sidebar" aria-label="Workspace navigation">
+        <div className="eb-sidebar-top">
+          <div className="eb-brand">
             <span className="eb-monogram" aria-hidden="true">
               EB
             </span>
             <div>
-              <h2 className="eb-heading">
-                Ellie&apos;s Book · Plan-vs-Reality Graph &amp; Relational Workbench
-              </h2>
-              <p className="eb-subtitle">
-                Synchronized projections over one governed model ({mode} scope) ·{" "}
-                <strong>{activeProject.generatedId || activeProject.id}</strong> —{" "}
-                {activeProject.name}
-              </p>
+              <strong className="eb-brand-title">Ellie&apos;s Book</strong>
+              <span className="eb-brand-sub">Function Budget Studio</span>
             </div>
           </div>
+
+          <button
+            type="button"
+            className="eb-mobile-menu-btn"
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((prev) => !prev)}
+          >
+            {mobileNavOpen ? "Close menu" : "Menu"}
+          </button>
         </div>
 
-        <div className="eb-header-controls">
-          <label className="eb-project-picker">
-            <span>Project scope</span>
+        <div
+          className={`eb-sidebar-Variable ${mobileNavOpen ? "is-open" : ""}`}
+        >
+          <label className="eb-sidebar-project">
+            <span>Active project</span>
             <select
-              aria-label="Select project for graph and canonical tables"
+              aria-label="Select active project"
               value={activeProject.id}
               onChange={(e) => {
                 setSelectedProjectId(e.target.value);
@@ -2041,1623 +2119,1926 @@ export function ElliesBookWorkbench({
             </select>
           </label>
 
-          <div
-            className="eb-surface-tabs"
-            role="tablist"
-            aria-label="Ellie's Book Workbench Surfaces"
-          >
+          <nav className="eb-nav-list" aria-label="Project journey">
+            <span className="eb-nav-group-label">Project workspace</span>
             <button
               type="button"
-              role="tab"
-              aria-selected={surface === "graph"}
-              className={surface === "graph" ? "is-active" : ""}
-              onClick={() => setSurface("graph")}
+              className={`eb-nav-item ${journeyStep === "overview" ? "is-active" : ""}`}
+              onClick={() => {
+                setJourneyStep("overview");
+                setMobileNavOpen(false);
+              }}
             >
-              Node Graph &amp; Vault ({projection.nodes.length} nodes)
+              <span>1. Overview</span>
+              <span className="eb-count-pill">
+                {overviewPurchaseRows.length}
+              </span>
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={surface === "tables"}
-              className={surface === "tables" ? "is-active" : ""}
-              onClick={() => setSurface("tables")}
+              className={`eb-nav-item ${journeyStep === "graph" ? "is-active" : ""}`}
+              onClick={() => {
+                setJourneyStep("graph");
+                setMobileNavOpen(false);
+              }}
             >
-              Modular Tables &amp; Charts ({CANONICAL_TABLE_NAMES.length} tables)
+              <span>2. Workflow map</span>
+              <span className="eb-count-pill">{projection.nodes.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`eb-nav-item ${journeyStep === "vault" ? "is-active" : ""}`}
+              onClick={() => {
+                setJourneyStep("vault");
+                setMobileNavOpen(false);
+              }}
+            >
+              <span>3. Notes</span>
+              <span className="eb-count-pill">
+                {notes.filter((n) => n.projectId === activeProject.id).length}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`eb-nav-item ${journeyStep === "tables" ? "is-active" : ""}`}
+              onClick={() => {
+                setJourneyStep("tables");
+                setMobileNavOpen(false);
+              }}
+            >
+              <span>4. Reports &amp; export</span>
+              <span className="eb-count-pill">
+                {CANONICAL_TABLE_NAMES.length}
+              </span>
+            </button>
+          </nav>
+
+          <div className="eb-nav-list">
+            <span className="eb-nav-group-label">Setup</span>
+            <button
+              type="button"
+              className={`eb-nav-item ${journeyStep === "classic" ? "is-active" : ""}`}
+              onClick={() => {
+                onOpenClassicTab?.("library");
+                setJourneyStep("classic");
+                setMobileNavOpen(false);
+              }}
+            >
+              <span>Function Library</span>
+            </button>
+            <button
+              type="button"
+              className="eb-nav-item"
+              onClick={() => {
+                onOpenClassicTab?.("plan");
+                setJourneyStep("classic");
+                setMobileNavOpen(false);
+              }}
+            >
+              <span>Plan &amp; Budgeting</span>
+            </button>
+            <button
+              type="button"
+              className="eb-nav-item"
+              onClick={() => {
+                onOpenClassicTab?.("profile");
+                setJourneyStep("classic");
+                setMobileNavOpen(false);
+              }}
+            >
+              <span>Needs attention</span>
+              {attentionCount > 0 ? (
+                <span className="eb-count-pill">{attentionCount}</span>
+              ) : null}
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* KPI Strip: Flat, 1px hairline dividers, tabular numbers, zero circular icon slop */}
-      <div className="eb-kpi-strip" role="region" aria-label="Project Headroom and Lineage Summary">
-        <div className="eb-kpi-cell eb-kpi-lead">
-          <span className="eb-kpi-label">Available to Commit (Headroom)</span>
-          <strong
-            className={`eb-kpi-figure ${projection.summary.availableToCommit < 0 ? "is-negative" : "is-positive"}`}
-          >
-            {money(projection.summary.availableToCommit, currency)}
-          </strong>
-          <small className="eb-kpi-sub">
-            Approved {money(projection.summary.approvedBudget, currency)} minus Actuals &amp; Open PO
-          </small>
+          <div className="eb-sidebar-footer">
+            <span className="eb-save-indicator" aria-hidden="true" />
+            <span>Saved on this device · {mode} mode</span>
+          </div>
         </div>
+      </aside>
 
-        <div className="eb-kpi-cell">
-          <span className="eb-kpi-label">Approved Baseline</span>
-          <strong className="eb-kpi-figure">
-            {money(projection.summary.approvedBudget, currency)}
-          </strong>
-          <small className="eb-kpi-sub">
-            Version {versionGovernance.baselineVersionId || "ver-1"} (Approved)
-          </small>
-        </div>
-
-        <div className="eb-kpi-cell">
-          <span className="eb-kpi-label">Planned Requirement Total</span>
-          <strong className="eb-kpi-figure">
-            {money(projection.summary.plannedTotal, currency)}
-          </strong>
-          <small className="eb-kpi-sub">
-            {projection.tables.Sourcing_Allocations.length} allocations replace parent estimate
-          </small>
-        </div>
-
-        <div className="eb-kpi-cell">
-          <span className="eb-kpi-label">Actuals + Open Commitment</span>
-          <strong className="eb-kpi-figure">
-            {money(
-              projection.summary.actualTotal + projection.summary.openCommitmentTotal,
-              currency,
-            )}
-          </strong>
-          <small className="eb-kpi-sub">
-            Actual {money(projection.summary.actualTotal, currency)} · Open PO{" "}
-            {money(projection.summary.openCommitmentTotal, currency)}
-          </small>
-        </div>
-
-        <div className="eb-kpi-cell">
-          <span className="eb-kpi-label">Forecast Spend &amp; Variance</span>
-          <strong
-            className={`eb-kpi-figure ${projection.summary.projectedHeadroom < 0 ? "is-negative" : ""}`}
-          >
-            {money(projection.summary.forecastSpend, currency)}
-          </strong>
-          <small className="eb-kpi-sub">
-            Projected headroom:{" "}
-            {projection.summary.projectedHeadroom >= 0 ? "+" : ""}
-            {money(projection.summary.projectedHeadroom, currency)}
-          </small>
-        </div>
-      </div>
-
-      {/* SURFACE 1: DUAL-MODE NODE WORKFLOW & OBSIDIAN KNOWLEDGE GRAPH */}
-      {surface === "graph" ? (
-        <div className="eb-surface-body">
-          {/* Graph Mode & Canvas Toolbar */}
-          <div className="eb-graph-toolbar">
-            <div className="eb-mode-pills" role="group" aria-label="Graph overlay mode">
+      {/* MAIN FRAMED WHITE SHEET */}
+      <section
+        className="eb-workbench"
+        aria-label="Ellie's Book Project Budget and Workflow Sheet"
+      >
+        {journeyStep === "classic" && classicStudioSlot ? (
+          <div className="eb-classic-wrapper">
+            <div className="eb-classic-banner">
+              <div>
+                <strong>Function Budget Studio · Governance &amp; Setup</strong>
+                <span>
+                  Manage function presets, reusable spending definitions, and
+                  profile settings.
+                </span>
+              </div>
               <button
                 type="button"
-                className={graphMode === "dag" && !outlineFallback ? "is-active" : ""}
-                onClick={() => {
-                  setGraphMode("dag");
-                  setOutlineFallback(false);
-                }}
+                className="eb-btn-primary"
+                onClick={() => setJourneyStep("overview")}
               >
-                Mode A · Financial Lineage DAG
-              </button>
-              <button
-                type="button"
-                className={graphMode === "obsidian" ? "is-active" : ""}
-                onClick={() => setGraphMode("obsidian")}
-              >
-                Mode B · Obsidian [[Knowledge Vault]] ({notes.filter((n) => n.projectId === activeProject.id).length})
-              </button>
-              <button
-                type="button"
-                className={outlineFallback ? "is-active" : ""}
-                onClick={() => {
-                  setGraphMode("dag");
-                  setOutlineFallback((prev) => !prev);
-                }}
-              >
-                {outlineFallback ? "✓ Outline Tree Fallback (390px Ready)" : "Outline Fallback View"}
+                ← Back to Project Overview
               </button>
             </div>
+            {classicStudioSlot}
+          </div>
+        ) : (
+          <>
+            {/* Sheet Header: Single 22px h1, plain-English finding, and primary actions */}
+            <header className="eb-header">
+              <div className="eb-header-title">
+                <div className="eb-title-meta">
+                  <span>
+                    {data?.profile?.functionName || "Marketing & Brand"} ·{" "}
+                    {activeProject.period || "FY2027"} ·{" "}
+                    <code>{activeProject.id}</code>
+                  </span>
+                </div>
+                <h1 className="eb-heading">{activeProject.name}</h1>
+                <p className="eb-subtitle">
+                  {activeProject.purpose} —{" "}
+                  <strong>
+                    {money(projection.summary.availableToCommit, currency)}{" "}
+                    remaining to commit
+                  </strong>{" "}
+                  of {money(projection.summary.approvedBudget, currency)}{" "}
+                  approved budget.
+                </p>
+              </div>
 
-            {graphMode === "dag" && !outlineFallback ? (
-              <div className="eb-canvas-controls" aria-label="Canvas layout controls">
-                <span className="eb-invariance-tag" title="Dragging or collapsing nodes never alters financial totals">
-                  View State Only: ({selectedNode?.x ?? 0}, {selectedNode?.y ?? 0}) ·{" "}
-                  {selectedNode?.mode ?? "expanded"}
-                </span>
+              <div className="eb-header-controls">
                 <button
                   type="button"
-                  onClick={() => moveNodeBy(selectedNode.id, -40, 0)}
-                  title="Nudge selected node left"
+                  className="eb-btn-secondary"
+                  onClick={() => setQuickCaptureOpen("item")}
                 >
-                  ← X
+                  + Add item
                 </button>
                 <button
                   type="button"
-                  onClick={() => moveNodeBy(selectedNode.id, 40, 0)}
-                  title="Nudge selected node right"
+                  className="eb-btn-secondary"
+                  onClick={() => setQuickCaptureOpen("expense")}
                 >
-                  X →
+                  + Record a quote or invoice
                 </button>
                 <button
                   type="button"
-                  onClick={() => moveNodeBy(selectedNode.id, 0, -30)}
-                  title="Nudge selected node up"
+                  className="eb-btn-primary"
+                  onClick={() => handleAttachNote(selectedNode)}
                 >
-                  ↑ Y
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveNodeBy(selectedNode.id, 0, 30)}
-                  title="Nudge selected node down"
-                >
-                  Y ↓
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.max(0.7, Number((z - 0.1).toFixed(2))))}
-                >
-                  Zoom −
-                </button>
-                <span className="eb-zoom-readout">{Math.round(zoom * 100)}%</span>
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.min(1.3, Number((z + 0.1).toFixed(2))))}
-                >
-                  Zoom +
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setZoom(1);
-                    setPan({ x: 0, y: 0 });
-                  }}
-                >
-                  Reset Canvas
+                  + Add note
                 </button>
               </div>
-            ) : null}
-          </div>
+            </header>
 
-          {/* Typed Edge Legend Strip */}
-          <div className="eb-edge-legend">
-            <span>
-              <i className="eb-edge-swatch eb-swatch-containment" />
-              <code>containment</code> (Project → WP → Item → Allocation)
-            </span>
-            <span>
-              <i className="eb-edge-swatch eb-swatch-plink" />
-              <code>purchase_link</code> (Allocation → Quote/PO/Invoice Line)
-            </span>
-            <span>
-              <i className="eb-edge-swatch eb-swatch-transition" />
-              <code>lifecycle_transition</code> (Quote → PO → Invoice → Actual)
-            </span>
-            <span>
-              <i className="eb-edge-swatch eb-swatch-backlink" />
-              <code>knowledge_backlink</code> (Obsidian [[Wikilink]] reference)
-            </span>
-          </div>
-
-          {/* Main Split Layout: Canvas / Vault on Left, Live Node Inspector Drawer on Right */}
-          <div className="eb-graph-workspace">
-            {graphMode === "obsidian" ? (
-              /* MODE B: OBSIDIAN KNOWLEDGE GRAPH OVERLAY & BIDIRECTIONAL WIKILINK VAULT */
-              <div className="eb-vault-panel">
-                <div className="eb-vault-sidebar">
-                  <div className="eb-vault-sidebar-head">
-                    <strong>Markdown Knowledge Notes</strong>
-                    <button
-                      type="button"
-                      className="eb-btn-small"
-                      onClick={() => handleAttachNote(selectedNode)}
-                    >
-                      + New [[Note]]
-                    </button>
-                  </div>
-
-                  <div className="eb-tag-filter-row">
-                    <button
-                      type="button"
-                      className={`eb-tag-chip ${activeTagFilter === "all" ? "is-active" : ""}`}
-                      onClick={() => setActiveTagFilter("all")}
-                    >
-                      All notes
-                    </button>
-                    {allNoteTags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        className={`eb-tag-chip ${activeTagFilter === tag ? "is-active" : ""}`}
-                        onClick={() => setActiveTagFilter(tag)}
-                      >
-                        #{tag}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="eb-note-list">
-                    {notes
-                      .filter((n) => n.projectId === activeProject.id)
-                      .filter((n) => {
-                        if (activeTagFilter === "all") return true;
-                        const parsed = extractWikilinks(n.content);
-                        return parsed.tags.includes(activeTagFilter);
-                      })
-                      .map((note) => {
-                        const parsed = extractWikilinks(note.content);
-                        return (
-                          <button
-                            key={note.id}
-                            type="button"
-                            className={`eb-note-item ${activeNote.id === note.id ? "is-selected" : ""}`}
-                            onClick={() => {
-                              setActiveNoteId(note.id);
-                              setSelectedNodeId(note.id);
-                            }}
-                          >
-                            <strong>{note.title}</strong>
-                            <small>
-                              Attached: <code>{note.attachedToId}</code> ·{" "}
-                              {parsed.wikilinks.length} [[links]]
-                            </small>
-                          </button>
-                        );
-                      })}
-                  </div>
+            {/* Quick Capture Inline Form (Opens on demand) */}
+            {quickCaptureOpen ? (
+              <div
+                className="eb-quick-capture-sheet"
+                role="dialog"
+                aria-label={`Quick capture: ${quickCaptureOpen}`}
+              >
+                <div className="eb-quick-sheet-head">
+                  <strong>
+                    {quickCaptureOpen === "item"
+                      ? "Add Purchase Item Requirement"
+                      : quickCaptureOpen === "allocation"
+                        ? "Add Vendor Sourcing Split"
+                        : quickCaptureOpen === "version"
+                          ? "Propose or Approve Budget Version"
+                          : "Log Quotation, Purchase Order, or Invoice"}
+                  </strong>
+                  <button
+                    type="button"
+                    className="eb-btn-small"
+                    onClick={() => setQuickCaptureOpen(null)}
+                  >
+                    Close
+                  </button>
                 </div>
 
-                <div className="eb-vault-editor-area">
-                  <div className="eb-vault-editor-head">
-                    <div>
-                      <span className="eyebrow">
-                        Obsidian Markdown · Attached to {activeNote.attachedToType} (
-                        {activeNote.attachedToId})
-                      </span>
+                {quickCaptureOpen === "item" ? (
+                  <div className="eb-quick-form">
+                    <label>
+                      <span>Requirement description</span>
                       <input
-                        aria-label="Knowledge note title"
-                        className="eb-note-title-input"
-                        value={activeNote.title}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setNotes((prev) =>
-                            prev.map((n) =>
-                              n.id === activeNote.id ? { ...n, title: val } : n,
-                            ),
-                          );
-                        }}
+                        value={quickItemName}
+                        onChange={(e) => setQuickItemName(e.target.value)}
+                        placeholder="Acrylic Fragrance Tester Tray"
                       />
-                    </div>
+                    </label>
+                    <label>
+                      <span>Specification</span>
+                      <input
+                        value={quickItemSpec}
+                        onChange={(e) => setQuickItemSpec(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Quantity</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quickItemQty}
+                        onChange={(e) =>
+                          setQuickItemQty(Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Unit price ({currency})</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={quickItemPrice}
+                        onChange={(e) =>
+                          setQuickItemPrice(Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>GL code</span>
+                      <input
+                        value={quickItemGl}
+                        onChange={(e) => setQuickItemGl(e.target.value)}
+                      />
+                    </label>
                     <button
                       type="button"
-                      className="eb-btn-secondary"
-                      onClick={() => jumpToNode(activeNote.attachedToId)}
+                      className="eb-btn-primary"
+                      onClick={handleAddPurchaseItem}
                     >
-                      Inspect Attached Node ({activeNote.attachedToId}) →
+                      Save Item (
+                      {money(quickItemQty * quickItemPrice, currency)})
+                    </button>
+                  </div>
+                ) : quickCaptureOpen === "allocation" ? (
+                  <div className="eb-quick-form">
+                    <label>
+                      <span>Vendor or warehouse</span>
+                      <input
+                        value={quickAllocVendor}
+                        onChange={(e) => setQuickAllocVendor(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Country</span>
+                      <input
+                        value={quickAllocCountry}
+                        onChange={(e) => setQuickAllocCountry(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Allocated quantity</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quickAllocQty}
+                        onChange={(e) =>
+                          setQuickAllocQty(Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Unit price ({currency})</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={quickAllocPrice}
+                        onChange={(e) =>
+                          setQuickAllocPrice(Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Freight / extra ({currency})</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="10"
+                        value={quickAllocExtra}
+                        onChange={(e) =>
+                          setQuickAllocExtra(Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="eb-btn-primary"
+                      onClick={handleAddAllocation}
+                    >
+                      Save Split (
+                      {money(
+                        quickAllocQty * quickAllocPrice + quickAllocExtra,
+                        currency,
+                      )}
+                      )
+                    </button>
+                  </div>
+                ) : quickCaptureOpen === "version" ? (
+                  <div className="eb-quick-form">
+                    <label>
+                      <span>Authorization state</span>
+                      <select
+                        value={quickVersionState}
+                        onChange={(e) =>
+                          setQuickVersionState(
+                            e.target.value as "Proposed" | "Approved",
+                          )
+                        }
+                      >
+                        <option value="Proposed">
+                          Proposed (Pending approval)
+                        </option>
+                        <option value="Approved">
+                          Approved (Updates baseline)
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Version total ({currency})</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={quickVersionTotal}
+                        onChange={(e) =>
+                          setQuickVersionTotal(Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Reason</span>
+                      <input
+                        value={quickVersionReason}
+                        onChange={(e) => setQuickVersionReason(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="eb-btn-primary"
+                      onClick={handleCreateBudgetVersion}
+                    >
+                      Save Version Snapshot
+                    </button>
+                  </div>
+                ) : (
+                  <div className="eb-quick-form">
+                    <label>
+                      <span>Stage</span>
+                      <select
+                        value={quickExpenseStage}
+                        onChange={(e) =>
+                          setQuickExpenseStage(
+                            e.target.value as
+                              | "Quotation"
+                              | "Purchase order"
+                              | "Invoice",
+                          )
+                        }
+                      >
+                        <option value="Quotation">Quotation</option>
+                        <option value="Purchase order">
+                          Purchase order (Commitment)
+                        </option>
+                        <option value="Invoice">
+                          Invoice / Actual (Settles PO)
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Vendor</span>
+                      <input
+                        value={quickExpenseVendor}
+                        onChange={(e) => setQuickExpenseVendor(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Amount ({currency})</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={quickExpenseAmount}
+                        onChange={(e) =>
+                          setQuickExpenseAmount(Number(e.target.value))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Quarter</span>
+                      <select
+                        value={quickExpenseQuarter}
+                        onChange={(e) =>
+                          setQuickExpenseQuarter(
+                            e.target.value as WorkbenchQuarter,
+                          )
+                        }
+                      >
+                        {QUARTERS.map((q) => (
+                          <option key={q} value={q}>
+                            {q}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="eb-btn-primary"
+                      onClick={handleLogQuickExpense}
+                    >
+                      Record {quickExpenseStage}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Divided 4-Column KPI Strip */}
+            <div
+              className="eb-kpi-strip"
+              role="region"
+              aria-label="Project Budget Summary"
+            >
+              <div className="eb-kpi-cell eb-kpi-lead">
+                <span className="eb-kpi-label">Available to commit</span>
+                <strong
+                  className={`eb-kpi-figure ${projection.summary.availableToCommit < 0 ? "is-negative" : "is-positive"}`}
+                >
+                  {money(projection.summary.availableToCommit, currency)}
+                </strong>
+                <span className="eb-kpi-sub">
+                  Approved {money(projection.summary.approvedBudget, currency)}{" "}
+                  minus actuals &amp; open PO
+                </span>
+              </div>
+
+              <div className="eb-kpi-cell">
+                <span className="eb-kpi-label">Approved budget</span>
+                <strong className="eb-kpi-figure">
+                  {money(projection.summary.approvedBudget, currency)}
+                </strong>
+                <span className="eb-kpi-sub">
+                  Baseline {versionGovernance.baselineVersionId || "ver-posm-1"}{" "}
+                  (Approved)
+                </span>
+              </div>
+
+              <div className="eb-kpi-cell">
+                <span className="eb-kpi-label">Planned cost</span>
+                <strong className="eb-kpi-figure">
+                  {money(projection.summary.plannedTotal, currency)}
+                </strong>
+                <span className="eb-kpi-sub">
+                  {projection.tables.Sourcing_Allocations.length} vendor splits
+                  replace base estimate
+                </span>
+              </div>
+
+              <div className="eb-kpi-cell">
+                <span className="eb-kpi-label">Actuals &amp; open PO</span>
+                <strong className="eb-kpi-figure">
+                  {money(
+                    projection.summary.actualTotal +
+                      projection.summary.openCommitmentTotal,
+                    currency,
+                  )}
+                </strong>
+                <span className="eb-kpi-sub">
+                  Settled {money(projection.summary.actualTotal, currency)} ·
+                  Open PO{" "}
+                  {money(projection.summary.openCommitmentTotal, currency)}
+                </span>
+              </div>
+            </div>
+
+            {/* Clean Visual Budget Progress Bar */}
+            <div className="eb-progress-block">
+              <div className="eb-progress-legend">
+                <span>
+                  <i className="eb-dot eb-dot-actual" />
+                  Actuals settled{" "}
+                  {money(projection.summary.actualTotal, currency)} ({actualPct}
+                  %)
+                </span>
+                <span>
+                  <i className="eb-dot eb-dot-open" />
+                  Open PO commitment{" "}
+                  {money(projection.summary.openCommitmentTotal, currency)} (
+                  {openPoPct}%)
+                </span>
+                <span>
+                  <i className="eb-dot eb-dot-avail" />
+                  Remaining headroom{" "}
+                  {money(projection.summary.availableToCommit, currency)}
+                </span>
+              </div>
+              <div
+                className="eb-progress-track"
+                role="img"
+                aria-label={`Budget progress: ${actualPct}% actuals, ${openPoPct}% open PO`}
+              >
+                <span
+                  className="eb-progress-seg eb-seg-actual"
+                  style={{ width: `${Math.min(100, actualPct)}%` }}
+                />
+                <span
+                  className="eb-progress-seg eb-seg-open"
+                  style={{ width: `${Math.min(100 - actualPct, openPoPct)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* =================================================================
+                STEP 1: OVERVIEW & PLAN (Default Calm Landing View)
+               ================================================================= */}
+            {journeyStep === "overview" ? (
+              <div className="eb-surface-body">
+                {/* Section 1: Deliverables & Vendor Purchase List */}
+                <section className="eb-card">
+                  <div className="eb-card-head">
+                    <div>
+                      <span className="eyebrow">The plan</span>
+                      <h2>What we are buying, and from whom</h2>
+                    </div>
+                    <div className="eb-card-actions">
+                      <button
+                        type="button"
+                        className="eb-btn-secondary"
+                        onClick={() => setQuickCaptureOpen("allocation")}
+                      >
+                        + Split across vendors
+                      </button>
+                      <button
+                        type="button"
+                        className="eb-btn-secondary"
+                        onClick={() => setJourneyStep("graph")}
+                      >
+                        See it as a map →
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="eb-table-scroll">
+                    <table className="eb-relational-table">
+                      <thead>
+                        <tr>
+                          <th>Deliverable</th>
+                          <th>Purchase item</th>
+                          <th>Vendor &amp; location</th>
+                          <th>Quarter</th>
+                          <th className="is-numeric">Quantity</th>
+                          <th>Unit price &amp; freight</th>
+                          <th className="is-numeric">Subtotal</th>
+                          <th>Status</th>
+                          <th>Inspect</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overviewPurchaseRows.map((row) => (
+                          <tr key={row.id}>
+                            <td>
+                              <strong>{row.deliverable}</strong>
+                            </td>
+                            <td>{row.item}</td>
+                            <td>{row.vendorSplit}</td>
+                            <td>{row.quarter}</td>
+                            <td className="is-numeric eb-tabular">
+                              {row.quantity}
+                            </td>
+                            <td className="eb-tabular">{row.unitCostText}</td>
+                            <td className="is-numeric eb-tabular">
+                              <strong>{money(row.subtotal, currency)}</strong>
+                            </td>
+                            <td>
+                              <span
+                                className={`status-pill ${row.statusTone}`}
+                              >
+                                {row.status}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="eb-btn-small"
+                                onClick={() => jumpToNode(row.id)}
+                              >
+                                Map →
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                {/* Section 2: Active Orders, Invoices & Attached Obsidian Notes */}
+                <section className="eb-card">
+                  <div className="eb-card-head">
+                    <div>
+                      <span className="eyebrow">The reality</span>
+                      <h2>Quotes, orders, invoices and notes</h2>
+                    </div>
+                    <div className="eb-card-actions">
+                      <button
+                        type="button"
+                        className="eb-btn-secondary"
+                        onClick={() => setJourneyStep("vault")}
+                      >
+                        All notes (
+                        {
+                          notes.filter((n) => n.projectId === activeProject.id)
+                            .length
+                        }
+                        ) →
+                      </button>
+                      <button
+                        type="button"
+                        className="eb-btn-secondary"
+                        onClick={() => setJourneyStep("tables")}
+                      >
+                        Reports &amp; export →
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="eb-table-scroll">
+                    <table className="eb-relational-table">
+                      <thead>
+                        <tr>
+                          <th>Stage</th>
+                          <th>What</th>
+                          <th>Quarter</th>
+                          <th className="is-numeric">Amount</th>
+                          <th className="is-numeric">Still to pay</th>
+                          <th>Open</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projection.tables.Lifecycle_Lines.map((line) => {
+                          const stage = String(line.stage || "Document");
+                          const lineId = String(line.document_line_id || "");
+                          return (
+                            <tr key={lineId}>
+                              <td>
+                                <span
+                                  className={`status-pill ${stage === "Actual" ? "status-positive" : stage === "PO" ? "status-pending" : "status-muted"}`}
+                                >
+                                  {stage}
+                                </span>
+                              </td>
+                              <td>
+                                {String(line.description || "Order line")}
+                                <code className="eb-id-muted">{lineId}</code>
+                              </td>
+                              <td>{String(line.spend_quarter || "Q1")}</td>
+                              <td className="is-numeric eb-tabular">
+                                {money(Number(line.amount || 0), currency)}
+                              </td>
+                              <td className="is-numeric eb-tabular">
+                                {money(
+                                  Number(line.open_commitment || 0),
+                                  currency,
+                                )}
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="eb-btn-small"
+                                  onClick={() => jumpToNode(lineId)}
+                                >
+                                  View →
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {notes
+                          .filter((n) => n.projectId === activeProject.id)
+                          .map((note) => (
+                            <tr key={note.id}>
+                              <td>
+                                <span className="status-pill status-muted">
+                                  Note
+                                </span>
+                              </td>
+                              <td>
+                                <strong>{note.title}</strong>
+                                <code className="eb-id-muted">
+                                  about{" "}
+                                  {projection.nodes.find(
+                                    (n) => n.id === note.attachedToId,
+                                  )?.label || note.attachedToId}
+                                </code>
+                              </td>
+                              <td>—</td>
+                              <td className="is-numeric eb-tabular">—</td>
+                              <td className="is-numeric eb-tabular">—</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="eb-btn-small"
+                                  onClick={() => {
+                                    setActiveNoteId(note.id);
+                                    setJourneyStep("vault");
+                                  }}
+                                >
+                                  Open →
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {/* =================================================================
+                STEP 2: WORKFLOW MAP (financial lineage graph + list view)
+               ================================================================= */}
+            {journeyStep === "graph" ? (
+              <div className="eb-surface-body">
+                <div className="eb-graph-toolbar">
+                  <div
+                    className="eb-mode-pills"
+                    role="group"
+                    aria-label="Workflow view mode"
+                  >
+                    <button
+                      type="button"
+                      className={!outlineFallback ? "is-active" : ""}
+                      onClick={() => setOutlineFallback(false)}
+                    >
+                      Map
+                    </button>
+                    <button
+                      type="button"
+                      className={outlineFallback ? "is-active" : ""}
+                      onClick={() => setOutlineFallback(true)}
+                    >
+                      List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setJourneyStep("vault")}
+                    >
+                      Notes
                     </button>
                   </div>
 
-                  {/* Quick Insert [[Wikilink]] Bar */}
-                  <div className="eb-wikilink-insert-bar">
-                    <span>Insert [[Wikilink]]:</span>
-                    {projection.nodes
-                      .filter((n) => n.nodeType !== "Knowledge_Notes")
-                      .slice(0, 7)
-                      .map((n) => (
+                  {!outlineFallback ? (
+                    <div
+                      className="eb-canvas-controls"
+                      aria-label="Canvas zoom controls"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoom((z) =>
+                            Math.max(0.75, Number((z - 0.1).toFixed(2))),
+                          )
+                        }
+                      >
+                        Zoom −
+                      </button>
+                      <span className="eb-zoom-readout">
+                        {Math.round(zoom * 100)}%
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoom((z) =>
+                            Math.min(1.25, Number((z + 0.1).toFixed(2))),
+                          )
+                        }
+                      >
+                        Zoom +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZoom(1);
+                          setPan({ x: 0, y: 0 });
+                        }}
+                      >
+                        Reset view
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="eb-graph-workspace">
+                  {outlineFallback ? (
+                    <div
+                      className="eb-outline-fallback"
+                      role="tree"
+                      aria-label="Project financial lineage outline"
+                    >
+                      <div className="eb-outline-banner">
+                        <strong>
+                          Project Financial Lineage Outline (Tap any row to
+                          inspect)
+                        </strong>
+                        <span>
+                          Every item below maps 1:1 to a governed table row.
+                        </span>
+                      </div>
+                      <div className="eb-outline-list">
+                        {projection.nodes.map((node) => {
+                          const depth =
+                            node.nodeType === "Project"
+                              ? 0
+                              : node.nodeType === "Work_Packages"
+                                ? 1
+                                : node.nodeType === "Purchase_Items" ||
+                                    node.nodeType === "Knowledge_Notes"
+                                  ? 2
+                                  : node.nodeType === "Sourcing_Allocations"
+                                    ? 3
+                                    : 4;
+                          const primaryAmount =
+                            node.financials.plannedTotal ??
+                            node.financials.amount ??
+                            node.financials.approvedBudget ??
+                            0;
+                          return (
+                            <div
+                              key={node.id}
+                              role="treeitem"
+                              tabIndex={0}
+                              aria-selected={selectedNode?.id === node.id}
+                              className={`eb-outline-row eb-depth-${depth} ${selectedNode?.id === node.id ? "is-selected" : ""}`}
+                              onClick={() => setSelectedNodeId(node.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setSelectedNodeId(node.id);
+                                }
+                              }}
+                            >
+                              <div className="eb-outline-main">
+                                <span className="eb-node-badge">
+                                  {NODE_TYPE_META[node.nodeType]?.badge ||
+                                    node.nodeType}
+                                </span>
+                                <strong>{node.label}</strong>
+                                <code>{node.id}</code>
+                              </div>
+                              <div className="eb-outline-metrics">
+                                {node.nodeType !== "Knowledge_Notes" ? (
+                                  <strong className="eb-tabular">
+                                    {money(primaryAmount, currency)}
+                                  </strong>
+                                ) : (
+                                  <span className="muted">Obsidian Note</span>
+                                )}
+                                {node.nodeType === "Project" ||
+                                node.nodeType === "Work_Packages" ||
+                                node.nodeType === "Purchase_Items" ? (
+                                  <button
+                                    type="button"
+                                    className="eb-collapse-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleNodeCollapse(node.id);
+                                    }}
+                                  >
+                                    {node.mode === "collapsed"
+                                      ? "Expand"
+                                      : "Collapse"}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="eb-canvas-viewport"
+                      onPointerMove={handleCanvasPointerMove}
+                      onPointerUp={handleCanvasPointerUp}
+                      onPointerLeave={handleCanvasPointerUp}
+                    >
+                      <div
+                        className="eb-canvas-stage"
+                        style={{
+                          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                          transformOrigin: "0 0",
+                        }}
+                      >
+                        <div className="eb-lane-guides" aria-hidden="true">
+                          <span style={{ left: 24 }}>1 · Project</span>
+                          <span style={{ left: 255 }}>2 · Deliverables</span>
+                          <span style={{ left: 490 }}>
+                            3 · Items &amp; [[Notes]]
+                          </span>
+                          <span style={{ left: 730 }}>4 · Vendor Splits</span>
+                          <span style={{ left: 970 }}>
+                            5 · Quotes, POs &amp; Invoices
+                          </span>
+                        </div>
+
+                        <svg
+                          className="eb-edges-svg"
+                          viewBox="0 0 1220 520"
+                          preserveAspectRatio="none"
+                        >
+                          {projection.edges.map((edge) => {
+                            const sourceNode = projection.visibleNodes.find(
+                              (n) =>
+                                n.id === edge.source ||
+                                n.recordId === edge.source,
+                            );
+                            const targetNode = projection.visibleNodes.find(
+                              (n) =>
+                                n.id === edge.target ||
+                                n.recordId === edge.target,
+                            );
+                            if (!sourceNode || !targetNode) return null;
+
+                            const x1 = sourceNode.x + 205;
+                            const y1 = sourceNode.y + 42;
+                            const x2 = targetNode.x;
+                            const y2 = targetNode.y + 42;
+                            const midX = (x1 + x2) / 2;
+                            const pathD =
+                              edge.type === "lifecycle_transition"
+                                ? `M ${sourceNode.x + 102} ${sourceNode.y + 82} C ${sourceNode.x + 140} ${(y1 + y2) / 2}, ${targetNode.x + 140} ${(y1 + y2) / 2}, ${targetNode.x + 102} ${targetNode.y}`
+                                : `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+
+                            return (
+                              <g
+                                key={edge.id}
+                                className={`eb-edge-group eb-edge-${edge.type}`}
+                              >
+                                <path
+                                  d={pathD}
+                                  className={`eb-edge-path eb-path-${edge.type}`}
+                                />
+                              </g>
+                            );
+                          })}
+                        </svg>
+
+                        {projection.visibleNodes.map((node) => {
+                          const isSelected = selectedNode?.id === node.id;
+                          const backlinks =
+                            projection.backlinkIndex.byTarget[node.id] || [];
+                          const canCollapse =
+                            node.nodeType === "Project" ||
+                            node.nodeType === "Work_Packages" ||
+                            node.nodeType === "Purchase_Items";
+
+                          const primaryFigure =
+                            node.nodeType === "Lifecycle_Lines"
+                              ? money(
+                                  Number(node.financials.amount || 0),
+                                  currency,
+                                )
+                              : node.nodeType === "Knowledge_Notes"
+                                ? "Obsidian Note"
+                                : money(
+                                    Number(node.financials.plannedTotal || 0),
+                                    currency,
+                                  );
+
+                          return (
+                            <div
+                              key={node.id}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${node.nodeType} node ${node.label}`}
+                              className={`eb-graph-node ${NODE_TYPE_META[node.nodeType]?.toneClass || ""} ${isSelected ? "is-selected" : ""}`}
+                              style={{
+                                left: `${node.x}px`,
+                                top: `${node.y}px`,
+                              }}
+                              onPointerDown={(e) =>
+                                handleNodePointerDown(e, node)
+                              }
+                              onClick={() => setSelectedNodeId(node.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setSelectedNodeId(node.id);
+                                }
+                              }}
+                            >
+                              <div className="eb-node-top">
+                                <span className="eb-node-type-pill">
+                                  {NODE_TYPE_META[node.nodeType]?.badge ||
+                                    node.nodeType}
+                                </span>
+                                {canCollapse ? (
+                                  <button
+                                    type="button"
+                                    className="eb-node-collapse-toggle"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleNodeCollapse(node.id);
+                                    }}
+                                  >
+                                    {node.mode === "collapsed" ? "+" : "−"}
+                                  </button>
+                                ) : null}
+                              </div>
+
+                              <strong className="eb-node-title">
+                                {node.label}
+                              </strong>
+
+                              <div className="eb-node-meta">
+                                <code>{node.id}</code>
+                                <span className="eb-node-amount">
+                                  {primaryFigure}
+                                </span>
+                              </div>
+
+                              {backlinks.length > 0 ? (
+                                <div className="eb-node-backlink-chip">
+                                  {backlinks.length} linked note
+                                  {backlinks.length > 1 ? "s" : ""}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Node Inspector Drawer */}
+                  <aside
+                    className="eb-inspector-drawer"
+                    aria-label="Node Inspector Drawer"
+                  >
+                    <div className="eb-inspector-head">
+                      <span className="eyebrow">
+                        Selected node ·{" "}
+                        {NODE_TYPE_META[selectedNode?.nodeType]?.badge}
+                      </span>
+                      <h3>{selectedNode?.label || "Select a node"}</h3>
+                      <code className="eb-inspector-id">
+                        {selectedNode?.id}
+                      </code>
+                    </div>
+
+                    <div
+                      className="eb-perspective-tabs"
+                      role="tablist"
+                      aria-label="Three connected spend perspectives"
+                    >
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={inspectorViewTab === "operational"}
+                        className={
+                          inspectorViewTab === "operational" ? "is-active" : ""
+                        }
+                        onClick={() => setInspectorViewTab("operational")}
+                      >
+                        1. Operational
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={inspectorViewTab === "managerial"}
+                        className={
+                          inspectorViewTab === "managerial" ? "is-active" : ""
+                        }
+                        onClick={() => setInspectorViewTab("managerial")}
+                      >
+                        2. Managerial
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={inspectorViewTab === "accounting"}
+                        className={
+                          inspectorViewTab === "accounting" ? "is-active" : ""
+                        }
+                        onClick={() => setInspectorViewTab("accounting")}
+                      >
+                        3. Accounting
+                      </button>
+                    </div>
+
+                    {selectedNodePerspectives ? (
+                      <dl className="eb-perspective-list">
+                        {selectedNodePerspectives[inspectorViewTab].map(
+                          (row) => (
+                            <div key={row.label} className="eb-perspective-row">
+                              <dt>{row.label}</dt>
+                              <dd>{row.value}</dd>
+                            </div>
+                          ),
+                        )}
+                      </dl>
+                    ) : null}
+
+                    <div className="eb-inspector-section">
+                      <span className="eyebrow">
+                        Connected nodes (
+                        {selectedNodeEdges.incoming.length +
+                          selectedNodeEdges.outgoing.length}
+                        )
+                      </span>
+                      <div className="eb-lineage-chips">
+                        {selectedNodeEdges.incoming.map((edge) => (
+                          <button
+                            key={edge.id}
+                            type="button"
+                            className="eb-lineage-chip"
+                            onClick={() => jumpToNode(edge.source)}
+                          >
+                            ← {edge.source}
+                          </button>
+                        ))}
+                        {selectedNodeEdges.outgoing.map((edge) => (
+                          <button
+                            key={edge.id}
+                            type="button"
+                            className="eb-lineage-chip"
+                            onClick={() => jumpToNode(edge.target)}
+                          >
+                            → {edge.target}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="eb-inspector-actions">
+                      <div className="eb-quick-action-grid">
                         <button
-                          key={n.id}
                           type="button"
-                          className="eb-insert-chip"
-                          onClick={() => {
-                            const snippet = ` [[${n.id}|${n.label}]]`;
+                          className="eb-action-btn"
+                          onClick={() => setQuickCaptureOpen("item")}
+                        >
+                          + Purchase Item
+                        </button>
+                        <button
+                          type="button"
+                          className="eb-action-btn"
+                          onClick={() => setQuickCaptureOpen("allocation")}
+                        >
+                          + Vendor Split
+                        </button>
+                        <button
+                          type="button"
+                          className="eb-action-btn"
+                          onClick={() => setQuickCaptureOpen("version")}
+                        >
+                          + Budget Version
+                        </button>
+                        <button
+                          type="button"
+                          className="eb-action-btn"
+                          onClick={() => handleAttachNote(selectedNode)}
+                        >
+                          + Add note
+                        </button>
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+              </div>
+            ) : null}
+
+            {/* =================================================================
+                STEP 3: NOTES (Obsidian-compatible linked notes, backup & export)
+               ================================================================= */}
+            {journeyStep === "vault" ? (
+              <div className="eb-surface-body">
+                <div className="eb-vault-panel">
+                  <div className="eb-vault-sidebar">
+                    <div className="eb-vault-sidebar-head">
+                      <strong>Project notes</strong>
+                      <button
+                        type="button"
+                        className="eb-btn-small"
+                        onClick={() => handleAttachNote(selectedNode)}
+                      >
+                        + New Note
+                      </button>
+                    </div>
+
+                    <div className="eb-tag-filter-row">
+                      <button
+                        type="button"
+                        className={`eb-tag-chip ${activeTagFilter === "all" ? "is-active" : ""}`}
+                        onClick={() => setActiveTagFilter("all")}
+                      >
+                        All notes
+                      </button>
+                      {allNoteTags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          className={`eb-tag-chip ${activeTagFilter === tag ? "is-active" : ""}`}
+                          onClick={() => setActiveTagFilter(tag)}
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="eb-note-list">
+                      {notes
+                        .filter((n) => n.projectId === activeProject.id)
+                        .filter((n) => {
+                          if (activeTagFilter === "all") return true;
+                          return extractWikilinks(n.content).tags.includes(
+                            activeTagFilter,
+                          );
+                        })
+                        .map((note) => {
+                          const parsed = extractWikilinks(note.content);
+                          return (
+                            <button
+                              key={note.id}
+                              type="button"
+                              className={`eb-note-item ${activeNote.id === note.id ? "is-selected" : ""}`}
+                              onClick={() => {
+                                setActiveNoteId(note.id);
+                                setSelectedNodeId(note.id);
+                              }}
+                            >
+                              <strong>{note.title}</strong>
+                              <span>
+                                Attached to <code>{note.attachedToId}</code> ·{" "}
+                                {parsed.wikilinks.length} links
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+
+                  <div className="eb-vault-editor-area">
+                    <div className="eb-vault-editor-head">
+                      <div>
+                        <span className="eyebrow">
+                          Attached to {activeNote.attachedToType} (
+                          {activeNote.attachedToId})
+                        </span>
+                        <input
+                          aria-label="Knowledge note title"
+                          className="eb-note-title-input"
+                          value={activeNote.title}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             setNotes((prev) =>
-                              prev.map((note) =>
-                                note.id === activeNote.id
-                                  ? {
-                                      ...note,
-                                      content: `${note.content}${snippet}`,
-                                      updatedAt: new Date().toISOString(),
-                                    }
-                                  : note,
+                              prev.map((n) =>
+                                n.id === activeNote.id
+                                  ? { ...n, title: val }
+                                  : n,
                               ),
                             );
                           }}
-                        >
-                          + [[{n.id}]]
-                        </button>
-                      ))}
-                  </div>
-
-                  <div className="eb-vault-split">
-                    <div className="eb-vault-pane">
-                      <label htmlFor="eb-markdown-source" className="eb-pane-label">
-                        Markdown Source (YAML frontmatter + [[TargetID|Alias]] + #tags)
-                      </label>
-                      <textarea
-                        id="eb-markdown-source"
-                        rows={10}
-                        className="eb-markdown-textarea"
-                        value={activeNote.content}
-                        onChange={(e) => {
-                          const nextContent = e.target.value;
-                          setNotes((prev) =>
-                            prev.map((n) =>
-                              n.id === activeNote.id
-                                ? {
-                                    ...n,
-                                    content: nextContent,
-                                    updatedAt: new Date().toISOString(),
-                                  }
-                                : n,
-                            ),
-                          );
-                        }}
-                      />
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="eb-btn-secondary"
+                        onClick={() => jumpToNode(activeNote.attachedToId)}
+                      >
+                        Inspect Linked Node ({activeNote.attachedToId}) →
+                      </button>
                     </div>
 
-                    <div className="eb-vault-pane">
-                      <span className="eb-pane-label">
-                        Interactive Wikilink Preview (1-Click Jump to Financial Node)
-                      </span>
-                      <div className="eb-markdown-preview">
-                        {Object.keys(parsedActiveNote.frontmatter).length > 0 ? (
-                          <div className="eb-frontmatter-bar">
-                            {Object.entries(parsedActiveNote.frontmatter).map(([k, v]) => (
-                              <span key={k}>
-                                <strong>{k}:</strong> {String(v)}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                        {renderNotePreviewWithWikilinks(activeNote.content)}
+                    <div className="eb-wikilink-insert-bar">
+                      <span>Insert [[Wikilink]]:</span>
+                      {projection.nodes
+                        .filter((n) => n.nodeType !== "Knowledge_Notes")
+                        .slice(0, 6)
+                        .map((n) => (
+                          <button
+                            key={n.id}
+                            type="button"
+                            className="eb-insert-chip"
+                            onClick={() => {
+                              const snippet = ` [[${n.id}|${n.label}]]`;
+                              setNotes((prev) =>
+                                prev.map((note) =>
+                                  note.id === activeNote.id
+                                    ? {
+                                        ...note,
+                                        content: `${note.content}${snippet}`,
+                                        updatedAt: new Date().toISOString(),
+                                      }
+                                    : note,
+                                ),
+                              );
+                            }}
+                          >
+                            + [[{n.id}]]
+                          </button>
+                        ))}
+                    </div>
+
+                    <div className="eb-vault-split">
+                      <div className="eb-vault-pane">
+                        <label
+                          htmlFor="eb-markdown-source"
+                          className="eb-pane-label"
+                        >
+                          Markdown source (YAML frontmatter + [[TargetID|Alias]]
+                          + #tags)
+                        </label>
+                        <textarea
+                          id="eb-markdown-source"
+                          rows={9}
+                          className="eb-markdown-textarea"
+                          value={activeNote.content}
+                          onChange={(e) => {
+                            const nextContent = e.target.value;
+                            setNotes((prev) =>
+                              prev.map((n) =>
+                                n.id === activeNote.id
+                                  ? {
+                                      ...n,
+                                      content: nextContent,
+                                      updatedAt: new Date().toISOString(),
+                                    }
+                                  : n,
+                              ),
+                            );
+                          }}
+                        />
                       </div>
 
-                      <div className="eb-backlink-explorer">
-                        <strong>
-                          Bidirectional Backlink Index (
-                          {projection.backlinkIndex.edges.length} active graph edges)
-                        </strong>
-                        <div className="eb-backlink-grid">
-                          {Object.entries(projection.backlinkIndex.byTarget).map(
-                            ([targetId, links]) => (
+                      <div className="eb-vault-pane">
+                        <span className="eb-pane-label">
+                          Interactive preview (Click any [[Wikilink]] to jump to
+                          node)
+                        </span>
+                        <div className="eb-markdown-preview">
+                          {Object.keys(parsedActiveNote.frontmatter).length >
+                          0 ? (
+                            <div className="eb-frontmatter-bar">
+                              {Object.entries(parsedActiveNote.frontmatter).map(
+                                ([k, v]) => (
+                                  <span key={k}>
+                                    <strong>{k}:</strong> {String(v)}
+                                  </span>
+                                ),
+                              )}
+                            </div>
+                          ) : null}
+                          {renderNotePreviewWithWikilinks(activeNote.content)}
+                        </div>
+
+                        <div className="eb-backlink-explorer">
+                          <strong>
+                            Bidirectional backlink index (
+                            {projection.backlinkIndex.edges.length} active graph
+                            edges)
+                          </strong>
+                          <div className="eb-backlink-grid">
+                            {Object.entries(
+                              projection.backlinkIndex.byTarget,
+                            ).map(([targetId, links]) => (
                               <div key={targetId} className="eb-backlink-card">
                                 <button
                                   type="button"
                                   className="eb-wikilink-pill"
                                   onClick={() => jumpToNode(targetId)}
                                 >
-                                  Target: [[{targetId}]]
+                                  [[{targetId}]]
                                 </button>
-                                <small>
+                                <span>
                                   Referenced by {links.length} note(s):{" "}
                                   {links.map((l) => l.noteTitle).join(", ")}
-                                </small>
+                                </span>
                               </div>
-                            ),
-                          )}
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="eb-backlink-explorer">
+                          <div className="eb-card-head">
+                            <div>
+                              <strong>
+                                Backup &amp; Obsidian export
+                              </strong>
+                              <p className="eb-muted">
+                                Checksum <code>{syncReceipt.checksum}</code> ·{" "}
+                                {Object.keys(obsidianVaultFiles).length}{" "}
+                                Markdown files (
+                                {parsedVaultBundle.purchaseItems.length} items)
+                              </p>
+                            </div>
+                            <div className="eb-card-actions">
+                              <select
+                                aria-label="Obsidian vault file preview"
+                                className="eb-table-search"
+                                value={selectedVaultFile}
+                                onChange={(e) =>
+                                  setSelectedVaultFile(e.target.value)
+                                }
+                              >
+                                {Object.keys(obsidianVaultFiles).map((path) => (
+                                  <option key={path} value={path}>
+                                    {path}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                className="eb-btn-secondary"
+                                onClick={triggerHybridSync}
+                              >
+                                Back up now
+                              </button>
+                            </div>
+                          </div>
+                          {syncMessage ? (
+                            <p className="eb-muted" role="status">
+                              {syncMessage}
+                            </p>
+                          ) : null}
+                          <pre className="eb-markdown-preview">
+                            {obsidianVaultFiles[selectedVaultFile] ||
+                              obsidianVaultFiles["00_Project_Overview.md"]}
+                          </pre>
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            ) : null}
 
-                  {/* Obsidian Vault Bundle Explorer & Hybrid Cloud Sync Panel */}
-                  <div className="eb-backlink-explorer" aria-label="Obsidian Vault Bundle and Hybrid Cloud Sync">
-                    <div className="eb-vault-editor-head">
+            {/* =================================================================
+                STEP 4: TABLES & CHARTS (11 Canonical Tables + Plan-vs-Reality)
+               ================================================================= */}
+            {journeyStep === "tables" ? (
+              <div className="eb-surface-body">
+                <div className="eb-charts-grid">
+                  {/* Chart 1: Q1-Q4 Plan vs Reality */}
+                  <article className="eb-chart-card">
+                    <div className="eb-chart-head">
                       <div>
                         <span className="eyebrow">
-                          Obsidian Vault Bundle ({Object.keys(obsidianVaultFiles).length} .md files) &amp; Drizzle D1 Sync
+                          Plan vs. reality trajectory
                         </span>
-                        <strong>
-                          Checksum: <code>{(lastSyncReceipt ?? liveSyncReceipt).checksum}</code> · Mode:{" "}
-                          <code>{(lastSyncReceipt ?? liveSyncReceipt).mode}</code>
-                        </strong>
+                        <h3>
+                          Q1–Q4 approved baseline vs. actuals &amp; open PO
+                        </h3>
                       </div>
-                      <div className="eb-mode-pills">
-                        <button
-                          type="button"
-                          className="eb-btn-secondary"
-                          onClick={() =>
-                            handleCopyObsidianVaultFile(
-                              selectedVaultFile in obsidianVaultFiles
-                                ? selectedVaultFile
-                                : "00_Project_Overview.md",
-                            )
-                          }
-                        >
-                          Copy Active .md
-                        </button>
-                        <button
-                          type="button"
-                          className="eb-btn-secondary"
-                          onClick={handleDownloadObsidianVault}
-                        >
-                          Download Obsidian Vault (.md)
-                        </button>
-                        <button
-                          type="button"
-                          className="eb-btn-primary"
-                          onClick={handleHybridSyncSnapshot}
-                        >
-                          Hybrid Sync Snapshot
-                        </button>
+                      <div className="eb-chart-legend">
+                        <span>
+                          <i className="eb-swatch-approved" />
+                          Approved
+                        </span>
+                        <span>
+                          <i className="eb-swatch-actual" />
+                          Actual
+                        </span>
+                        <span>
+                          <i className="eb-swatch-open" />
+                          Open PO
+                        </span>
+                        <span>
+                          <i className="eb-swatch-forecast" />
+                          Uncommitted
+                        </span>
                       </div>
                     </div>
 
-                    {syncNotice ? (
-                      <p className="eb-export-notice" role="status">
-                        {syncNotice}
-                      </p>
-                    ) : null}
-
-                    <div className="eb-tag-filter-row" role="tablist" aria-label="Generated Obsidian Vault Markdown files">
-                      {Object.keys(obsidianVaultFiles).map((filePath) => {
-                        const isActiveFile =
-                          (selectedVaultFile in obsidianVaultFiles
-                            ? selectedVaultFile
-                            : "00_Project_Overview.md") === filePath;
+                    <svg
+                      className="eb-quarter-svg"
+                      viewBox="0 0 520 200"
+                      role="img"
+                      aria-label="Quarter trajectory chart showing Q1 to Q4 Approved Baseline against Actuals and Open POs"
+                    >
+                      {[0, 0.5, 1].map((ratio, idx) => {
+                        const y = 162 - ratio * 130;
+                        const val = Math.round(maxQuarterChartValue * ratio);
                         return (
-                          <button
-                            key={filePath}
-                            type="button"
-                            role="tab"
-                            aria-selected={isActiveFile}
-                            className={`eb-tag-chip ${isActiveFile ? "is-active" : ""}`}
-                            onClick={() => setSelectedVaultFile(filePath)}
+                          <g key={idx}>
+                            <line
+                              x1="58"
+                              y1={y}
+                              x2="500"
+                              y2={y}
+                              stroke="#e8eaec"
+                              strokeWidth="1"
+                            />
+                            <text
+                              x="50"
+                              y={y + 4}
+                              textAnchor="end"
+                              className="eb-svg-tick"
+                            >
+                              ${(val / 1000).toFixed(1)}k
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {quarterChartRows.map((row, idx) => {
+                        const groupX = 86 + idx * 104;
+                        const scale = (v: number) =>
+                          Math.max(
+                            0,
+                            Math.min(130, (v / maxQuarterChartValue) * 130),
+                          );
+                        const hApproved = scale(row.approved);
+                        const hActual = scale(row.actual);
+                        const hOpen = scale(row.open);
+                        const hUncommitted = scale(
+                          Math.max(0, row.forecast - row.actual - row.open),
+                        );
+
+                        return (
+                          <g key={row.quarter}>
+                            <rect
+                              x={groupX}
+                              y={162 - hApproved}
+                              width="24"
+                              height={hApproved}
+                              fill="#cfded6"
+                            />
+                            <rect
+                              x={groupX + 28}
+                              y={162 - hActual}
+                              width="24"
+                              height={hActual}
+                              fill="#1b6c80"
+                            />
+                            <rect
+                              x={groupX + 28}
+                              y={162 - hActual - hOpen}
+                              width="24"
+                              height={hOpen}
+                              fill="#2f70bb"
+                            />
+                            <rect
+                              x={groupX + 28}
+                              y={162 - hActual - hOpen - hUncommitted}
+                              width="24"
+                              height={hUncommitted}
+                              fill="#d9dde2"
+                            />
+                            <text
+                              x={groupX + 26}
+                              y="184"
+                              textAnchor="middle"
+                              className="eb-svg-xlabel"
+                            >
+                              {row.quarter}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    <div className="eb-chart-foot-table">
+                      {quarterChartRows.map((r) => (
+                        <div key={r.quarter} className="eb-q-mini-cell">
+                          <strong>{r.quarter}</strong>
+                          <span>Plan: {money(r.planned, currency)}</span>
+                          <span>
+                            Act+PO: {money(r.actual + r.open, currency)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+
+                  {/* Chart 2: Vendor Split & Version Lineage */}
+                  <article className="eb-chart-card">
+                    <div className="eb-chart-head">
+                      <div>
+                        <span className="eyebrow">
+                          Sourcing allocation breakdown
+                        </span>
+                        <h3>Vendor, warehouse &amp; country split</h3>
+                      </div>
+                      <span className="status-pill status-positive">
+                        {selectedNodePerspectives?.allocValidation.status ||
+                          "exact"}
+                      </span>
+                    </div>
+
+                    <div className="eb-bar-list">
+                      {projection.tables.Sourcing_Allocations.map((alloc) => {
+                        const subtotal = Number(alloc.subtotal || 0);
+                        const pct = Math.min(
+                          100,
+                          Math.round(
+                            (subtotal /
+                              Math.max(1, projection.summary.plannedTotal)) *
+                              100,
+                          ),
+                        );
+                        return (
+                          <div
+                            key={String(alloc.allocation_id)}
+                            className="eb-bar-row"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() =>
+                              jumpToNode(String(alloc.allocation_id))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                jumpToNode(String(alloc.allocation_id));
+                              }
+                            }}
                           >
-                            {filePath}
-                          </button>
+                            <div className="eb-bar-row-top">
+                              <strong>
+                                {String(alloc.vendor_or_warehouse)} ·{" "}
+                                {String(alloc.source_country)}
+                              </strong>
+                              <span className="eb-tabular">
+                                {Number(alloc.quantity)}u ·{" "}
+                                {money(subtotal, currency)} ({pct}%)
+                              </span>
+                            </div>
+                            <div className="eb-bar-track">
+                              <span
+                                className="eb-bar-fill"
+                                style={{ width: `${Math.max(4, pct)}%` }}
+                              />
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
 
-                    <pre className="eb-markdown-preview" style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono), monospace", fontSize: "11.5px", maxHeight: "220px", overflow: "auto", margin: 0 }}>
-                      {obsidianVaultFiles[
-                        selectedVaultFile in obsidianVaultFiles
-                          ? selectedVaultFile
-                          : "00_Project_Overview.md"
-                      ] || ""}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            ) : outlineFallback ? (
-              /* RESPONSIVE OUTLINE TREE FALLBACK (390px Mobile & Accessibility View) */
-              <div className="eb-outline-fallback" role="tree" aria-label="Hierarchical Financial Lineage Outline">
-                <div className="eb-outline-banner">
-                  <strong>Structured Outline Fallback (390px–1440px Zero-Overflow Tree)</strong>
-                  <span>
-                    Every node below maps 1:1 to a governed relational row. Tap any node to inspect its
-                    Operational, Managerial, and Accounting views.
-                  </span>
-                </div>
-                <div className="eb-outline-list">
-                  {projection.nodes.map((node) => {
-                    const depth =
-                      node.nodeType === "Project"
-                        ? 0
-                        : node.nodeType === "Work_Packages"
-                          ? 1
-                          : node.nodeType === "Purchase_Items" ||
-                              node.nodeType === "Knowledge_Notes"
-                            ? 2
-                            : node.nodeType === "Sourcing_Allocations"
-                              ? 3
-                              : 4;
-                    const primaryAmount =
-                      node.financials.plannedTotal ??
-                      node.financials.amount ??
-                      node.financials.approvedBudget ??
-                      0;
-                    const backlinksCount =
-                      projection.backlinkIndex.byTarget[node.id]?.length ?? 0;
-
-                    return (
-                      <div
-                        key={node.id}
-                        role="treeitem"
-                        tabIndex={0}
-                        aria-selected={selectedNode?.id === node.id}
-                        className={`eb-outline-row eb-depth-${depth} ${selectedNode?.id === node.id ? "is-selected" : ""}`}
-                        onClick={() => setSelectedNodeId(node.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setSelectedNodeId(node.id);
-                          }
-                        }}
-                      >
-                        <div className="eb-outline-main">
-                          <span className={`eb-node-badge ${NODE_TYPE_META[node.nodeType]?.toneClass || ""}`}>
-                            {NODE_TYPE_META[node.nodeType]?.badge || node.nodeType}
-                          </span>
-                          <strong>{node.label}</strong>
-                          <code>{node.id}</code>
-                          {backlinksCount > 0 ? (
-                            <span className="eb-backlink-badge">
-                              [[{backlinksCount} note{backlinksCount > 1 ? "s" : ""}]]
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="eb-outline-metrics">
-                          {node.nodeType !== "Knowledge_Notes" ? (
-                            <strong>{money(primaryAmount, currency)}</strong>
-                          ) : (
-                            <span className="muted">Markdown Note</span>
-                          )}
-                          {(node.nodeType === "Project" ||
-                            node.nodeType === "Work_Packages" ||
-                            node.nodeType === "Purchase_Items") ? (
-                            <button
-                              type="button"
-                              className="eb-collapse-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleNodeCollapse(node.id);
-                              }}
-                            >
-                              {node.mode === "collapsed" ? "Expand (+)" : "Collapse (−)"}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              /* MODE A: INTERACTIVE VISUAL NODE GRAPH CANVAS (DAG) */
-              <div
-                className="eb-canvas-viewport"
-                onPointerMove={handleCanvasPointerMove}
-                onPointerUp={handleCanvasPointerUp}
-                onPointerLeave={handleCanvasPointerUp}
-              >
-                <div
-                  className="eb-canvas-stage"
-                  style={{
-                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                    transformOrigin: "0 0",
-                  }}
-                >
-                  {/* Column Lane Guides */}
-                  <div className="eb-lane-guides" aria-hidden="true">
-                    <span style={{ left: 28 }}>1 · Project Pool</span>
-                    <span style={{ left: 265 }}>2 · Work Packages</span>
-                    <span style={{ left: 510 }}>3 · Purchase Items &amp; [[Notes]]</span>
-                    <span style={{ left: 760 }}>4 · Sourcing Allocations</span>
-                    <span style={{ left: 1020 }}>5 · Quote → PO → Invoice / Actual</span>
-                  </div>
-
-                  {/* Typed SVG Edges Layer */}
-                  <svg
-                    className="eb-edges-svg"
-                    viewBox="0 0 1280 540"
-                    preserveAspectRatio="none"
-                  >
-                    <defs>
-                      <marker
-                        id="eb-arrow-containment"
-                        markerWidth="8"
-                        markerHeight="8"
-                        refX="7"
-                        refY="4"
-                        orient="auto"
-                      >
-                        <path d="M0,1 L7,4 L0,7 Z" fill="#6c726a" />
-                      </marker>
-                      <marker
-                        id="eb-arrow-plink"
-                        markerWidth="8"
-                        markerHeight="8"
-                        refX="7"
-                        refY="4"
-                        orient="auto"
-                      >
-                        <path d="M0,1 L7,4 L0,7 Z" fill="#2e514a" />
-                      </marker>
-                      <marker
-                        id="eb-arrow-transition"
-                        markerWidth="8"
-                        markerHeight="8"
-                        refX="7"
-                        refY="4"
-                        orient="auto"
-                      >
-                        <path d="M0,1 L7,4 L0,7 Z" fill="#925b18" />
-                      </marker>
-                      <marker
-                        id="eb-arrow-backlink"
-                        markerWidth="8"
-                        markerHeight="8"
-                        refX="7"
-                        refY="4"
-                        orient="auto"
-                      >
-                        <path d="M0,1 L7,4 L0,7 Z" fill="#4f5d75" />
-                      </marker>
-                    </defs>
-
-                    {projection.edges.map((edge) => {
-                      const sourceNode = projection.visibleNodes.find(
-                        (n) => n.id === edge.source || n.recordId === edge.source,
-                      );
-                      const targetNode = projection.visibleNodes.find(
-                        (n) => n.id === edge.target || n.recordId === edge.target,
-                      );
-                      if (!sourceNode || !targetNode) return null;
-
-                      const x1 = sourceNode.x + 210;
-                      const y1 = sourceNode.y + 42;
-                      const x2 = targetNode.x;
-                      const y2 = targetNode.y + 42;
-                      const midX = (x1 + x2) / 2;
-                      const pathD =
-                        edge.type === "lifecycle_transition"
-                          ? `M ${sourceNode.x + 105} ${sourceNode.y + 82} C ${sourceNode.x + 145} ${(y1 + y2) / 2}, ${targetNode.x + 145} ${(y1 + y2) / 2}, ${targetNode.x + 105} ${targetNode.y}`
-                          : `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
-
-                      const labelX =
-                        edge.type === "lifecycle_transition"
-                          ? sourceNode.x + 115
-                          : midX;
-                      const labelY =
-                        edge.type === "lifecycle_transition"
-                          ? (sourceNode.y + 82 + targetNode.y) / 2
-                          : (y1 + y2) / 2 - 6;
-
-                      return (
-                        <g key={edge.id} className={`eb-edge-group eb-edge-${edge.type}`}>
-                          <path
-                            d={pathD}
-                            className={`eb-edge-path eb-path-${edge.type}`}
-                            markerEnd={`url(#eb-arrow-${edge.type === "purchase_link" ? "plink" : edge.type === "lifecycle_transition" ? "transition" : edge.type === "knowledge_backlink" ? "backlink" : "containment"})`}
-                          />
-                          <text
-                            x={labelX}
-                            y={labelY}
-                            textAnchor="middle"
-                            className="eb-edge-label"
+                    <div className="eb-version-timeline">
+                      <span className="eyebrow">
+                        Budget version history &amp; authorization
+                      </span>
+                      {projection.tables.Budget_Versions.map((ver) => (
+                        <div
+                          key={String(ver.version_id)}
+                          className="eb-version-item"
+                        >
+                          <span
+                            className={`status-pill ${ver.authorization_state === "Approved" ? "status-positive" : "status-pending"}`}
                           >
-                            {edge.label}
-                          </text>
-                        </g>
+                            v{String(ver.sequence)} · {String(ver.version_type)}{" "}
+                            · {String(ver.authorization_state)}
+                          </span>
+                          <strong className="eb-tabular">
+                            {money(
+                              Number(ver.total || 0),
+                              String(ver.currency || currency),
+                            )}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                </div>
+
+                {/* Canonical 11-Table Explorer */}
+                <div className="eb-table-explorer">
+                  <div className="eb-table-explorer-head">
+                    <div>
+                      <span className="eyebrow">
+                        Same numbers as the map, as tables
+                      </span>
+                      <h3>All project tables</h3>
+                    </div>
+
+                    <div className="eb-table-export-controls">
+                      <input
+                        type="search"
+                        aria-label="Filter rows in active canonical table"
+                        className="eb-table-search"
+                        placeholder={`Filter ${activeTable} rows...`}
+                        value={tableSearch}
+                        onChange={(e) => setTableSearch(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="eb-btn-secondary"
+                        onClick={() =>
+                          handleExportCanonical("tsv", activeTable)
+                        }
+                      >
+                        Copy TSV
+                      </button>
+                      <button
+                        type="button"
+                        className="eb-btn-secondary"
+                        onClick={() =>
+                          handleExportCanonical("markdown", activeTable)
+                        }
+                      >
+                        Copy Markdown
+                      </button>
+                      <button
+                        type="button"
+                        className="eb-btn-primary"
+                        onClick={() => handleExportCanonical("csv", "ALL")}
+                      >
+                        Download All 11 Tables (CSV)
+                      </button>
+                    </div>
+                  </div>
+
+                  {exportBanner ? (
+                    <p className="eb-export-notice" role="status">
+                      {exportBanner}
+                    </p>
+                  ) : null}
+
+                  <div
+                    className="eb-table-switcher"
+                    role="tablist"
+                    aria-label="11 Canonical Relational Tables"
+                  >
+                    {(
+                      CANONICAL_TABLE_NAMES as readonly CanonicalTableName[]
+                    ).map((tName) => {
+                      const count = projection.tables[tName]?.length ?? 0;
+                      return (
+                        <button
+                          key={tName}
+                          type="button"
+                          role="tab"
+                          aria-selected={activeTable === tName}
+                          className={`eb-table-tab ${activeTable === tName ? "is-active" : ""}`}
+                          onClick={() => setActiveTable(tName)}
+                        >
+                          <span>{tName}</span>
+                          <strong className="eb-count-pill">{count}</strong>
+                        </button>
                       );
                     })}
-                  </svg>
-
-                  {/* Interactive Governed Nodes Layer */}
-                  {projection.visibleNodes.map((node) => {
-                    const isSelected = selectedNode?.id === node.id;
-                    const backlinks = projection.backlinkIndex.byTarget[node.id] || [];
-                    const canCollapse =
-                      node.nodeType === "Project" ||
-                      node.nodeType === "Work_Packages" ||
-                      node.nodeType === "Purchase_Items";
-
-                    const primaryFigure =
-                      node.nodeType === "Lifecycle_Lines"
-                        ? money(Number(node.financials.amount || 0), currency)
-                        : node.nodeType === "Knowledge_Notes"
-                          ? "Obsidian Note"
-                          : money(Number(node.financials.plannedTotal || 0), currency);
-
-                    return (
-                      <div
-                        key={node.id}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`${node.nodeType} node ${node.label}`}
-                        className={`eb-graph-node ${NODE_TYPE_META[node.nodeType]?.toneClass || ""} ${isSelected ? "is-selected" : ""} ${node.mode === "collapsed" ? "is-collapsed" : ""}`}
-                        style={{ left: `${node.x}px`, top: `${node.y}px` }}
-                        onPointerDown={(e) => handleNodePointerDown(e, node)}
-                        onClick={() => setSelectedNodeId(node.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setSelectedNodeId(node.id);
-                          }
-                        }}
-                      >
-                        <div className="eb-node-top">
-                          <span className="eb-node-type-pill">
-                            {NODE_TYPE_META[node.nodeType]?.badge || node.nodeType}
-                          </span>
-                          {canCollapse ? (
-                            <button
-                              type="button"
-                              className="eb-node-collapse-toggle"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleNodeCollapse(node.id);
-                              }}
-                              title={
-                                node.mode === "collapsed"
-                                  ? "Expand to governed row nodes"
-                                  : "Collapse into summary roll-up"
-                              }
-                            >
-                              {node.mode === "collapsed" ? "+ Roll-up" : "− Row"}
-                            </button>
-                          ) : null}
-                        </div>
-
-                        <strong className="eb-node-title">{node.label}</strong>
-
-                        <div className="eb-node-meta">
-                          <code>{node.id}</code>
-                          <span className="eb-node-amount">{primaryFigure}</span>
-                        </div>
-
-                        {node.nodeType === "Purchase_Items" ? (
-                          <div className="eb-node-subline">
-                            Alloc: {node.financials.allocatedQuantity ?? 0}u · Unalloc:{" "}
-                            {node.financials.unallocatedQuantity ?? 0}u
-                          </div>
-                        ) : null}
-
-                        {node.nodeType === "Lifecycle_Lines" &&
-                        Number(node.financials.openCommitment || 0) > 0 ? (
-                          <div className="eb-node-subline eb-subline-warning">
-                            Open PO: {money(Number(node.financials.openCommitment), currency)}
-                          </div>
-                        ) : null}
-
-                        {backlinks.length > 0 ? (
-                          <div className="eb-node-backlink-chip">
-                            [[{backlinks.length} linked note{backlinks.length > 1 ? "s" : ""}]]
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* LIVE NODE INSPECTOR DRAWER (Operational / Managerial / Accounting Views + Quick Actions) */}
-            <aside className="eb-inspector-drawer" aria-label="Node Inspector Drawer">
-              <div className="eb-inspector-head">
-                <div>
-                  <span className="eyebrow">
-                    Node Inspector ·{" "}
-                    {selectedNode?.mode === "collapsed"
-                      ? "Collapsed Summary Roll-Up"
-                      : "1:1 Governed Relational Row"}
-                  </span>
-                  <h3>{selectedNode?.label || "Select a node"}</h3>
-                  <code className="eb-inspector-id">
-                    {selectedNode?.nodeType} :: {selectedNode?.id}
-                  </code>
-                </div>
-              </div>
-
-              {/* Three Connected Perspectives Switcher */}
-              <div
-                className="eb-perspective-tabs"
-                role="tablist"
-                aria-label="Three connected spend perspectives"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={inspectorViewTab === "operational"}
-                  className={inspectorViewTab === "operational" ? "is-active" : ""}
-                  onClick={() => setInspectorViewTab("operational")}
-                >
-                  1. Operational
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={inspectorViewTab === "managerial"}
-                  className={inspectorViewTab === "managerial" ? "is-active" : ""}
-                  onClick={() => setInspectorViewTab("managerial")}
-                >
-                  2. Managerial
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={inspectorViewTab === "accounting"}
-                  className={inspectorViewTab === "accounting" ? "is-active" : ""}
-                  onClick={() => setInspectorViewTab("accounting")}
-                >
-                  3. Accounting
-                </button>
-              </div>
-
-              {selectedNodePerspectives ? (
-                <dl className="eb-perspective-list">
-                  {selectedNodePerspectives[inspectorViewTab].map((row) => (
-                    <div key={row.label} className="eb-perspective-row">
-                      <dt>{row.label}</dt>
-                      <dd>{row.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : null}
-
-              {/* Lineage Connections & Bidirectional Backlinks */}
-              <div className="eb-inspector-section">
-                <span className="eyebrow">
-                  Typed Graph Edges ({selectedNodeEdges.incoming.length} in ·{" "}
-                  {selectedNodeEdges.outgoing.length} out)
-                </span>
-                <div className="eb-lineage-chips">
-                  {selectedNodeEdges.incoming.map((edge) => (
-                    <button
-                      key={edge.id}
-                      type="button"
-                      className="eb-lineage-chip"
-                      onClick={() => jumpToNode(edge.source)}
-                    >
-                      ← {edge.type}: <code>{edge.source}</code>
-                    </button>
-                  ))}
-                  {selectedNodeEdges.outgoing.map((edge) => (
-                    <button
-                      key={edge.id}
-                      type="button"
-                      className="eb-lineage-chip"
-                      onClick={() => jumpToNode(edge.target)}
-                    >
-                      → {edge.type}: <code>{edge.target}</code>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Obsidian Backlinks on this Node */}
-              <div className="eb-inspector-section">
-                <span className="eyebrow">
-                  Obsidian [[Knowledge Backlinks]] ({selectedNodeBacklinks.length})
-                </span>
-                {selectedNodeBacklinks.length > 0 ? (
-                  <div className="eb-backlink-mini-list">
-                    {selectedNodeBacklinks.map((bl, idx) => (
-                      <button
-                        key={`${bl.noteId}-${idx}`}
-                        type="button"
-                        className="eb-backlink-mini-btn"
-                        onClick={() => {
-                          setActiveNoteId(bl.noteId);
-                          setGraphMode("obsidian");
-                        }}
-                      >
-                        <strong>{bl.noteTitle}</strong>
-                        <small>
-                          <code>{bl.raw}</code> · {bl.tags.map((t) => `#${t}`).join(" ")}
-                        </small>
-                      </button>
-                    ))}
                   </div>
-                ) : (
-                  <p className="eb-empty-inline">
-                    No [[Knowledge Note]] references this node yet.
-                  </p>
-                )}
-              </div>
 
-              {/* Inspector Quick Actions */}
-              <div className="eb-inspector-actions">
-                <span className="eyebrow">Governed Quick Actions</span>
-                <div className="eb-quick-action-grid">
-                  <button
-                    type="button"
-                    className="eb-action-btn"
-                    onClick={() => setQuickCaptureOpen("item")}
-                  >
-                    + Add Purchase Item
-                  </button>
-                  <button
-                    type="button"
-                    className="eb-action-btn"
-                    onClick={() => setQuickCaptureOpen("allocation")}
-                  >
-                    + Add Sourcing Allocation
-                  </button>
-                  <button
-                    type="button"
-                    className="eb-action-btn"
-                    onClick={() => setQuickCaptureOpen("version")}
-                  >
-                    + Propose Budget Version
-                  </button>
-                  <button
-                    type="button"
-                    className="eb-action-btn"
-                    onClick={() => handleAttachNote(selectedNode)}
-                  >
-                    + Attach [[Knowledge Note]]
-                  </button>
-                </div>
-              </div>
-            </aside>
-          </div>
-        </div>
-      ) : (
-        /* SURFACE 2: AUDITABLE MODULAR TABLE WORKBENCH & CLEAR PLAN-VS-REALITY CHARTS */
-        <div className="eb-surface-body">
-          {/* Plan-vs-Reality Visual Analytics Grid */}
-          <div className="eb-charts-grid">
-            {/* Chart 1: Quarter Trajectory Chart (Q1-Q4 Approved vs Actuals+Open vs Forecast) */}
-            <article className="eb-chart-card">
-              <div className="eb-chart-head">
-                <div>
-                  <span className="eyebrow">Plan vs. Reality Trajectory</span>
-                  <h3>Q1–Q4 Approved Baseline vs. Actuals, Open PO &amp; Forecast</h3>
-                </div>
-                <div className="eb-chart-legend">
-                  <span>
-                    <i className="eb-swatch-approved" />
-                    Approved
-                  </span>
-                  <span>
-                    <i className="eb-swatch-actual" />
-                    Actual
-                  </span>
-                  <span>
-                    <i className="eb-swatch-open" />
-                    Open PO
-                  </span>
-                  <span>
-                    <i className="eb-swatch-forecast" />
-                    Uncommitted Plan
-                  </span>
-                </div>
-              </div>
-
-              <svg
-                className="eb-quarter-svg"
-                viewBox="0 0 520 200"
-                role="img"
-                aria-label="Quarter trajectory chart showing Q1 to Q4 Approved Baseline against Actuals, Open Commitments, and Forecast"
-              >
-                {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
-                  const y = 165 - ratio * 135;
-                  const val = Math.round(maxQuarterChartValue * ratio);
-                  return (
-                    <g key={idx}>
-                      <line
-                        x1="54"
-                        y1={y}
-                        x2="500"
-                        y2={y}
-                        stroke="#e2e0d8"
-                        strokeDasharray={idx === 0 ? undefined : "3 3"}
-                        strokeWidth={idx === 0 ? "1.5" : "1"}
-                      />
-                      <text x="48" y={y + 4} textAnchor="end" className="eb-svg-tick">
-                        ${(val / 1000).toFixed(1)}k
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {quarterChartRows.map((row, idx) => {
-                  const groupX = 82 + idx * 106;
-                  const scale = (v: number) =>
-                    Math.max(0, Math.min(135, (v / maxQuarterChartValue) * 135));
-
-                  const hApproved = scale(row.approved);
-                  const hActual = scale(row.actual);
-                  const hOpen = scale(row.open);
-                  const hUncommitted = scale(
-                    Math.max(0, row.forecast - row.actual - row.open),
-                  );
-
-                  return (
-                    <g key={row.quarter}>
-                      {/* Approved Baseline Bar */}
-                      <rect
-                        x={groupX}
-                        y={165 - hApproved}
-                        width="24"
-                        height={hApproved}
-                        fill="#cfded6"
-                      />
-                      {/* Stacked Reality + Forecast Bar: Actual (bottom) + Open PO (mid) + Uncommitted (top) */}
-                      <rect
-                        x={groupX + 28}
-                        y={165 - hActual}
-                        width="24"
-                        height={hActual}
-                        fill="#2e514a"
-                      />
-                      <rect
-                        x={groupX + 28}
-                        y={165 - hActual - hOpen}
-                        width="24"
-                        height={hOpen}
-                        fill="#c99a55"
-                      />
-                      <rect
-                        x={groupX + 28}
-                        y={165 - hActual - hOpen - hUncommitted}
-                        width="24"
-                        height={hUncommitted}
-                        fill="#e6dec8"
-                      />
-                      <text
-                        x={groupX + 26}
-                        y="184"
-                        textAnchor="middle"
-                        className="eb-svg-xlabel"
-                      >
-                        {row.quarter}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-
-              <div className="eb-chart-foot-table">
-                {quarterChartRows.map((r) => (
-                  <div key={r.quarter} className="eb-q-mini-cell">
-                    <strong>{r.quarter}</strong>
-                    <span>Plan: {money(r.planned, currency)}</span>
-                    <span>Act+PO: {money(r.actual + r.open, currency)}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            {/* Chart 2: Sourcing Allocation Split & Quantity Reconciliation */}
-            <article className="eb-chart-card">
-              <div className="eb-chart-head">
-                <div>
-                  <span className="eyebrow">Sourcing Allocation Breakdown</span>
-                  <h3>Vendor, Warehouse &amp; Country Split (No Double Counting)</h3>
-                </div>
-                <span className="status-pill status-positive">
-                  {selectedNodePerspectives?.allocValidation.status || "exact"}
-                </span>
-              </div>
-
-              <div className="eb-bar-list">
-                {projection.tables.Sourcing_Allocations.map((alloc) => {
-                  const subtotal = Number(alloc.subtotal || 0);
-                  const pct = Math.min(
-                    100,
-                    Math.round(
-                      (subtotal / Math.max(1, projection.summary.plannedTotal)) * 100,
-                    ),
-                  );
-                  return (
-                    <div
-                      key={String(alloc.allocation_id)}
-                      role="button"
-                      tabIndex={0}
-                      className="eb-bar-row"
-                      onClick={() => jumpToNode(String(alloc.allocation_id))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          jumpToNode(String(alloc.allocation_id));
-                        }
-                      }}
-                    >
-                      <div className="eb-bar-row-top">
-                        <strong>
-                          {String(alloc.vendor_or_warehouse)} ·{" "}
-                          {String(alloc.source_country)}
-                        </strong>
-                        <span className="eb-tabular">
-                          {Number(alloc.quantity)}u · {money(subtotal, currency)} ({pct}%)
-                        </span>
-                      </div>
-                      <div className="eb-bar-track">
-                        <span
-                          className="eb-bar-fill"
-                          style={{ width: `${Math.max(4, pct)}%` }}
-                        />
-                      </div>
-                      <small className="muted">
-                        {String(alloc.source_type)} · Unit {money(Number(alloc.unit_price), currency)} + Extra{" "}
-                        {money(Number(alloc.additional_cost_estimate), currency)} ·{" "}
-                        {String(alloc.quarter)}
-                      </small>
-                    </div>
-                  );
-                })}
-                {projection.tables.Sourcing_Allocations.length === 0 ? (
-                  <p className="eb-empty-inline">
-                    Requirement uses base Quantity × Unit Price ({money(projection.summary.plannedTotal, currency)}). Add a Sourcing Allocation to split across vendors.
-                  </p>
-                ) : null}
-              </div>
-
-              {/* Budget Version History Timeline */}
-              <div className="eb-version-timeline">
-                <span className="eyebrow">
-                  Budget Version Lineage &amp; Authorization Boundary
-                </span>
-                {projection.tables.Budget_Versions.map((ver) => (
-                  <div key={String(ver.version_id)} className="eb-version-item">
-                    <span
-                      className={`status-pill ${ver.authorization_state === "Approved" ? "status-positive" : "status-pending"}`}
-                    >
-                      v{String(ver.sequence)} · {String(ver.version_type)} ·{" "}
-                      {String(ver.authorization_state)}
-                    </span>
-                    <strong className="eb-tabular">
-                      {money(Number(ver.total || 0), String(ver.currency || currency))}
-                    </strong>
-                    <small>{String(ver.reason || "Baseline snapshot")}</small>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </div>
-
-          {/* Canonical 11-Table Explorer */}
-          <div className="eb-table-explorer">
-            <div className="eb-table-explorer-head">
-              <div>
-                <span className="eyebrow">
-                  Graph-to-Table Equivalence · Zero Black-Box State
-                </span>
-                <h3>Canonical Relational Table Switcher (11 Governed Tables)</h3>
-              </div>
-
-              <div className="eb-table-export-controls">
-                <input
-                  type="search"
-                  aria-label="Filter rows in active canonical table"
-                  className="eb-table-search"
-                  placeholder={`Filter ${activeTable} rows...`}
-                  value={tableSearch}
-                  onChange={(e) => setTableSearch(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="eb-btn-secondary"
-                  onClick={() => handleExportCanonical("tsv", activeTable)}
-                >
-                  Copy {activeTable} TSV
-                </button>
-                <button
-                  type="button"
-                  className="eb-btn-secondary"
-                  onClick={() => handleExportCanonical("markdown", activeTable)}
-                >
-                  Copy Markdown
-                </button>
-                <button
-                  type="button"
-                  className="eb-btn-primary"
-                  onClick={() => handleExportCanonical("csv", "ALL")}
-                >
-                  Download All 11 Tables (CSV)
-                </button>
-              </div>
-            </div>
-
-            {exportBanner ? (
-              <p className="eb-export-notice" role="status">
-                {exportBanner}
-              </p>
-            ) : null}
-
-            {/* 11 Table Switcher Pills with Row Count Badges */}
-            <div
-              className="eb-table-switcher"
-              role="tablist"
-              aria-label="11 Canonical Relational Tables"
-            >
-              {(CANONICAL_TABLE_NAMES as readonly CanonicalTableName[]).map((tName) => {
-                const count = projection.tables[tName]?.length ?? 0;
-                return (
-                  <button
-                    key={tName}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTable === tName}
-                    className={`eb-table-tab ${activeTable === tName ? "is-active" : ""}`}
-                    onClick={() => setActiveTable(tName)}
-                  >
-                    <span>{tName}</span>
-                    <strong className="eb-count-pill">{count}</strong>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Active Relational Table Grid (Rules & Alignment, Right-Aligned Tabular Numbers) */}
-            <div className="eb-table-scroll">
-              {filteredTableRows.length > 0 ? (
-                <table className="eb-relational-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(filteredTableRows[0]).map((col) => (
-                        <th
-                          key={col}
-                          className={
-                            typeof filteredTableRows[0][col] === "number"
-                              ? "is-numeric"
-                              : ""
-                          }
-                        >
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTableRows.map((row, rIdx) => {
-                      const rowId = String(
-                        row.spending_line_id ||
-                          row.allocation_id ||
-                          row.work_package_id ||
-                          row.document_line_id ||
-                          row.note_id ||
-                          row.project_id ||
-                          `row-${rIdx}`,
-                      );
-                      return (
-                        <tr
-                          key={rowId + "-" + rIdx}
-                          onClick={() => jumpToNode(rowId)}
-                          className="eb-clickable-row"
-                          title="Click to inspect corresponding graph node"
-                        >
-                          {Object.entries(row).map(([col, val]) => {
-                            const isNum = typeof val === "number";
-                            const isMoneyCol =
-                              isNum &&
-                              /budget|total|amount|price|subtotal|commitment|spend|headroom/i.test(
-                                col,
-                              );
-                            const formatted = isMoneyCol
-                              ? money(val as number, currency)
-                              : isNum
-                                ? String(val)
-                                : Array.isArray(val)
-                                  ? val.length
-                                    ? val.join(", ")
-                                    : "—"
-                                  : val === null || val === undefined || val === ""
-                                    ? "—"
-                                    : safeSpreadsheetText(val);
-
-                            return (
-                              <td
+                  <div className="eb-table-scroll">
+                    {filteredTableRows.length > 0 ? (
+                      <table className="eb-relational-table">
+                        <thead>
+                          <tr>
+                            {Object.keys(filteredTableRows[0]).map((col) => (
+                              <th
                                 key={col}
-                                className={isNum ? "is-numeric eb-tabular" : ""}
+                                className={
+                                  typeof filteredTableRows[0][col] === "number"
+                                    ? "is-numeric"
+                                    : ""
+                                }
                               >
-                                {col === "gl_code" ? (
-                                  <code>{formatted}</code>
-                                ) : (
-                                  formatted
-                                )}
-                              </td>
+                                {col}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredTableRows.map((row, rIdx) => {
+                            const rowId = String(
+                              row.spending_line_id ||
+                                row.allocation_id ||
+                                row.work_package_id ||
+                                row.document_line_id ||
+                                row.note_id ||
+                                row.project_id ||
+                                `row-${rIdx}`,
+                            );
+                            return (
+                              <tr
+                                key={rowId + "-" + rIdx}
+                                onClick={() => jumpToNode(rowId)}
+                                className="eb-clickable-row"
+                              >
+                                {Object.entries(row).map(([col, val]) => {
+                                  const isNum = typeof val === "number";
+                                  const isMoneyCol =
+                                    isNum &&
+                                    /budget|total|amount|price|subtotal|commitment|spend|headroom/i.test(
+                                      col,
+                                    );
+                                  const formatted = isMoneyCol
+                                    ? money(val as number, currency)
+                                    : isNum
+                                      ? String(val)
+                                      : Array.isArray(val)
+                                        ? val.length
+                                          ? val.join(", ")
+                                          : "—"
+                                        : val === null ||
+                                            val === undefined ||
+                                            val === ""
+                                          ? "—"
+                                          : safeSpreadsheetText(val);
+
+                                  return (
+                                    <td
+                                      key={col}
+                                      className={
+                                        isNum ? "is-numeric eb-tabular" : ""
+                                      }
+                                    >
+                                      {col === "gl_code" ? (
+                                        <code>{formatted}</code>
+                                      ) : (
+                                        formatted
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
                             );
                           })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="eb-table-empty">
-                  <strong>No rows in {activeTable} match current filter.</strong>
-                  <span>—</span>
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="eb-table-empty">
+                        <strong>
+                          No rows in {activeTable} match current filter.
+                        </strong>
+                        <span>—</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+              </div>
+            ) : null}
 
-      {/* QUICK CAPTURE INLINE SHEET (Triggered from Inspector or Mobile/Desktop Command Bar) */}
-      {quickCaptureOpen ? (
-        <div
-          className="eb-quick-capture-sheet"
-          role="dialog"
-          aria-label={`Quick capture: ${quickCaptureOpen}`}
-        >
-          <div className="eb-quick-sheet-head">
-            <strong>
-              {quickCaptureOpen === "item"
-                ? "+ Add Purchase Item Requirement"
-                : quickCaptureOpen === "allocation"
-                  ? "+ Add Sourcing Allocation Split"
-                  : quickCaptureOpen === "version"
-                    ? "+ Propose or Approve Budget Version Snapshot"
-                    : "+ Log On-the-Fly Quotation / PO / Invoice Line"}
-            </strong>
-            <button
-              type="button"
-              className="eb-btn-small"
-              onClick={() => setQuickCaptureOpen(null)}
+            {/* QUIET ACTION BAR AT BOTTOM OF SHEET */}
+            <div
+              className="eb-command-bar"
+              role="region"
+              aria-label="Quick actions"
             >
-              Close ✕
-            </button>
-          </div>
+              <div className="eb-command-status">
+                <span>Quick actions</span>
+                <strong>
+                  {selectedNode?.label || activeProject.name} ·{" "}
+                  {money(projection.summary.availableToCommit, currency)} left
+                </strong>
+              </div>
 
-          {quickCaptureOpen === "item" ? (
-            <div className="eb-quick-form">
-              <label>
-                <span>Requirement Description</span>
-                <input
-                  value={quickItemName}
-                  onChange={(e) => setQuickItemName(e.target.value)}
-                  placeholder="Acrylic Fragrance Tester Tray"
-                />
-              </label>
-              <label>
-                <span>Specification</span>
-                <input
-                  value={quickItemSpec}
-                  onChange={(e) => setQuickItemSpec(e.target.value)}
-                />
-              </label>
-              <label>
-                <span>Required Quantity</span>
-                <input
-                  type="number"
-                  min="1"
-                  value={quickItemQty}
-                  onChange={(e) => setQuickItemQty(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                <span>Base Unit Price ({currency})</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={quickItemPrice}
-                  onChange={(e) => setQuickItemPrice(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                <span>GL Code (String)</span>
-                <input
-                  value={quickItemGl}
-                  onChange={(e) => setQuickItemGl(e.target.value)}
-                />
-              </label>
-              <button
-                type="button"
-                className="eb-btn-primary"
-                onClick={handleAddPurchaseItem}
-              >
-                Save Purchase Item ({money(quickItemQty * quickItemPrice, currency)})
-              </button>
-            </div>
-          ) : quickCaptureOpen === "allocation" ? (
-            <div className="eb-quick-form">
-              <label>
-                <span>Vendor or Warehouse</span>
-                <input
-                  value={quickAllocVendor}
-                  onChange={(e) => setQuickAllocVendor(e.target.value)}
-                />
-              </label>
-              <label>
-                <span>Country</span>
-                <input
-                  value={quickAllocCountry}
-                  onChange={(e) => setQuickAllocCountry(e.target.value)}
-                />
-              </label>
-              <label>
-                <span>Allocated Quantity</span>
-                <input
-                  type="number"
-                  min="1"
-                  value={quickAllocQty}
-                  onChange={(e) => setQuickAllocQty(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                <span>Unit Price ({currency})</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={quickAllocPrice}
-                  onChange={(e) => setQuickAllocPrice(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                <span>Freight / Extra Cost ({currency})</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="10"
-                  value={quickAllocExtra}
-                  onChange={(e) => setQuickAllocExtra(Number(e.target.value))}
-                />
-              </label>
-              <button
-                type="button"
-                className="eb-btn-primary"
-                onClick={handleAddAllocation}
-              >
-                Save Allocation (
-                {money(quickAllocQty * quickAllocPrice + quickAllocExtra, currency)})
-              </button>
-            </div>
-          ) : quickCaptureOpen === "version" ? (
-            <div className="eb-quick-form">
-              <label>
-                <span>Authorization State</span>
-                <select
-                  value={quickVersionState}
-                  onChange={(e) =>
-                    setQuickVersionState(e.target.value as "Proposed" | "Approved")
-                  }
+              <div className="eb-command-actions">
+                <button
+                  type="button"
+                  className="eb-cmd-btn"
+                  onClick={() => setJourneyStep("overview")}
                 >
-                  <option value="Proposed">Proposed (Does not raise Approved Baseline)</option>
-                  <option value="Approved">Approved (Updates Effective Approved Baseline)</option>
-                </select>
-              </label>
-              <label>
-                <span>Version Total ({currency})</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={quickVersionTotal}
-                  onChange={(e) => setQuickVersionTotal(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                <span>Audit Reason</span>
-                <input
-                  value={quickVersionReason}
-                  onChange={(e) => setQuickVersionReason(e.target.value)}
-                />
-              </label>
-              <button
-                type="button"
-                className="eb-btn-primary"
-                onClick={handleCreateBudgetVersion}
-              >
-                Create Immutable Version Snapshot
-              </button>
-            </div>
-          ) : (
-            <div className="eb-quick-form">
-              <label>
-                <span>Lifecycle Stage</span>
-                <select
-                  value={quickExpenseStage}
-                  onChange={(e) =>
-                    setQuickExpenseStage(
-                      e.target.value as "Quotation" | "Purchase order" | "Invoice",
+                  1. Overview
+                </button>
+                <button
+                  type="button"
+                  className="eb-cmd-btn"
+                  onClick={() => setJourneyStep("graph")}
+                >
+                  2. Workflow map
+                </button>
+                <button
+                  type="button"
+                  className="eb-cmd-btn"
+                  onClick={() => setJourneyStep("vault")}
+                >
+                  3. Notes
+                </button>
+                <button
+                  type="button"
+                  className="eb-cmd-btn"
+                  onClick={() => setJourneyStep("tables")}
+                >
+                  4. Reports &amp; export
+                </button>
+                {versionGovernance.latestProposedVersion ? (
+                  <button
+                    type="button"
+                    className="eb-cmd-btn eb-cmd-approve"
+                    onClick={handleApprovePendingVersion}
+                  >
+                    Approve proposed budget (
+                    {money(
+                      Number(
+                        versionGovernance.latestProposedVersion.total || 0,
+                      ),
+                      currency,
+                    )}
                     )
-                  }
-                >
-                  <option value="Quotation">Quotation</option>
-                  <option value="Purchase order">Purchase order (Commitment)</option>
-                  <option value="Invoice">Invoice / Actual (Converts Open PO)</option>
-                </select>
-              </label>
-              <label>
-                <span>Vendor</span>
-                <input
-                  value={quickExpenseVendor}
-                  onChange={(e) => setQuickExpenseVendor(e.target.value)}
-                />
-              </label>
-              <label>
-                <span>Amount ({currency})</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="50"
-                  value={quickExpenseAmount}
-                  onChange={(e) => setQuickExpenseAmount(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                <span>Spend Quarter</span>
-                <select
-                  value={quickExpenseQuarter}
-                  onChange={(e) =>
-                    setQuickExpenseQuarter(e.target.value as WorkbenchQuarter)
-                  }
-                >
-                  {QUARTERS.map((q) => (
-                    <option key={q} value={q}>
-                      {q}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                className="eb-btn-primary"
-                onClick={handleLogQuickExpense}
-              >
-                Record {quickExpenseStage} Line
-              </button>
+                  </button>
+                ) : null}
+              </div>
             </div>
-          )}
-        </div>
-      ) : null}
-
-      {/* SURFACE 3: RESPONSIVE MOBILE & DESKTOP ON-THE-FLY COMMAND BAR (390px–1440px) */}
-      <div
-        className="eb-command-bar"
-        role="region"
-        aria-label="Mobile and Desktop On-the-Fly Command Bar"
-      >
-        <div className="eb-command-status">
-          <span className="eb-command-kicker">On-the-Fly Command Bar (390px–1440px)</span>
-          <strong>
-            Active: <code>{selectedNode?.id}</code> · Headroom{" "}
-            {money(projection.summary.availableToCommit, currency)} · Sync{" "}
-            <code>{(lastSyncReceipt ?? liveSyncReceipt).checksum}</code>
-          </strong>
-        </div>
-
-        <div className="eb-command-actions">
-          <button
-            type="button"
-            className="eb-cmd-btn"
-            onClick={() => {
-              setSurface("graph");
-              setOutlineFallback((prev) => !prev);
-            }}
-          >
-            {outlineFallback ? "Switch to Node Canvas" : "390px Outline Tree"}
-          </button>
-
-          <button
-            type="button"
-            className="eb-cmd-btn"
-            onClick={() => setQuickCaptureOpen("expense")}
-          >
-            + Log Expense / Quote
-          </button>
-
-          <button
-            type="button"
-            className="eb-cmd-btn"
-            onClick={() => setQuickCaptureOpen("version")}
-          >
-            + Propose Version
-          </button>
-
-          <button
-            type="button"
-            className="eb-cmd-btn"
-            onClick={handleHybridSyncSnapshot}
-          >
-            Hybrid Sync Snapshot ({Object.keys(obsidianVaultFiles).length} .md)
-          </button>
-
-          {versionGovernance.latestProposedVersion ? (
-            <button
-              type="button"
-              className="eb-cmd-btn eb-cmd-approve"
-              onClick={handleApprovePendingVersion}
-            >
-              ✓ Approve Pending Version (
-              {money(Number(versionGovernance.latestProposedVersion.total || 0), currency)})
-            </button>
-          ) : null}
-
-          <button
-            type="button"
-            className="eb-cmd-btn"
-            onClick={() => setSurface(surface === "graph" ? "tables" : "graph")}
-          >
-            {surface === "graph" ? "Inspect 11 Tables →" : "← Back to Node Graph"}
-          </button>
-        </div>
-      </div>
-    </section>
+          </>
+        )}
+      </section>
+    </div>
   );
 }
