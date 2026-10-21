@@ -477,8 +477,9 @@ test("ElliesBookWorkbench and app/page.tsx wire Dual-Mode Node Graph, Obsidian V
   assert.match(workbenchSource, /computeLifecycleLineage/);
   assert.match(workbenchSource, /effectiveApprovedBudget/);
   assert.match(workbenchSource, /CANONICAL_TABLE_NAMES/);
-  // Plain-language user journey (approachability redesign): 4 steps a non-finance user can read
-  for (const label of ["1. Overview", "2. Workflow map", "3. Notes", "4. Reports &amp; export", "Quick actions"]) {
+  // Plain-language user journey (approachability redesign): 4 steps a non-finance user can read.
+  // Per ADR 0002 the Visual Workflow Map leads the journey, so Overview follows it.
+  for (const label of ["1. Workflow map", "2. Overview", "3. Notes", "4. Reports &amp; export", "Quick actions"]) {
     assert.ok(workbenchSource.includes(label), `missing journey label: ${label}`);
   }
   // Developer jargon must not leak into visible UI copy
@@ -492,6 +493,24 @@ test("ElliesBookWorkbench and app/page.tsx wire Dual-Mode Node Graph, Obsidian V
   assert.match(cssSource, /\.eb-kpi-strip/);
   assert.match(cssSource, /\.eb-graph-workspace/);
   assert.match(cssSource, /\.eb-command-bar/);
+});
+
+test("ElliesBookWorkbench opens on the Visual Workflow Map (graph) as the default landing surface per ADR 0002 (W7-T1), not the Overview table", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  // Graph-first landing surface: the initial journeyStep must be the graph canvas.
+  // A regression back to overview-first landing fails this gate.
+  assert.match(workbenchSource, /useState<JourneyStep>\("graph"\)/);
+  assert.doesNotMatch(workbenchSource, /useState<JourneyStep>\("overview"\)/);
+  // The Workflow map must lead the plain-language journey (step 1) and Overview follow (step 2).
+  assert.ok(workbenchSource.includes("1. Workflow map"), "Workflow map must be the first journey step");
+  assert.ok(workbenchSource.includes("2. Overview"), "Overview must follow the Workflow map");
+  // All four surfaces stay reachable in the journey nav.
+  for (const label of ["3. Notes", "4. Reports &amp; export"]) {
+    assert.ok(workbenchSource.includes(label), `missing journey label: ${label}`);
+  }
 });
 
 test("serializeProjectToObsidianVault and parseObsidianVaultBundle deterministically round-trip interlinked Obsidian Markdown vault files with 001230 GL codes, [[wikilinks]], #tags, and canonical tables", () => {

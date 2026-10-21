@@ -837,11 +837,12 @@ export function ElliesBookWorkbench({
   ) => void;
   attentionCount?: number;
 }) {
-  // Primary User Journey Step: defaults to Step 1 (Overview & Plan) for calm, approachable onboarding
-  const [journeyStep, setJourneyStep] = useState<JourneyStep>("overview");
+  // Primary User Journey Step: defaults to the Visual Workflow Map (graph) per ADR 0002,
+  // so the graph-first canvas is the landing surface when a project opens.
+  const [journeyStep, setJourneyStep] = useState<JourneyStep>("graph");
   // Mobile navigation drawer state (< 960px)
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
-  // Responsive Outline Fallback toggle inside Step 2 (Visual Workflow Map)
+  // Responsive Outline Fallback toggle inside the Visual Workflow Map (Step 1)
   const [outlineFallback, setOutlineFallback] = useState<boolean>(false);
 
   const effectiveProjects = useMemo<WorkbenchProject[]>(() => {
@@ -2154,27 +2155,27 @@ export function ElliesBookWorkbench({
             <span className="eb-nav-group-label">Project workspace</span>
             <button
               type="button"
-              className={`eb-nav-item ${journeyStep === "overview" ? "is-active" : ""}`}
-              onClick={() => {
-                setJourneyStep("overview");
-                setMobileNavOpen(false);
-              }}
-            >
-              <span>1. Overview</span>
-              <span className="eb-count-pill">
-                {overviewPurchaseRows.length}
-              </span>
-            </button>
-            <button
-              type="button"
               className={`eb-nav-item ${journeyStep === "graph" ? "is-active" : ""}`}
               onClick={() => {
                 setJourneyStep("graph");
                 setMobileNavOpen(false);
               }}
             >
-              <span>2. Workflow map</span>
+              <span>1. Workflow map</span>
               <span className="eb-count-pill">{projection.nodes.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`eb-nav-item ${journeyStep === "overview" ? "is-active" : ""}`}
+              onClick={() => {
+                setJourneyStep("overview");
+                setMobileNavOpen(false);
+              }}
+            >
+              <span>2. Overview</span>
+              <span className="eb-count-pill">
+                {overviewPurchaseRows.length}
+              </span>
             </button>
             <button
               type="button"
@@ -2723,7 +2724,7 @@ export function ElliesBookWorkbench({
             </div>
 
             {/* =================================================================
-                STEP 1: OVERVIEW & PLAN (Default Calm Landing View)
+                STEP 2: OVERVIEW & PLAN (table surface; follows the graph canvas)
                ================================================================= */}
             {journeyStep === "overview" ? (
               <div className="eb-surface-body">
@@ -2946,7 +2947,7 @@ export function ElliesBookWorkbench({
             ) : null}
 
             {/* =================================================================
-                STEP 2: WORKFLOW MAP (financial lineage graph + list view)
+                STEP 1: WORKFLOW MAP (default graph-first landing canvas per ADR 0002)
                ================================================================= */}
             {journeyStep === "graph" ? (
               <div className="eb-surface-body">
