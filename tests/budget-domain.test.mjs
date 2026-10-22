@@ -477,8 +477,9 @@ test("ElliesBookWorkbench and app/page.tsx wire Dual-Mode Node Graph, Obsidian V
   assert.match(workbenchSource, /computeLifecycleLineage/);
   assert.match(workbenchSource, /effectiveApprovedBudget/);
   assert.match(workbenchSource, /CANONICAL_TABLE_NAMES/);
-  // Plain-language user journey (approachability redesign): 4 steps a non-finance user can read
-  for (const label of ["1. Overview", "2. Workflow map", "3. Notes", "4. Reports &amp; export", "Quick actions"]) {
+  // Plain-language user journey (approachability redesign): 4 steps a non-finance user can read.
+  // Per ADR 0002 the Visual Workflow Map leads the journey, so Overview follows it.
+  for (const label of ["1. Workflow map", "2. Overview", "3. Notes", "4. Reports &amp; export", "Quick actions"]) {
     assert.ok(workbenchSource.includes(label), `missing journey label: ${label}`);
   }
   // Developer jargon must not leak into visible UI copy
@@ -492,6 +493,24 @@ test("ElliesBookWorkbench and app/page.tsx wire Dual-Mode Node Graph, Obsidian V
   assert.match(cssSource, /\.eb-kpi-strip/);
   assert.match(cssSource, /\.eb-graph-workspace/);
   assert.match(cssSource, /\.eb-command-bar/);
+});
+
+test("ElliesBookWorkbench opens on the Visual Workflow Map (graph) as the default landing surface per ADR 0002 (W7-T1), not the Overview table", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  // Graph-first landing surface: the initial journeyStep must be the graph canvas.
+  // A regression back to overview-first landing fails this gate.
+  assert.match(workbenchSource, /useState<JourneyStep>\("graph"\)/);
+  assert.doesNotMatch(workbenchSource, /useState<JourneyStep>\("overview"\)/);
+  // The Workflow map must lead the plain-language journey (step 1) and Overview follow (step 2).
+  assert.ok(workbenchSource.includes("1. Workflow map"), "Workflow map must be the first journey step");
+  assert.ok(workbenchSource.includes("2. Overview"), "Overview must follow the Workflow map");
+  // All four surfaces stay reachable in the journey nav.
+  for (const label of ["3. Notes", "4. Reports &amp; export"]) {
+    assert.ok(workbenchSource.includes(label), `missing journey label: ${label}`);
+  }
 });
 
 test("serializeProjectToObsidianVault and parseObsidianVaultBundle deterministically round-trip interlinked Obsidian Markdown vault files with 001230 GL codes, [[wikilinks]], #tags, and canonical tables", () => {
@@ -733,5 +752,152 @@ test("buildHybridSyncReceipt and /api/sync route normalize 11 canonical tables, 
   assert.match(workbenchSource, /\/api\/sync/);
   assert.match(workbenchSource, /00_Project_Overview\.md/);
   assert.match(workbenchSource, /Hybrid Sync Snapshot/);
+});
+
+test("the Visual Workflow Map exposes a clearly-labeled plain-language dual-mode link lens with an active state and a view-only overlay (W7-T2)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // The dual-mode lens must exist as pure view state (ADR 0002 Coordinate
+  // Invariance): a boolean that only toggles which links the map draws.
+  assert.match(workbenchSource, /const \[showNoteLinks, setShowNoteLinks\] = useState<boolean>/);
+
+  // The control must be a labeled, discoverable group with plain-language
+  // option labels (one for the structured spending flow, one for the spending
+  // flow plus the linked-notes overlay).
+  assert.ok(
+    workbenchSource.includes("Show on map"),
+    "the link lens must carry a plain-language group label",
+  );
+  assert.ok(
+    workbenchSource.includes("Spending flow"),
+    "the structured-flow option must use plain language",
+  );
+  assert.ok(
+    workbenchSource.includes("Spending flow + notes"),
+    "the knowledge-overlay option must use plain language",
+  );
+
+  // A clear active/selected state must be wired for the toggle.
+  assert.match(workbenchSource, /className=\{!showNoteLinks \? "is-active" : ""\}/);
+  assert.match(workbenchSource, /className=\{showNoteLinks \? "is-active" : ""\}/);
+  assert.match(workbenchSource, /aria-pressed=\{!showNoteLinks\}/);
+
+  // The overlay is a lens: the knowledge backlink links render only when on.
+  assert.match(workbenchSource, /edge\.type === "knowledge_backlink"[\s\S]*!showNoteLinks/);
+
+  // Developer / finance jargon must NOT leak into the new visible copy.
+  assert.doesNotMatch(
+    workbenchSource,
+    /Mode A ·|Mode B ·|Financial Lineage DAG|On-the-Fly Command Bar|Canonical relational table switcher|Attach \[\[Note\]\]|wikilink overlay|force layout|freeform overlay/,
+  );
+});
+
+test("residual 'open PO' accounting jargon stays out of the visible chart copy and uses plain language instead (W7-T4)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // These are the specific UI-chrome strings (inspector label, chart heading,
+  // chart legend, aria-label) where "open PO" leaked into primary visible copy.
+  // They must be gone. We assert the exact chrome strings rather than a bare
+  // global /open PO/ so the guard never trips on the legitimate seed KnowledgeNote
+  // content ("...tracked under open PO [[doc-line-po-vn|...]]."), which is in-domain
+  // note text a user wrote, not UI chrome.
+  //
+  // 1. Inspector detail label.
+  assert.doesNotMatch(workbenchSource, /label: "Open PO commitment"/);
+  // 2. Chart heading visible text.
+  assert.doesNotMatch(workbenchSource, /actuals &amp; open PO\b/);
+  // 3. Chart legend visible label (plain text node between the swatch and </span>).
+  assert.doesNotMatch(workbenchSource, /eb-swatch-open" \/>\s*\n\s*Open PO\b/);
+  // 4. aria-label (accessibility copy is user-visible).
+  assert.doesNotMatch(workbenchSource, /aria-label="[^"]*Open POs?"/);
+
+  // The plain-language replacements established elsewhere in the app must be present.
+  assert.ok(
+    workbenchSource.includes('label: "Ordered, not yet paid"'),
+    "inspector must use the plain-language label 'Ordered, not yet paid'",
+  );
+  assert.ok(
+    workbenchSource.includes("actuals &amp; ordered, not"),
+    "chart heading must use plain-language 'ordered, not yet paid' wording",
+  );
+  assert.match(
+    workbenchSource,
+    /aria-label="[^"]*ordered but not yet paid"/,
+    "chart aria-label must use plain-language wording",
+  );
+
+  // The precise accounting term stays available to auditors in a title/tooltip
+  // attribute only (not primary visible text).
+  assert.match(workbenchSource, /title: "Open PO commitment"/);
+  assert.match(workbenchSource, /title="Open PO"/);
+
+  // The legitimate seed KnowledgeNote content on line 679 must be left intact:
+  // it is in-domain note text, not UI chrome.
+  assert.match(workbenchSource, /tracked under open PO \[\[doc-line-po-vn\|PO-POSM-2026-01\]\]/);
+});
+
+test("the inspector 'Knowledge backlinks' detail row follows the 'Show on map' lens so the drill-down matches the map (W7-T2 consistency)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // The inspector backlink row must be conditionally included on showNoteLinks,
+  // so turning the linked-notes overlay off also removes the backlink count from
+  // the drill-down. Pure view state; no financial value changes.
+  assert.match(
+    workbenchSource,
+    /showNoteLinks[\s\S]{0,120}label: "Knowledge backlinks"/,
+  );
+});
+
+test("the hybrid backup surface shows a plain-language local-vs-cloud affordance (Decision 1 / W7-T5) without finance/dev jargon leaking into the visible copy", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  // Decision 1 is local-first + cloud. The backup surface must carry a view-state
+  // flag that distinguishes "saved on this device" from "backed up to the cloud".
+  assert.match(
+    workbenchSource,
+    /useState<"local" \| "cloud" \| "working">/,
+  );
+
+  // The plain-language affordance and its three states must be present.
+  assert.ok(
+    workbenchSource.includes('className="eb-sync-affordance"'),
+    "the persistent local-vs-cloud affordance must be rendered",
+  );
+  assert.ok(
+    workbenchSource.includes("Saved on this device"),
+    "the local-first state must read in plain language",
+  );
+  assert.ok(
+    workbenchSource.includes("Saved here and backed up to the cloud"),
+    "the cloud-synced state must read in plain language",
+  );
+  assert.ok(
+    cssSource.includes(".eb-sync-affordance"),
+    "the affordance must be styled so it reads from 390px to 1440px",
+  );
+
+  // Raw checksum / snapshot jargon must not appear as primary visible copy.
+  // (The accounting-grade term "Hybrid Sync Snapshot" stays in a code comment
+  // only; "checksum" surfaces to the user as the plain word "Reference".)
+  assert.doesNotMatch(
+    workbenchSource,
+    /Checksum <code>|Hybrid Sync Snapshot verified/,
+  );
 });
 

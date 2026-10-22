@@ -820,6 +820,10 @@ const NODE_TYPE_META: Record<
   },
 };
 
+// Inspector detail row. `title` is an optional hover tooltip that keeps the precise
+// accounting term available to auditors while the visible label stays plain language.
+type PerspectiveRow = { label: string; value: string; title?: string };
+
 export function ElliesBookWorkbench({
   data,
   setData,
@@ -837,12 +841,18 @@ export function ElliesBookWorkbench({
   ) => void;
   attentionCount?: number;
 }) {
-  // Primary User Journey Step: defaults to Step 1 (Overview & Plan) for calm, approachable onboarding
-  const [journeyStep, setJourneyStep] = useState<JourneyStep>("overview");
+  // Primary User Journey Step: defaults to the Visual Workflow Map (graph) per ADR 0002,
+  // so the graph-first canvas is the landing surface when a project opens.
+  const [journeyStep, setJourneyStep] = useState<JourneyStep>("graph");
   // Mobile navigation drawer state (< 960px)
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
-  // Responsive Outline Fallback toggle inside Step 2 (Visual Workflow Map)
+  // Responsive Outline Fallback toggle inside the Visual Workflow Map (Step 1)
   const [outlineFallback, setOutlineFallback] = useState<boolean>(false);
+  // Dual-mode graph lens (W7-T2): the structured spending flow is always shown;
+  // this toggle adds the linked-notes overlay (Obsidian [[wikilink]] backlinks) on
+  // top of it. Pure view state per ADR 0002 Coordinate Invariance: it only changes
+  // which links render, never any amount, allocation, lineage, or table row.
+  const [showNoteLinks, setShowNoteLinks] = useState<boolean>(true);
 
   const effectiveProjects = useMemo<WorkbenchProject[]>(() => {
     if (Array.isArray(data?.projects) && data.projects.length > 0) {
@@ -1142,9 +1152,18 @@ export function ElliesBookWorkbench({
     "00_Project_Overview.md",
   );
   const [syncMessage, setSyncMessage] = useState<string>("");
+  // Plain-language backup status so Decision 1 (local-first + cloud) is legible:
+  // "local" = this change is safe on the device; "cloud" = it is also copied to
+  // the shared cloud copy; "working" = a cloud backup is in progress.
+  const [syncState, setSyncState] = useState<"local" | "cloud" | "working">(
+    "local",
+  );
 
   async function triggerHybridSync() {
+    setSyncState("working");
+    setSyncMessage("Backing up to the cloud…");
     try {
+      // Hybrid Sync Snapshot: push the local-first copy to the shared cloud copy.
       const res = await fetch("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1152,16 +1171,18 @@ export function ElliesBookWorkbench({
       });
       if (res.ok) {
         const json = await res.json();
+        setSyncState("cloud");
         setSyncMessage(
-          `Hybrid Sync Snapshot verified (${json?.receipt?.checksum || syncReceipt.checksum})`,
+          `Backed up to the cloud. Reference ${json?.receipt?.checksum || syncReceipt.checksum}`,
         );
         return;
       }
     } catch {
-      // Fallback to local-first verified receipt
+      // No cloud connection: the local-first copy is still safe on the device.
     }
+    setSyncState("local");
     setSyncMessage(
-      `Hybrid Sync Snapshot verified locally (${syncReceipt.checksum})`,
+      `Saved on this device. Cloud backup is not reachable right now. Reference ${syncReceipt.checksum}`,
     );
   }
 
@@ -1822,7 +1843,7 @@ export function ElliesBookWorkbench({
             ? `${allocRow.vendor_or_warehouse} · ${allocRow.source_country} (${allocRow.source_type})`
             : "Multi-vendor split (China, Vietnam, Germany)",
         },
-      ],
+      ] as PerspectiveRow[],
       managerial: [
         {
           label: "Project initiative",
@@ -1846,11 +1867,18 @@ export function ElliesBookWorkbench({
             ? `${activeProject.outcomes[0].outcomeNameSnapshot || "Shelf execution coverage"}: ${activeProject.outcomes[0].current} / ${activeProject.outcomes[0].target} (Expected contribution, never proven causation)`
             : "Expected contribution tracked separately from spend",
         },
-        {
-          label: "Knowledge backlinks",
-          value: `${selectedNodeBacklinks.length} linked note(s)`,
-        },
-      ],
+        // The inspector backlink row follows the "Show on map" lens (W7-T2): when the
+        // linked-notes overlay is off, the drill-down also hides linked-note counts so
+        // the inspector matches the map. Pure view state; no financial value changes.
+        ...(showNoteLinks
+          ? [
+              {
+                label: "Knowledge backlinks",
+                value: `${selectedNodeBacklinks.length} linked note(s)`,
+              },
+            ]
+          : []),
+      ] as PerspectiveRow[],
       accounting: [
         {
           label: "Official GL code",
@@ -1869,14 +1897,15 @@ export function ElliesBookWorkbench({
           value: money(projection.summary.actualTotal, currency),
         },
         {
-          label: "Open PO commitment",
+          label: "Ordered, not yet paid",
+          title: "Open PO commitment",
           value: `${money(projection.summary.openCommitmentTotal, currency)} (Lineage verified: ${money(directLineageCheck.openCommitmentTotal, currency)})`,
         },
         {
           label: "Finance mapping status",
           value: "Contextual human confirmation required",
         },
-      ],
+      ] as PerspectiveRow[],
       allocValidation,
       glCodeString,
     };
@@ -1889,6 +1918,7 @@ export function ElliesBookWorkbench({
     versionGovernance.pendingDelta,
     selectedNodeBacklinks.length,
     directLineageCheck.openCommitmentTotal,
+    showNoteLinks,
   ]);
 
   const allNoteTags = useMemo(() => {
@@ -2154,27 +2184,27 @@ export function ElliesBookWorkbench({
             <span className="eb-nav-group-label">Project workspace</span>
             <button
               type="button"
-              className={`eb-nav-item ${journeyStep === "overview" ? "is-active" : ""}`}
-              onClick={() => {
-                setJourneyStep("overview");
-                setMobileNavOpen(false);
-              }}
-            >
-              <span>1. Overview</span>
-              <span className="eb-count-pill">
-                {overviewPurchaseRows.length}
-              </span>
-            </button>
-            <button
-              type="button"
               className={`eb-nav-item ${journeyStep === "graph" ? "is-active" : ""}`}
               onClick={() => {
                 setJourneyStep("graph");
                 setMobileNavOpen(false);
               }}
             >
-              <span>2. Workflow map</span>
+              <span>1. Workflow map</span>
               <span className="eb-count-pill">{projection.nodes.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`eb-nav-item ${journeyStep === "overview" ? "is-active" : ""}`}
+              onClick={() => {
+                setJourneyStep("overview");
+                setMobileNavOpen(false);
+              }}
+            >
+              <span>2. Overview</span>
+              <span className="eb-count-pill">
+                {overviewPurchaseRows.length}
+              </span>
             </button>
             <button
               type="button"
@@ -2723,7 +2753,7 @@ export function ElliesBookWorkbench({
             </div>
 
             {/* =================================================================
-                STEP 1: OVERVIEW & PLAN (Default Calm Landing View)
+                STEP 2: OVERVIEW & PLAN (table surface; follows the graph canvas)
                ================================================================= */}
             {journeyStep === "overview" ? (
               <div className="eb-surface-body">
@@ -2946,7 +2976,7 @@ export function ElliesBookWorkbench({
             ) : null}
 
             {/* =================================================================
-                STEP 2: WORKFLOW MAP (financial lineage graph + list view)
+                STEP 1: WORKFLOW MAP (default graph-first landing canvas per ADR 0002)
                ================================================================= */}
             {journeyStep === "graph" ? (
               <div className="eb-surface-body">
@@ -2977,6 +3007,34 @@ export function ElliesBookWorkbench({
                       Notes
                     </button>
                   </div>
+
+                  {!outlineFallback ? (
+                    <div
+                      className="eb-link-lens"
+                      role="group"
+                      aria-label="Choose what the map shows"
+                    >
+                      <span className="eb-link-lens-label">Show on map</span>
+                      <div className="eb-mode-pills eb-link-lens-pills">
+                        <button
+                          type="button"
+                          className={!showNoteLinks ? "is-active" : ""}
+                          aria-pressed={!showNoteLinks}
+                          onClick={() => setShowNoteLinks(false)}
+                        >
+                          Spending flow
+                        </button>
+                        <button
+                          type="button"
+                          className={showNoteLinks ? "is-active" : ""}
+                          aria-pressed={showNoteLinks}
+                          onClick={() => setShowNoteLinks(true)}
+                        >
+                          Spending flow + notes
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {!outlineFallback ? (
                     <div
@@ -3138,6 +3196,15 @@ export function ElliesBookWorkbench({
                           preserveAspectRatio="none"
                         >
                           {projection.edges.map((edge) => {
+                            // Dual-mode lens: the linked-notes overlay only
+                            // renders when the toggle is on. This changes which
+                            // links are drawn, never any underlying record.
+                            if (
+                              edge.type === "knowledge_backlink" &&
+                              !showNoteLinks
+                            ) {
+                              return null;
+                            }
                             const sourceNode = projection.visibleNodes.find(
                               (n) =>
                                 n.id === edge.source ||
@@ -3248,7 +3315,7 @@ export function ElliesBookWorkbench({
                                 </span>
                               </div>
 
-                              {backlinks.length > 0 ? (
+                              {showNoteLinks && backlinks.length > 0 ? (
                                 <div className="eb-node-backlink-chip">
                                   {backlinks.length} linked note
                                   {backlinks.length > 1 ? "s" : ""}
@@ -3321,9 +3388,12 @@ export function ElliesBookWorkbench({
                       <dl className="eb-perspective-list">
                         {selectedNodePerspectives[inspectorViewTab].map(
                           (row) => (
-                            <div key={row.label} className="eb-perspective-row">
-                              <dt>{row.label}</dt>
-                              <dd>{row.value}</dd>
+                            <div
+                              key={row.label}
+                              className="eb-perspective-row"
+                            >
+                              <dt title={row.title}>{row.label}</dt>
+                              <dd title={row.title}>{row.value}</dd>
                             </div>
                           ),
                         )}
@@ -3616,7 +3686,7 @@ export function ElliesBookWorkbench({
                                 Backup &amp; Obsidian export
                               </strong>
                               <p className="eb-muted">
-                                Checksum <code>{syncReceipt.checksum}</code> ·{" "}
+                                Reference <code>{syncReceipt.checksum}</code> ·{" "}
                                 {Object.keys(obsidianVaultFiles).length}{" "}
                                 Markdown files (
                                 {parsedVaultBundle.purchaseItems.length} items)
@@ -3641,10 +3711,38 @@ export function ElliesBookWorkbench({
                                 type="button"
                                 className="eb-btn-secondary"
                                 onClick={triggerHybridSync}
+                                disabled={syncState === "working"}
                               >
-                                Back up now
+                                {syncState === "cloud"
+                                  ? "Back up again"
+                                  : "Back up to the cloud"}
                               </button>
                             </div>
+                          </div>
+                          {/* Decision 1 affordance: always show where this work is
+                              safe, in plain language, from 390px to 1440px. */}
+                          <div className="eb-sync-affordance" role="status">
+                            <span
+                              className={`status-pill ${
+                                syncState === "cloud"
+                                  ? "status-positive"
+                                  : syncState === "working"
+                                    ? "status-pending"
+                                    : "status-muted"
+                              }`}
+                              title="Local-first with cloud backup"
+                            >
+                              {syncState === "cloud"
+                                ? "Saved here and backed up to the cloud"
+                                : syncState === "working"
+                                  ? "Backing up to the cloud…"
+                                  : "Saved on this device"}
+                            </span>
+                            <span className="eb-muted">
+                              {syncState === "cloud"
+                                ? "A shared copy is in the cloud. This device still keeps its own copy."
+                                : "Your work is kept on this device first. Use “Back up to the cloud” to copy it to the shared cloud copy."}
+                            </span>
                           </div>
                           {syncMessage ? (
                             <p className="eb-muted" role="status">
@@ -3676,8 +3774,9 @@ export function ElliesBookWorkbench({
                         <span className="eyebrow">
                           Plan vs. reality trajectory
                         </span>
-                        <h3>
-                          Q1–Q4 approved baseline vs. actuals &amp; open PO
+                        <h3 title="Approved baseline vs. actuals and open PO">
+                          Q1–Q4 approved baseline vs. actuals &amp; ordered, not
+                          yet paid
                         </h3>
                       </div>
                       <div className="eb-chart-legend">
@@ -3689,9 +3788,9 @@ export function ElliesBookWorkbench({
                           <i className="eb-swatch-actual" />
                           Actual
                         </span>
-                        <span>
+                        <span title="Open PO">
                           <i className="eb-swatch-open" />
-                          Open PO
+                          Ordered, not yet paid
                         </span>
                         <span>
                           <i className="eb-swatch-forecast" />
@@ -3704,7 +3803,7 @@ export function ElliesBookWorkbench({
                       className="eb-quarter-svg"
                       viewBox="0 0 520 200"
                       role="img"
-                      aria-label="Quarter trajectory chart showing Q1 to Q4 Approved Baseline against Actuals and Open POs"
+                      aria-label="Quarter trajectory chart showing Q1 to Q4 approved baseline against actuals and amounts ordered but not yet paid"
                     >
                       {[0, 0.5, 1].map((ratio, idx) => {
                         const y = 162 - ratio * 130;
