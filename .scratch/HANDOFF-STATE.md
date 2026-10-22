@@ -2,7 +2,64 @@
 
 > Address the user as **SHUAI**. Tag consequential claims with `[Fact]` / `[Inference]` / `[Assumption]` / `[Projection]` / `[Unknown]` (per AGENTS.md + ADR 0003).
 > This file is written so a brand-new session with zero memory can resume confidently.
-> **Checkpoint**: close of **Wave 7 (COMPLETE)**.
+> **Checkpoint**: Wave 7 COMPLETE + Wave 8-A/8-B shipped (PR #3) + **Wave 8-C PLANNED** (ADR 0004 + W8C backlog, awaiting SHUAI inputs).
+
+---
+
+## 0a. Latest update (2026-10-22) — W8-A/B shipped, W8-C planned
+
+`[Fact]` **Branch for this planning work**: `docs/w8c-deployment-plan`, cut off
+`main` HEAD `0f9958e`. Domain gate `node --test tests/budget-domain.test.mjs` =
+**19/19** green on this branch. This branch adds PLANNING artifacts only; it
+modified NO production app files (`app/budget-domain.mjs`,
+`app/ellies-book-workbench.tsx`, `app/page.tsx`, `db/schema.ts`,
+`app/api/sync/route.ts`, and `.github/workflows/ci.yml` were read-only).
+
+`[Fact]` **W8-A / W8-B shipped on `main`** (follow-ups from the Wave 7 dual-gate
+review are now landed, open as PR #3 `feat/w8-mobile-plan-cards-and-guard`):
+- **W8-A** (`7e3834a`): 390px stacked-card layout for the plan table (the
+  W8-candidate-A mobile card layout SHUAI had flagged for decision).
+- **W8-B** (`da76a9b`): re-anchored the hybrid-sync guard to a visible affordance
+  string (resolves the W8-candidate-B stale-guard `[Note]`).
+- `[Note]` PR #3 is a separate branch; this planning branch does NOT touch it.
+
+`[Fact]` **W8-C is now PLANNED, not started.** Artifacts committed on
+`docs/w8c-deployment-plan`:
+- `docs/adr/0004-cloud-deployment-and-multi-tenant-auth.md` — deployment ADR:
+  target = Cloudflare Workers + D1; hybrid local-first ⇄ cloud D1 of reference
+  with **LWW + `eb-v1` checksum receipt**; tenant = a **workspace**, isolated by a
+  shared-DB `workspace_id` scope column (pool model, not DB-per-tenant);
+  recommended V1 auth = **Cloudflare Access** (Option A), with self-hosted session
+  (B) and third-party provider (C) as alternatives; invariants preserved (ADR 0002
+  Coordinate Invariance, pure domain engine, byte-stable checksum); secrets via
+  `wrangler.toml` placeholder + GitHub Actions secrets, no env dumping.
+- `.scratch/tickets/W8C-cloud-deployment.md` — atomic slices W8C-T1…T5:
+  - **W8C-T1** wrangler.toml (placeholder id) + generated `./drizzle` migrations,
+    no behavior change — *shippable now, config only*.
+  - **W8C-T2** `workspace_id` scoping in `db/schema.ts` + `/api/sync` + NEW
+    deterministic isolation tests (domain engine stays pure) — *shippable without
+    the auth decision*.
+  - **W8C-T3** minimal auth/session (login → workspace), route protection,
+    local-first still works unauthenticated — **blocked on SHUAI auth choice**.
+  - **W8C-T4** `.github/workflows/deploy.yml` (wrangler deploy + D1 migrate,
+    gated on CI, secrets from Actions, no env dump) — **blocked on Cloudflare
+    account/token/account-id/real D1 id**.
+  - **W8C-T5** `docs/DEPLOYMENT.md` + `docs/DEVELOPMENT.md` pointer.
+
+`[Fact]` **SHUAI-gated external inputs required before W8-C implementation**
+(ADR 0004 §8; cannot be produced in the sandbox, must NOT be faked):
+1. Cloudflare account + scoped `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`
+   (stored as GitHub Actions secrets).
+2. A created D1 database (`wrangler d1 create ellies-book-d1`) and its real
+   `database_id` (injected via environment; git keeps the `<YOUR_D1_DATABASE_ID>`
+   placeholder).
+3. Auth-provider decision: Option A Cloudflare Access (recommended) / B
+   self-hosted session / C third-party provider.
+4. `[Assumption to confirm]` R2 not needed for V1 (`r2: null`).
+
+`[Projection]` Next unblocked frontier once inputs land: W8C-T1 then W8C-T2 (both
+can start immediately as config + pure-logic slices); W8C-T3/T4 follow after the
+auth choice and Cloudflare inputs; W8C-T5 closes the wave.
 
 ---
 
@@ -94,9 +151,10 @@
 - Wave 4 — Obsidian vault round-trip + `/api/sync` hybrid D1.
 - Wave 5 — approachability redesign (single framed-sheet journey, plain-language copy).
 - Wave 6 — plan-table consolidation, plain-language KPIs, mobile bottom-sheet forms.
-- **Wave 7 — graph-first landing + end-to-end UX cohesion (this session; see §5).**
+- **Wave 7 — graph-first landing + end-to-end UX cohesion (see §5).**
+- **Wave 8-A/8-B — Wave 7 follow-ups shipped (PR #3): 390px plan-table cards (`7e3834a`) + re-anchored sync guard (`da76a9b`). See §0a.**
 
-`[Projection]` **Next (see `.scratch/tickets/W8-post-wave7-followups.md`):** non-blocking follow-ups seeded as candidate tickets for a future session, plus the CI/visual verification pass and the ROADMAP §5 next step (Cloudflare D1 / multi-tenant auth deployment).
+`[Fact]` **Planned, not started (see §0a + `.scratch/tickets/W8C-cloud-deployment.md` + ADR 0004):** Wave 8-C — Cloudflare D1 + multi-tenant workspace auth deployment (ROADMAP §5 next step / `W4-T2`). Awaiting SHUAI inputs (Cloudflare account + D1 id + auth choice) before implementation.
 
 ---
 
