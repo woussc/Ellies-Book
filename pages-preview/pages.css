@@ -1,0 +1,38 @@
+/*
+ * Pages-only entry stylesheet for the GitHub Pages STATIC preview.
+ *
+ * [Fact] This file is ADDITIVE and is imported ONLY by the Pages build
+ * (pages-preview/entry-client.tsx). It is NOT in the Cloudflare Worker import
+ * graph (vite.config.ts / worker/index.ts), so it cannot change the Worker
+ * build or local dev. app/globals.css is left untouched.
+ *
+ * It re-uses the shared global stylesheet, then adds explicit Tailwind v4
+ * @source directives so the preview CSS always includes the workbench utility
+ * classes.
+ */
+
+/*
+ * [Fact] CSS @import must come before other rules, so the shared stylesheet
+ * (which itself runs `@import "tailwindcss"`) is pulled in first.
+ */
+@import "../app/globals.css";
+
+/*
+ * [Inference] Tailwind v4 automatic content detection runs relative to the
+ * Vite root, which for this build is pages-preview/. The workbench utility
+ * classes live in ../app/*.tsx, which auto-detection may NOT scan from this
+ * root. These @source directives name the app component tree explicitly so the
+ * utilities are always generated for the preview.
+ *
+ * [Fact] @source is additive: it only widens Tailwind's content scan. It emits
+ * no CSS by itself and does not affect the Worker build, which does not import
+ * this file.
+ *
+ * [Unknown] The exact need for these directives is not provable in this
+ * sandbox (no build, npm 403). The first GitHub Actions run must confirm the
+ * preview renders with full styling. If auto-detection already reached the app
+ * tree, these directives are a harmless no-op.
+ */
+@source "../app/page.tsx";
+@source "../app/ellies-book-workbench.tsx";
+@source "../app/**/*.{ts,tsx}";
