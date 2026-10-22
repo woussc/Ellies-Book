@@ -23,7 +23,7 @@
 
 | Path | Purpose |
 | :--- | :--- |
-| [`AGENTS.md`](./AGENTS.md) / [`CLAUDE.md`](./CLAUDE.md) | Multi-model & multi-agent operating contract (Gemini 4 Argon High + Claude + specialist subagents). |
+| [`AGENTS.md`](./AGENTS.md) / [`CLAUDE.md`](./CLAUDE.md) | Multi-model & multi-agent operating contract (Claude (latest model) lead + specialist subagents). |
 | [`GLOSSARY.md`](./GLOSSARY.md) | Canonical ubiquitous language, entity definitions, and financial calculation invariants. |
 | [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Master product architecture and phased vertical-slice tracer-bullet roadmap. |
 | [`docs/foundation/`](./docs/foundation/) | Authoritative project brief, v2.0 handoff contract, and Graph-led Purchase List V1 specification. |
