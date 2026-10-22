@@ -1,4 +1,4 @@
-# ADR 0004: GitHub Pages Static Preview (Cloudflare-Free Visual Preview)
+# ADR 0005: GitHub Pages Static Preview (Cloudflare-Free Visual Preview)
 
 - **Status**: Proposed
 - **Date**: 2026-10-21

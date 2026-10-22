@@ -2,7 +2,7 @@ name: Deploy static preview to GitHub Pages
 
 # Builds the FEAT-002 static Pages preview and deploys it to GitHub Pages so
 # SHUAI gets a live preview URL. Uses the built-in GITHUB_TOKEN / OIDC only:
-# NO repository secrets, NO env dumping. See ADR 0004 + the W9 ticket backlog.
+# NO repository secrets, NO env dumping. See ADR 0005 + the W9 ticket backlog.
 #
 # [Unknown -> adjust-after-first-CI-run] The ONE pair of lines most likely to
 # need adjustment after the first CI run is the build command

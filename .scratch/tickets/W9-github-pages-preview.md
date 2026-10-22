@@ -3,7 +3,7 @@
 - **Wave**: Wave 9 (proposed / not yet started)
 - **Status**: `proposed`
 - **Blocked By**: none technically. W9-T1 carries an `[Unknown]` that only the first Pages CI run can resolve. Public-preview acceptance awaits **SHUAI** (see W9-T5).
-- **Governing ADRs**: ADR 0001 (hybrid + dual-mode), ADR 0002 (graph-first + adaptive surfaces, incl. Coordinate Invariance), ADR 0003 (Kiro-native team + gate), **ADR 0004 (GitHub Pages static preview)**.
+- **Governing ADRs**: ADR 0001 (hybrid + dual-mode), ADR 0002 (graph-first + adaptive surfaces, incl. Coordinate Invariance), ADR 0003 (Kiro-native team + gate), **ADR 0005 (GitHub Pages static preview)**.
 - **Mandatory gate for every ticket**: `node --test tests/budget-domain.test.mjs` stays green (currently **20/20** at branch `feat/github-pages-preview` HEAD `f285a87`). lint/build/rendered-html are CI-only in this sandbox (ADR 0003).
 
 > `[Context]` SHUAI has no Cloudflare account yet and wants a fast visual preview in a browser soon. GitHub Pages serves static files only: no Worker runtime, no SSR server, no D1, no `/api/sync` server route. This preview coexists with, and does not replace, the planned Cloudflare Worker deploy (ADR 0004). The workbench is `"use client"`, so the React UI can run from static assets; `triggerHybridSync()` already fails safe when `/api/sync` is absent.
@@ -55,7 +55,7 @@
 ## W9-T5 - `docs/PREVIEW` link + SHUAI enablement steps `[proposed]` `[Decision for SHUAI]`
 
 - `[Inference]` **Finding**: SHUAI needs clear steps to enable Pages and the final preview URL to open in a browser.
-- **Goal**: add a short `docs/PREVIEW.md` (or a README section) with: how to enable GitHub Pages (Settings -> Pages -> source: GitHub Actions), the expected preview URL `https://woussc.github.io/Ellies-Book/`, and a plain-language note of what works vs. what is local-only (per ADR 0004 §3).
+- **Goal**: add a short `docs/PREVIEW.md` (or a README section) with: how to enable GitHub Pages (Settings -> Pages -> source: GitHub Actions), the expected preview URL `https://woussc.github.io/Ellies-Book/`, and a plain-language note of what works vs. what is local-only (per ADR 0005 §3).
 - **Scope**: docs only. Do NOT touch domain / schema / `/api/sync` / Worker.
 - **Gate / verification**: `node --test tests/budget-domain.test.mjs` green; renders as valid markdown; preview URL confirmed after W9-T4 runs.
 - **Status gate**: `[Decision for SHUAI]` - confirm a **public** preview is acceptable before enabling Pages.
