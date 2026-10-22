@@ -116,3 +116,25 @@
 pnpm install && pnpm run lint && pnpm run build && node --test tests/rendered-html.test.mjs
 ```
 plus the real-browser visual inspection at 1440px / 768px / 390px per Open Item #4. The domain gate `node --test tests/budget-domain.test.mjs` is already green at **19/19** on `4fa8068`.
+
+---
+
+## 9. Wave 10 (UI overhaul) PLANNED (ADR 0006 + W10 backlog): ready to fan out
+
+`[Fact]` Planning branch `docs/w10-ui-overhaul-plan` off `main` (`321a72e`). Domain gate on `main` = **20/20**. Artifacts committed:
+- `docs/adr/0006-ui-overhaul-taste-skill-direction.md`: the app-screen design direction from the vendored taste-skill (`.agent/skills/design-taste-frontend/`, `--app` rules). ADR number 0006 confirmed free (0004 is on PR #4; 0005 is on main).
+- `.scratch/tickets/W10-ui-overhaul.md`: the parallel-safe workstream backlog.
+
+`[Fact]` **Design direction (ADR 0006)**: evolve the existing `framed-sheet` shell. Palette = quiet tinted ground (not #fff), softened near-black ink (not #000), one calm accent under 5% of any screen on the action + one data element only, which answers "too harsh on the eyes". Type = few sizes far apart (13/16/20/24px, body =16px, one 24px h1), which answers "hard to track / not digestible". Nav model = LEFT sidebar switches spaces (grey active pill), TOP bar holds page-specific actions only. "Minimum information, maximum impact" = one question + one dominant element per surface, progressive disclosure, honest empty/zero states, colour means something. House rules: no gradients/glows/resting shadows/rainbow charts/fake dashboards/glass/eyebrows/tracked caps.
+
+`[Fact]` **Workstreams** (exact files each owns, so they parallelize without collision):
+- **WS-A (FOUNDATION, blocking)**: tokens + nav-shell restructure + remove training mode + add left-toolbar "Sample data / Developer" button + clean blank default. Files: `app/globals.css` (`:root` + shell/sidebar/top-bar), `app/ellies-book-workbench.tsx` (shell/header/sidebar ~2138-2340 + footer + `mode` prop removal), `app/page.tsx` (training removal + sample-data loader + mount).
+- **WS-B**: Obsidian-like canvas (infinite pan/zoom, edges correct at any offset, fit-to-selected-node). Files: `app/ellies-book-workbench.tsx` graph subsystem (~881-905, ~1395-1458, ~2980-3320, edges SVG ~3193-3242), `app/globals.css` `.eb-canvas*`/`.eb-edge*`/`.eb-graph-node`. Root cause found: edges `<svg viewBox="0 0 1220 520">` is a fixed box while nodes pan/scale via CSS transform, so edges break past that bound. **Hard guardrail: ADR 0002 Coordinate Invariance (view state only; do NOT touch `budget-domain.mjs`).**
+- **WS-C**: Notes markdown -> polished document. Files: `app/ellies-book-workbench.tsx` vault block (`renderNotePreviewWithWikilinks` ~1928, render ~3476-3760) + NEW in-repo `app/markdown-render.*`, `app/globals.css` `.eb-md*`/`.eb-vault*`. **Dependency recommendation: build a small dependency-free in-repo markdown renderer, NOT a new npm dep** (sandbox can't install; keeps domain engine pure; reuses the existing `[[wikilink]]`/`#tag` tokenizer). A real MD dep is a deferrable follow-up only if CI refreshes the lockfile.
+- **WS-D**: Setup redesign (per-team tailored definitions under a common business intent). Files: `app/page.tsx` classic studio components, `app/globals.css` `.studio-*`/`.library-*`/`.definition-*`/`.tag-*`.
+
+`[Inference]` **Parallelization**: WS-A merges first and owns/freezes the one shared region (`:root` tokens + shell/top-level state). Then WS-B / WS-C / WS-D run simultaneously on disjoint JSX blocks and disjoint CSS class families, so no further serialization is needed beyond each rebasing on post-WS-A `main`.
+
+`[Fact]` **Guards that must stay green** (all in `tests/budget-domain.test.mjs`, 20/20): the pinned journey labels (`1. Workflow map`/`2. Overview`/`3. Notes`/`4. Reports &amp; export`), `useState<JourneyStep>("graph")` default, the "Show on map" lens + `showNoteLinks` wiring, the plain-language sync states, the mobile plan-card layout, and the `assert.doesNotMatch` finance/dev jargon guards. Accounting terms stay in `title`/tooltips only. Do NOT touch `budget-domain.mjs`, `db/schema.ts`, `/api/sync`, the Worker, `ci.yml`, `pages.yml`, or `vite.config.pages.ts`.
+
+`[Fact]` **Verification per slice**: local `node --test tests/budget-domain.test.mjs` 20/20; CI `pnpm run lint` + `pnpm run build` + `tests/rendered-html.test.mjs` + `inspect.mjs --app` (0 FAIL at 1440/768/390) + Playwright; visual confirmation on the Pages preview `https://woussc.github.io/Ellies-Book/` after merge.
