@@ -4,24 +4,48 @@
   --font-sans: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --ground: #f9fbfc;
-  --surface: #ffffff;
-  --surface-2: #f4f6f8;
-  --surface-3: #ebedee;
-  --raised: #f4f6f8;
-  --active: #ebedee;
-  --border: #e8eaec;
-  --line: #e8eaec;
-  --line-strong: #cdced1;
-  --rule: #f0f1f2;
-  --control: #cdced1;
-  --ink: #131416;
-  --text: #131416;
-  --muted: #525558;
-  --accent: #1b6c80;
-  --accent-dark: #155565;
-  --accent-soft: #e6f2f5;
-  --warm: #f4f6f8;
+
+  /* ADR 0006 Decision 1: palette roles (SINGLE source of truth).
+     Quiet tinted ground, softened ink, one strict accent. No pure white, no
+     near-black. Surfaces are told apart by tone, never by shadow. */
+  --eb-ground: #f6f7f8;      /* tinted L-frame ground: sidebar + outer frame */
+  --eb-sheet: #fdfdfc;       /* the working sheet: one soft step up from the ground */
+  --eb-surface: #f1f2f3;     /* flat panels/fields: a tone step from the sheet */
+  --eb-ink: #1f2328;         /* main text: a soft near-black, not #000 */
+  --eb-muted: #5c6269;       /* secondary text; still readable on ground and sheet */
+  --eb-line: #e5e7ea;        /* the single 1px separator tone; never an ornament */
+  --eb-accent: #2f6d5b;      /* one calm deep-green accent; marks the action + its one figure */
+  --eb-accent-ink: #ffffff;
+  --eb-accent-dark: #255647; /* pressed/hover state of the accent action */
+  --eb-accent-soft: #e7efec; /* quiet accent wash for the one active data element */
+
+  /* ADR 0006 Decision 2: a decisive type scale, few sizes, far apart.
+     Body never below 16px for reading. */
+  --eb-step-small: 0.8125rem; /* 13px  captions, table sublabels */
+  --eb-step-body: 1rem;       /* 16px  body / table cells (floor) */
+  --eb-step-lead: 1.25rem;    /* 20px  the one finding line under the title */
+  --eb-step-h1: 1.5rem;       /* 24px  the single sheet h1 */
+
+  /* Existing semantic aliases now resolve to the ADR 0006 tokens, so every
+     .eb-* and legacy rule inherits the quiet palette from one place. */
+  --ground: var(--eb-ground);
+  --surface: var(--eb-sheet);
+  --surface-2: var(--eb-surface);
+  --surface-3: #e8eaec;
+  --raised: var(--eb-surface);
+  --active: var(--eb-surface);
+  --border: var(--eb-line);
+  --line: var(--eb-line);
+  --line-strong: #d4d7da;
+  --rule: #eef0f1;
+  --control: #d4d7da;
+  --ink: var(--eb-ink);
+  --text: var(--eb-ink);
+  --muted: var(--eb-muted);
+  --accent: var(--eb-accent);
+  --accent-dark: var(--eb-accent-dark);
+  --accent-soft: var(--eb-accent-soft);
+  --warm: var(--eb-surface);
   --warning: #92400e;
   --warning-soft: #fef3c7;
   --danger: #c4242a;
@@ -41,7 +65,7 @@ body {
   background: var(--ground);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--eb-step-body); /* 16px reading floor (ADR 0006 Decision 2) */
   line-height: 1.5;
   overflow-x: hidden;
 }
@@ -394,6 +418,42 @@ select { appearance: auto; }
   flex-shrink: 0;
 }
 
+/* Utility slot pinned to the bottom of the left rail (ADR 0006 Decision 3):
+   quiet dev/sample-data action, told apart by a tone line, not a shadow. */
+.eb-sidebar-utility {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.eb-sidebar-utility-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--eb-step-small);
+  font-weight: 500;
+  text-align: left;
+}
+
+.eb-sidebar-utility-btn:hover {
+  background: var(--surface-2);
+}
+
+.eb-sidebar-utility-note {
+  padding: 0 8px;
+  font-size: var(--eb-step-small);
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 /* Main White Framed Sheet */
 .eb-workbench {
   display: grid;
@@ -434,7 +494,7 @@ select { appearance: auto; }
 
 .eb-heading {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--eb-step-h1); /* 24px single sheet h1 (ADR 0006 Decision 2) */
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.015em;
@@ -444,8 +504,8 @@ select { appearance: auto; }
 .eb-subtitle {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: var(--eb-step-body);
+  line-height: 1.5;
 }
 
 .eb-subtitle strong {
