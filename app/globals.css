@@ -384,7 +384,7 @@ select { appearance: auto; }
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--eb-step-body); /* ADR 0006: nav body = 16px, not 14px */
   font-weight: 500;
   text-align: left;
 }
@@ -777,14 +777,56 @@ select { appearance: auto; }
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-2);
-  overflow: auto;
+  overflow: hidden; /* pan/zoom move the stage; no native scrollbars */
   user-select: none;
+  touch-action: none; /* let pointer-drag pan drive the view, not scroll */
+  cursor: grab;
 }
 
+.eb-canvas-viewport.is-grabbing {
+  cursor: grabbing;
+}
+
+/* Width/height are set inline from the live node bounding box so the stage
+   (and the edge SVG that shares its coordinate space) grow with the content.
+   This is what makes the canvas effectively infinite: dragging a node out
+   enlarges the stage instead of clipping it. */
 .eb-canvas-stage {
   position: relative;
   width: 1220px;
   height: 480px;
+}
+
+/* Honest empty state: no SEED demo nodes when there are no real projects. */
+.eb-canvas-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 500px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.eb-canvas-empty-frame {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  padding: 32px;
+  max-width: 420px;
+}
+
+.eb-canvas-empty-title {
+  font-size: var(--eb-step-lead);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.eb-canvas-empty-copy {
+  font-size: var(--eb-step-body);
+  line-height: 1.6;
+  color: var(--muted);
 }
 
 .eb-lane-guides {
@@ -808,12 +850,15 @@ select { appearance: auto; }
   border-radius: 6px;
 }
 
+/* The edge layer shares the stage's 1:1 pixel coordinate space (size set
+   inline from the same bounding box). No viewBox remap, so edge ports line
+   up with node ports exactly at any pan/zoom/drag offset. */
 .eb-edges-svg {
   position: absolute;
-  inset: 0;
-  width: 1220px;
-  height: 480px;
+  top: 0;
+  left: 0;
   pointer-events: none;
+  overflow: visible;
 }
 
 .eb-edge-path {
