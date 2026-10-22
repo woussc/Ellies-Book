@@ -63,6 +63,14 @@ It currently passes **14/14** (the earlier `HANDOFF-STATE.md` claim of 16 was dr
 - **Mandatory green gate**: `node --test tests/budget-domain.test.mjs`. Any change to domain behavior must add deterministic tests here. The suite also contains source-string guards over `app/ellies-book-workbench.tsx` that enforce plain-language UI copy; those guards must stay green.
 - **Best-effort only in this sandbox**: `pnpm run lint`, `pnpm run build`, and `tests/rendered-html.test.mjs`. They are reasoned about statically here and MUST be run in a build-capable environment or CI before the branch is pushed / merged.
 
+#### Decision C addendum: cloud-CI verification tier
+
+`[Fact]` A cloud-CI tier now exists: `.github/workflows/ci.yml` (GitHub Actions) runs `pnpm install --frozen-lockfile` -> lint -> the dependency-free domain gate (`node --test tests/budget-domain.test.mjs`) -> `pnpm run build` (vinext / Vite) -> the rendered-HTML contract (`tests/rendered-html.test.mjs`) on every pull request and push to `main`, plus a Playwright `visual-screenshots` job that captures 1440 / 768 / 390 px full-page screenshots as PR artifacts.
+
+`[Inference]` With CI in place, the items previously marked "best-effort only in this sandbox" (lint, build, rendered-HTML, visual checks) are now ENFORCED on PRs to `main`. The sandbox limitation itself is unchanged: dependencies still cannot install locally, so the dependency-free domain gate remains the only LOCAL gate. Merges are now gated by CI.
+
+`[Inference]` A build-capable local setup (Layer 2) is documented separately in `docs/DEVELOPMENT.md`, which lands with the CI branch (`chore/build-capable-ci-and-dev-env`); it is the companion to this cloud-CI tier.
+
 ### Decision D: Telegram notifier out of scope
 
 `[Fact]` `@Hydrateh_bot` and `scripts/notify_telegram.py` require external network and a live bot, neither of which exists in this environment. Decision gates and milestones are recorded in `.scratch/HANDOFF-STATE.md` and ticket files instead of being pushed to Telegram. The Telegram policy in `AGENTS.md` Section 4 is suspended for Kiro-executed work.
