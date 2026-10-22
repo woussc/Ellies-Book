@@ -942,3 +942,82 @@ test("the Overview plan table collapses to a labeled stacked-card layout on smal
   assert.match(cssSource, /\.eb-plan-table thead\s*\{[\s\S]*?(position:\s*absolute|display:\s*none)/);
 });
 
+test("Wave 10 WS-A: the hidden sample/practice toggle is removed, a left-rail Sample data / Developer button loads the sample dataset, and the default landing is blank (ADR 0006 Decision 5)", async () => {
+  const pageSource = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  // Training-mode plumbing must be gone from app/page.tsx: no Mode type, no
+  // training localStorage keys, no TrainingScreen, no setTrainingData state.
+  assert.doesNotMatch(pageSource, /type Mode =/);
+  assert.doesNotMatch(pageSource, /TRAINING_KEY|LEGACY_TRAINING_KEY/);
+  assert.doesNotMatch(pageSource, /TrainingScreen|setTrainingData|trainingData/);
+  assert.doesNotMatch(pageSource, /mode === "training"/);
+
+  // The default landing is a clean blank workspace built from blankData(), and
+  // the workbench mounts the working data only (no mode prop, no training
+  // dataset switch).
+  assert.match(pageSource, /useState<StudioData>\(blankData\)/);
+  assert.doesNotMatch(pageSource, /<ElliesBookWorkbench[\s\S]*?\bmode=\{/);
+
+  // The Sample data / Developer loader exists and seeds the existing sampleData().
+  assert.match(pageSource, /const loadSampleData = \(\) => \{[\s\S]*?setData\(sampleData\(\)\)/);
+  assert.match(pageSource, /onLoadSampleData=\{loadSampleData\}/);
+
+  // The workbench accepts the loader prop and renders ONE clearly-labelled
+  // left-rail button that calls it.
+  assert.match(workbenchSource, /onLoadSampleData\?: \(\) => void/);
+  assert.ok(
+    workbenchSource.includes("Sample data / Developer"),
+    "the left rail must carry the Sample data / Developer button",
+  );
+  assert.match(workbenchSource, /onLoadSampleData\(\)/);
+
+  // The workbench no longer takes a `mode` prop, so the sidebar footer must not
+  // print "· {mode} mode" anymore; the plain device-save state stays.
+  assert.doesNotMatch(workbenchSource, /\{mode\} mode/);
+  assert.ok(
+    workbenchSource.includes("Saved on this device"),
+    "the sidebar footer must keep the plain-language saved state",
+  );
+
+  // ADR 0006 Decision 1 & 2: the palette and type tokens live in :root as the
+  // single source of truth.
+  for (const token of [
+    "--eb-ground:",
+    "--eb-sheet:",
+    "--eb-surface:",
+    "--eb-ink:",
+    "--eb-muted:",
+    "--eb-line:",
+    "--eb-accent:",
+    "--eb-accent-ink:",
+    "--eb-step-small:",
+    "--eb-step-body:",
+    "--eb-step-lead:",
+    "--eb-step-h1:",
+  ]) {
+    assert.ok(cssSource.includes(token), `globals.css :root is missing ${token}`);
+  }
+
+  // ADR 0006 Decision 5: "Start a new project" is a discoverable primary action.
+  assert.ok(
+    workbenchSource.includes("Start a new project"),
+    "the workspace must surface a dominant 'Start a new project' action",
+  );
+
+  // The guarded plain-language journey labels and order stay intact.
+  for (const label of ["1. Workflow map", "2. Overview", "3. Notes", "4. Reports &amp; export"]) {
+    assert.ok(workbenchSource.includes(label), `missing journey label: ${label}`);
+  }
+});
+
