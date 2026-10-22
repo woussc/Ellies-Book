@@ -1,0 +1,87 @@
+name: Deploy static preview to GitHub Pages
+
+# Builds the FEAT-002 static Pages preview and deploys it to GitHub Pages so
+# SHUAI gets a live preview URL. Uses the built-in GITHUB_TOKEN / OIDC only:
+# NO repository secrets, NO env dumping. See ADR 0004 + the W9 ticket backlog.
+#
+# [Unknown -> adjust-after-first-CI-run] The ONE pair of lines most likely to
+# need adjustment after the first CI run is the build command
+# `pnpm run build:pages` and the matching upload `path: dist-pages`. They must
+# always agree with `outDir` in vite.config.pages.ts. If vinext static mode or
+# the Vite config emits to a different directory (for example `out`), update
+# the build step, the 404.html / .nojekyll paths, and the upload `path:`
+# together. Do not change them silently.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages deploy needs these scopes: write Pages + mint the OIDC token that
+# actions/deploy-pages@v4 exchanges. contents:read is enough for checkout.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one Pages deploy at a time. Do NOT cancel an in-progress deploy, per
+# GitHub Pages deploy guidance, so a running deployment can finish cleanly.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build static preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static Pages preview
+        # [Unknown -> adjust-after-first-CI-run] This command and the upload
+        # `path:` below must match `outDir` in vite.config.pages.ts.
+        run: pnpm run build:pages
+
+      - name: Add SPA 404 fallback
+        # FEAT-002 did not emit a 404.html. GitHub Pages serves 404.html for
+        # unknown routes, so copy index.html to it for client-side routing.
+        run: cp dist-pages/index.html dist-pages/404.html
+
+      - name: Add .nojekyll
+        # Stop GitHub Pages from stripping underscore-prefixed asset folders.
+        run: touch dist-pages/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # [Unknown -> adjust-after-first-CI-run] Must match the build outDir.
+          path: dist-pages
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
