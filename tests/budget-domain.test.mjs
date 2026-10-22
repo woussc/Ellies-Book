@@ -751,7 +751,12 @@ test("buildHybridSyncReceipt and /api/sync route normalize 11 canonical tables, 
   assert.match(workbenchSource, /buildHybridSyncReceipt/);
   assert.match(workbenchSource, /\/api\/sync/);
   assert.match(workbenchSource, /00_Project_Overview\.md/);
-  assert.match(workbenchSource, /Hybrid Sync Snapshot/);
+  // W8-B re-anchor: the "Hybrid Sync Snapshot" phrasing only survives in a code
+  // comment now (W7-T5 replaced the visible copy with a plain-language sync
+  // affordance), so matching it proved nothing user-facing. Anchor instead to a
+  // currently-VISIBLE sync-affordance state string so this guard still fails if
+  // the hybrid-sync surface is removed from the UI.
+  assert.match(workbenchSource, /Saved here and backed up to the cloud/);
 });
 
 test("the Visual Workflow Map exposes a clearly-labeled plain-language dual-mode link lens with an active state and a view-only overlay (W7-T2)", async () => {
