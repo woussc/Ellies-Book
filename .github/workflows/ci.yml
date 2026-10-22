@@ -1,0 +1,127 @@
+name: CI — Lint, Build, Test & Visual Screenshots
+
+# Runs the full verification gate that the local sandbox cannot run
+# (it has no network / no package registry access). See ADR 0003 Decision C.
+#
+# - build-and-test: lint + domain gate + production build + rendered-html contract.
+# - visual-screenshots: full-page Playwright captures at 1440 / 768 / 390 px,
+#   uploaded as a PR artifact so breakpoints can be reviewed from the PR.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel an in-progress run when a new commit is pushed to the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Lint, build & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Domain gate (dependency-free)
+        run: node --test tests/budget-domain.test.mjs
+
+      - name: Build (vinext / Vite production build)
+        run: pnpm run build
+
+      - name: Rendered-HTML contract
+        # The build already ran above, so call the node test directly instead of
+        # `pnpm run test` (which would run `vinext build` a second time).
+        run: node --test tests/rendered-html.test.mjs
+
+  visual-screenshots:
+    name: Playwright visual screenshots (1440 / 768 / 390)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-and-test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Playwright is NOT a project dependency: keeping it out of package.json
+      # means `pnpm install --frozen-lockfile` stays valid without first having
+      # to regenerate pnpm-lock.yaml. Install it on demand here (this job only).
+      # The install is ephemeral to the CI runner; it does not need to be, and
+      # must not be, committed to the lockfile.
+      - name: Install Playwright (this job only)
+        # Adds playwright to the ephemeral CI node_modules so the screenshot
+        # script can `import` it. This mutates package.json / pnpm-lock.yaml on
+        # the runner only; nothing is committed, and the build-and-test job
+        # already validated the frozen lockfile.
+        run: pnpm add -D -w playwright@1
+
+      - name: Install Playwright Chromium + OS deps
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build the app
+        run: pnpm run build
+
+      - name: Start the app and capture screenshots
+        env:
+          # vinext start serves the built app on PORT (default 3000).
+          PORT: "3000"
+          BASE_URL: http://localhost:3000/
+          SCREENSHOT_OUT: artifacts/screenshots
+        run: |
+          set -euo pipefail
+          # Start the built app in the background.
+          pnpm run start &
+          SERVER_PID=$!
+          echo "Started vinext start (pid $SERVER_PID)"
+          CAPTURE_FAILED=0
+          # The script waits for the server to be ready, then captures each
+          # viewport. It resolves `playwright` from the local node_modules.
+          node scripts/visual-screenshots.mjs || CAPTURE_FAILED=1
+          # Always stop the server.
+          kill "$SERVER_PID" 2>/dev/null || true
+          if [ "$CAPTURE_FAILED" != "0" ]; then
+            echo "Screenshot capture failed"
+            exit 1
+          fi
+
+      - name: Upload screenshot artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-screenshots
+          path: artifacts/screenshots
+          if-no-files-found: warn
