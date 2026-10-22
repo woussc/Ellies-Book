@@ -30,6 +30,7 @@ import {
   unallocatedQuantity,
   validateRequirementAllocations,
 } from "./budget-domain.mjs";
+import { renderMarkdownDocument } from "./markdown-render";
 
 export type WorkbenchQuarter = "Q1" | "Q2" | "Q3" | "Q4";
 
@@ -2129,81 +2130,16 @@ export function ElliesBookWorkbench({
     return Object.keys(projection.backlinkIndex.byTag);
   }, [projection.backlinkIndex.byTag]);
 
-  const renderNotePreviewWithWikilinks = (markdown: string) => {
-    const bodyWithoutFm = markdown.replace(
-      /^---\r?\n[\s\S]*?\r?\n---\r?\n?/,
-      "",
-    );
-    const lines = bodyWithoutFm.split(/\r?\n/);
-
-    return lines.map((line, lineIdx) => {
-      const parts: Array<{
-        type: "text" | "wikilink" | "tag";
-        text: string;
-        target?: string;
-      }> = [];
-      const tokenRegex =
-        /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|#[a-zA-Z][a-zA-Z0-9/_-]*/g;
-      let lastIndex = 0;
-      let match: RegExpExecArray | null;
-
-      while ((match = tokenRegex.exec(line)) !== null) {
-        if (match.index > lastIndex) {
-          parts.push({
-            type: "text",
-            text: line.slice(lastIndex, match.index),
-          });
-        }
-        if (match[0].startsWith("[[")) {
-          const target = match[1].trim();
-          const label = (match[2] ? match[2] : match[1]).trim();
-          parts.push({ type: "wikilink", text: label, target });
-        } else {
-          parts.push({
-            type: "tag",
-            text: match[0],
-            target: match[0].slice(1).toLowerCase(),
-          });
-        }
-        lastIndex = tokenRegex.lastIndex;
-      }
-      if (lastIndex < line.length) {
-        parts.push({ type: "text", text: line.slice(lastIndex) });
-      }
-
-      return (
-        <p key={lineIdx} className="eb-md-line">
-          {parts.map((part, pIdx) => {
-            if (part.type === "wikilink" && part.target) {
-              return (
-                <button
-                  key={pIdx}
-                  type="button"
-                  className="eb-wikilink-pill"
-                  onClick={() => jumpToNode(part.target!)}
-                >
-                  [[{part.text}]]
-                </button>
-              );
-            }
-            if (part.type === "tag" && part.target) {
-              return (
-                <button
-                  key={pIdx}
-                  type="button"
-                  className="eb-tag-pill"
-                  onClick={() => setActiveTagFilter(part.target!)}
-                >
-                  {part.text}
-                </button>
-              );
-            }
-            return <span key={pIdx}>{part.text}</span>;
-          })}
-        </p>
-      );
+  // WS-C: render the authored markdown as a polished, document-grade reading
+  // experience (headings, paragraphs, lists, blockquotes, emphasis, code), not a
+  // flat wall of <p> lines. The `[[wikilink]]` -> jumpToNode and `#tag` -> tag
+  // filter pills keep their exact existing behaviour; parsing stays in the pure
+  // engine (`extractWikilinks`). See app/markdown-render.tsx.
+  const renderNotePreviewWithWikilinks = (markdown: string) =>
+    renderMarkdownDocument(markdown, {
+      onWikilink: (target) => jumpToNode(target),
+      onTag: (tag) => setActiveTagFilter(tag),
     });
-  };
 
   const maxQuarterChartValue = useMemo(() => {
     const vals = quarterChartRows.flatMap((r) => [
@@ -3918,7 +3854,11 @@ export function ElliesBookWorkbench({
                               )}
                             </div>
                           ) : null}
-                          {renderNotePreviewWithWikilinks(activeNote.content)}
+                          <div className="eb-md-document">
+                            {renderNotePreviewWithWikilinks(
+                              activeNote.content,
+                            )}
+                          </div>
                         </div>
 
                         <div className="eb-backlink-explorer">
