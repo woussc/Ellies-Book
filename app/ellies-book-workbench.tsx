@@ -844,6 +844,11 @@ export function ElliesBookWorkbench({
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   // Responsive Outline Fallback toggle inside the Visual Workflow Map (Step 1)
   const [outlineFallback, setOutlineFallback] = useState<boolean>(false);
+  // Dual-mode graph lens (W7-T2): the structured spending flow is always shown;
+  // this toggle adds the linked-notes overlay (Obsidian [[wikilink]] backlinks) on
+  // top of it. Pure view state per ADR 0002 Coordinate Invariance: it only changes
+  // which links render, never any amount, allocation, lineage, or table row.
+  const [showNoteLinks, setShowNoteLinks] = useState<boolean>(true);
 
   const effectiveProjects = useMemo<WorkbenchProject[]>(() => {
     if (Array.isArray(data?.projects) && data.projects.length > 0) {
@@ -2981,6 +2986,34 @@ export function ElliesBookWorkbench({
 
                   {!outlineFallback ? (
                     <div
+                      className="eb-link-lens"
+                      role="group"
+                      aria-label="Choose what the map shows"
+                    >
+                      <span className="eb-link-lens-label">Show on map</span>
+                      <div className="eb-mode-pills eb-link-lens-pills">
+                        <button
+                          type="button"
+                          className={!showNoteLinks ? "is-active" : ""}
+                          aria-pressed={!showNoteLinks}
+                          onClick={() => setShowNoteLinks(false)}
+                        >
+                          Spending flow
+                        </button>
+                        <button
+                          type="button"
+                          className={showNoteLinks ? "is-active" : ""}
+                          aria-pressed={showNoteLinks}
+                          onClick={() => setShowNoteLinks(true)}
+                        >
+                          Spending flow + notes
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!outlineFallback ? (
+                    <div
                       className="eb-canvas-controls"
                       aria-label="Canvas zoom controls"
                     >
@@ -3139,6 +3172,15 @@ export function ElliesBookWorkbench({
                           preserveAspectRatio="none"
                         >
                           {projection.edges.map((edge) => {
+                            // Dual-mode lens: the linked-notes overlay only
+                            // renders when the toggle is on. This changes which
+                            // links are drawn, never any underlying record.
+                            if (
+                              edge.type === "knowledge_backlink" &&
+                              !showNoteLinks
+                            ) {
+                              return null;
+                            }
                             const sourceNode = projection.visibleNodes.find(
                               (n) =>
                                 n.id === edge.source ||
@@ -3249,7 +3291,7 @@ export function ElliesBookWorkbench({
                                 </span>
                               </div>
 
-                              {backlinks.length > 0 ? (
+                              {showNoteLinks && backlinks.length > 0 ? (
                                 <div className="eb-node-backlink-chip">
                                   {backlinks.length} linked note
                                   {backlinks.length > 1 ? "s" : ""}

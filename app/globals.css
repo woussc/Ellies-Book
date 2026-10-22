@@ -676,6 +676,26 @@ select { appearance: auto; }
   gap: 6px;
 }
 
+/* Dual-mode lens toggle (W7-T2): plain-language control that picks whether the
+   map shows the spending flow alone or with the linked-notes overlay. Wraps
+   with the toolbar so it stays reachable down to 390px with no sideways scroll. */
+.eb-link-lens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.eb-link-lens-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.eb-link-lens-pills button {
+  white-space: nowrap;
+}
+
 .eb-zoom-readout {
   min-width: 44px;
   text-align: center;

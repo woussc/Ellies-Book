@@ -754,3 +754,44 @@ test("buildHybridSyncReceipt and /api/sync route normalize 11 canonical tables, 
   assert.match(workbenchSource, /Hybrid Sync Snapshot/);
 });
 
+test("the Visual Workflow Map exposes a clearly-labeled plain-language dual-mode link lens with an active state and a view-only overlay (W7-T2)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // The dual-mode lens must exist as pure view state (ADR 0002 Coordinate
+  // Invariance): a boolean that only toggles which links the map draws.
+  assert.match(workbenchSource, /const \[showNoteLinks, setShowNoteLinks\] = useState<boolean>/);
+
+  // The control must be a labeled, discoverable group with plain-language
+  // option labels (one for the structured spending flow, one for the spending
+  // flow plus the linked-notes overlay).
+  assert.ok(
+    workbenchSource.includes("Show on map"),
+    "the link lens must carry a plain-language group label",
+  );
+  assert.ok(
+    workbenchSource.includes("Spending flow"),
+    "the structured-flow option must use plain language",
+  );
+  assert.ok(
+    workbenchSource.includes("Spending flow + notes"),
+    "the knowledge-overlay option must use plain language",
+  );
+
+  // A clear active/selected state must be wired for the toggle.
+  assert.match(workbenchSource, /className=\{!showNoteLinks \? "is-active" : ""\}/);
+  assert.match(workbenchSource, /className=\{showNoteLinks \? "is-active" : ""\}/);
+  assert.match(workbenchSource, /aria-pressed=\{!showNoteLinks\}/);
+
+  // The overlay is a lens: the knowledge backlink links render only when on.
+  assert.match(workbenchSource, /edge\.type === "knowledge_backlink"[\s\S]*!showNoteLinks/);
+
+  // Developer / finance jargon must NOT leak into the new visible copy.
+  assert.doesNotMatch(
+    workbenchSource,
+    /Mode A ·|Mode B ·|Financial Lineage DAG|On-the-Fly Command Bar|Canonical relational table switcher|Attach \[\[Note\]\]|wikilink overlay|force layout|freeform overlay/,
+  );
+});
+
