@@ -1850,4 +1850,98 @@ select { appearance: auto; }
   .eb-depth-2 { margin-left: 12px; }
   .eb-depth-3 { margin-left: 18px; }
   .eb-depth-4 { margin-left: 24px; }
+
+  /* W8-A: on small screens the Overview "The plan" table reads as a stack of
+     cards instead of a wide scrolling grid (ADR 0002 Pillar 3: mobile is clean
+     and touch-first). Each row becomes a card; each cell becomes a labeled line
+     using its existing data-label via a ::before pseudo-element, so the plan
+     reads cleanly at 390px with no horizontal scroll. View/layout only: no cell
+     value or financial content changes. */
+  .eb-table-scroll:has(.eb-plan-table) {
+    overflow-x: visible;
+    border: none;
+    border-radius: 0;
+  }
+
+  .eb-plan-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border: none;
+  }
+
+  /* The header row is redundant once each cell carries its own label. */
+  .eb-plan-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .eb-plan-table tbody {
+    display: block;
+  }
+
+  .eb-plan-table tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    padding: 4px 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .eb-plan-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Each cell becomes a two-part labeled line: the label (from data-label) on
+     the left, the value on the right. The fixed column width budget is reset so
+     cells can take the full card width. */
+  .eb-plan-table td,
+  .eb-plan-table td.is-numeric {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100% !important;
+    padding: 8px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--rule);
+    white-space: normal;
+  }
+
+  .eb-plan-table tbody tr td:last-child {
+    border-bottom: 0;
+  }
+
+  /* The self-labeling line built from the existing data-label attribute. */
+  .eb-plan-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: none;
+  }
+
+  /* Keep the item-name link button and status pill working and touch-friendly
+     inside the card: align them to the right of their labeled line. */
+  .eb-plan-table td .eb-cell {
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .eb-plan-table td .eb-link-btn {
+    text-align: right;
+  }
+
+  .eb-plan-table td .status-pill {
+    text-align: center;
+  }
 }

@@ -751,7 +751,12 @@ test("buildHybridSyncReceipt and /api/sync route normalize 11 canonical tables, 
   assert.match(workbenchSource, /buildHybridSyncReceipt/);
   assert.match(workbenchSource, /\/api\/sync/);
   assert.match(workbenchSource, /00_Project_Overview\.md/);
-  assert.match(workbenchSource, /Hybrid Sync Snapshot/);
+  // W8-B re-anchor: the "Hybrid Sync Snapshot" phrasing only survives in a code
+  // comment now (W7-T5 replaced the visible copy with a plain-language sync
+  // affordance), so matching it proved nothing user-facing. Anchor instead to a
+  // currently-VISIBLE sync-affordance state string so this guard still fails if
+  // the hybrid-sync surface is removed from the UI.
+  assert.match(workbenchSource, /Saved here and backed up to the cloud/);
 });
 
 test("the Visual Workflow Map exposes a clearly-labeled plain-language dual-mode link lens with an active state and a view-only overlay (W7-T2)", async () => {
@@ -899,5 +904,41 @@ test("the hybrid backup surface shows a plain-language local-vs-cloud affordance
     workbenchSource,
     /Checksum <code>|Hybrid Sync Snapshot verified/,
   );
+});
+
+test("the Overview plan table collapses to a labeled stacked-card layout on small screens (W8-A, ADR 0002 Pillar 3)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  // Every plan-table cell must carry a plain-language data-label so the
+  // card-mode ::before pseudo-element has a label to render. These labels match
+  // the column headers; they are view metadata, not financial values.
+  for (const label of [
+    'data-label="Item"',
+    'data-label="Supplier"',
+    'data-label="Quarter"',
+    'data-label="Quantity × price"',
+    'data-label="Total"',
+    'data-label="Status"',
+  ]) {
+    assert.ok(
+      workbenchSource.includes(label),
+      `plan-table cell is missing ${label} for the card-mode label`,
+    );
+  }
+
+  // The card-mode layout must exist at the mobile breakpoint: each cell becomes
+  // a labeled line built from its data-label, and the now-redundant header row
+  // is hidden. This guard fails if a regression drops the mobile layout.
+  assert.match(cssSource, /@media \(max-width: 680px\)/);
+  assert.match(cssSource, /\.eb-plan-table td::before\s*\{[\s\S]*?content:\s*attr\(data-label\)/);
+  // The redundant header row must be visually removed in card mode.
+  assert.match(cssSource, /\.eb-plan-table thead\s*\{[\s\S]*?(position:\s*absolute|display:\s*none)/);
 });
 
