@@ -5,7 +5,9 @@ import {
   PointerEvent as ReactPointerEvent,
   ReactNode,
   SetStateAction,
+  WheelEvent as ReactWheelEvent,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -28,6 +30,7 @@ import {
   unallocatedQuantity,
   validateRequirementAllocations,
 } from "./budget-domain.mjs";
+import { renderMarkdownDocument } from "./markdown-render";
 
 export type WorkbenchQuarter = "Q1" | "Q2" | "Q3" | "Q4";
 
@@ -315,6 +318,25 @@ export type WorkbenchStudioData = Record<string, any> & {
 type JourneyStep = "overview" | "graph" | "vault" | "tables" | "classic";
 
 const QUARTERS: WorkbenchQuarter[] = ["Q1", "Q2", "Q3", "Q4"];
+
+/* ================================================================
+   WS-B canvas geometry (ADR 0002 view-state only — these never feed
+   totals, lineage, or the sync checksum; they are pure layout maths
+   for the Obsidian-like infinite canvas).
+   - NODE_WIDTH / NODE_HEIGHT: the rendered card footprint used for
+     edge ports and bounding-box fits (matches .eb-graph-node CSS).
+   - CANVAS_ZOOM_MIN/MAX: true wide zoom range (not the old 0.75-1.25).
+   - CANVAS_PADDING: breathing room so the content box is never flush
+     with the viewport edge and dragged nodes stay on an open canvas.
+   ================================================================ */
+const NODE_WIDTH = 205;
+const NODE_HEIGHT = 84;
+const NODE_PORT_Y = 42;
+const CANVAS_ZOOM_MIN = 0.2;
+const CANVAS_ZOOM_MAX = 3;
+const CANVAS_PADDING = 220;
+const CANVAS_MIN_WIDTH = 1220;
+const CANVAS_MIN_HEIGHT = 480;
 
 const SEED_PROJECTS: WorkbenchProject[] = [
   {
@@ -854,6 +876,14 @@ export function ElliesBookWorkbench({
   // which links render, never any amount, allocation, lineage, or table row.
   const [showNoteLinks, setShowNoteLinks] = useState<boolean>(true);
 
+  // True only when the caller passed real project data. When false, the
+  // graph canvas shows an honest empty frame (a single "Start a new project"
+  // call to action) instead of the SEED_PROJECTS demo nodes. The seed set is
+  // still used as a non-empty base for the rest of the surfaces so they never
+  // render against an undefined project (ADR 0006 blank-landing honesty).
+  const hasRealProjects =
+    Array.isArray(data?.projects) && data.projects.length > 0;
+
   const effectiveProjects = useMemo<WorkbenchProject[]>(() => {
     if (Array.isArray(data?.projects) && data.projects.length > 0) {
       return data.projects;
@@ -905,6 +935,17 @@ export function ElliesBookWorkbench({
     dx: 0,
     dy: 0,
   });
+  // Obsidian-like empty-canvas pan: when the pointer grabs the viewport
+  // background (not a node) we translate the whole stage. Pure view state.
+  const [canvasPanStart, setCanvasPanStart] = useState<{
+    px: number;
+    py: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
+  // The scroll/zoom viewport element; used to convert pointer coordinates
+  // into stage/world coordinates so zoom-to-cursor and fit maths are exact.
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
   const [notes, setNotes] = useState<KnowledgeNoteItem[]>(INITIAL_NOTES);
   const [auditEvents, setAuditEvents] =
@@ -1217,6 +1258,24 @@ export function ElliesBookWorkbench({
     };
   }, [projection.edges, selectedNode]);
 
+  // The stage + edge SVG size grows to the node bounding box so nothing is
+  // ever clipped, no matter how far a node is dragged. This replaces the old
+  // fixed 1220x520 box that made edges "stop rendering" past the bound.
+  // Both the stage and the SVG share this one 1:1 pixel coordinate space,
+  // so edge ports stay attached to node ports at any pan/zoom/drag offset.
+  const stageBounds = useMemo(() => {
+    const nodes = projection.visibleNodes;
+    if (nodes.length === 0) {
+      return { width: CANVAS_MIN_WIDTH, height: CANVAS_MIN_HEIGHT };
+    }
+    const maxX = Math.max(...nodes.map((n) => n.x + NODE_WIDTH));
+    const maxY = Math.max(...nodes.map((n) => n.y + NODE_HEIGHT));
+    return {
+      width: Math.max(CANVAS_MIN_WIDTH, Math.ceil(maxX) + CANVAS_PADDING),
+      height: Math.max(CANVAS_MIN_HEIGHT, Math.ceil(maxY) + CANVAS_PADDING),
+    };
+  }, [projection.visibleNodes]);
+
   const vaultBacklinkIndex = useMemo(
     () =>
       buildBacklinkIndex(notes.filter((n) => n.projectId === activeProject.id)),
@@ -1393,45 +1452,191 @@ export function ElliesBookWorkbench({
     }));
   };
 
+  // Convert a pointer's client coordinates into stage/world coordinates.
+  // The stage carries transform: translate(pan) scale(zoom) with
+  // transform-origin 0 0, so world = (client - viewportOrigin - pan) / zoom.
+  // One shared projection keeps edges, node drag, zoom-to-cursor and fit
+  // all in the SAME coordinate space (ADR 0002: view-state maths only).
+  const clientToWorld = (clientX: number, clientY: number) => {
+    const rect = canvasViewportRef.current?.getBoundingClientRect();
+    const originX = rect?.left ?? 0;
+    const originY = rect?.top ?? 0;
+    return {
+      x: (clientX - originX - pan.x) / zoom,
+      y: (clientY - originY - pan.y) / zoom,
+    };
+  };
+
   const handleNodePointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
     node: ProjectedNode,
   ) => {
     if ((event.target as HTMLElement).closest("button")) return;
+    event.stopPropagation();
     setSelectedNodeId(node.id);
     setDraggingNodeId(node.id);
+    const world = clientToWorld(event.clientX, event.clientY);
     setDragOffset({
-      dx: event.clientX / zoom - node.x,
-      dy: event.clientY / zoom - node.y,
+      dx: world.x - node.x,
+      dy: world.y - node.y,
+    });
+  };
+
+  // Pointer-down on the empty viewport background starts an Obsidian-style
+  // canvas pan. Nodes stop propagation, so this only fires on open canvas.
+  const handleCanvasPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if ((event.target as HTMLElement).closest(".eb-graph-node")) return;
+    setCanvasPanStart({
+      px: event.clientX,
+      py: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
     });
   };
 
   const handleCanvasPointerMove = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
-    if (!draggingNodeId) return;
-    const nextX = Math.max(
-      12,
-      Math.round(event.clientX / zoom - dragOffset.dx),
-    );
-    const nextY = Math.max(
-      12,
-      Math.round(event.clientY / zoom - dragOffset.dy),
-    );
-    setNodeViewState((prev) => ({
-      ...prev,
-      [draggingNodeId]: {
-        x: nextX,
-        y: nextY,
-        collapsed: prev[draggingNodeId]?.collapsed ?? false,
-      },
-    }));
+    if (draggingNodeId) {
+      const world = clientToWorld(event.clientX, event.clientY);
+      const nextX = Math.round(world.x - dragOffset.dx);
+      const nextY = Math.round(world.y - dragOffset.dy);
+      setNodeViewState((prev) => ({
+        ...prev,
+        [draggingNodeId]: {
+          x: nextX,
+          y: nextY,
+          collapsed: prev[draggingNodeId]?.collapsed ?? false,
+        },
+      }));
+      return;
+    }
+    if (canvasPanStart) {
+      setPan({
+        x: canvasPanStart.panX + (event.clientX - canvasPanStart.px),
+        y: canvasPanStart.panY + (event.clientY - canvasPanStart.py),
+      });
+    }
   };
 
   const handleCanvasPointerUp = () => {
     if (draggingNodeId) {
       setDraggingNodeId(null);
     }
+    if (canvasPanStart) {
+      setCanvasPanStart(null);
+    }
+  };
+
+  // True wheel zoom toward the cursor across a wide range. We keep the
+  // world point under the cursor fixed while scaling, which is the
+  // Obsidian graph-view feel. Pure view state per ADR 0002.
+  const handleCanvasWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const rect = canvasViewportRef.current?.getBoundingClientRect();
+    const originX = rect?.left ?? 0;
+    const originY = rect?.top ?? 0;
+    const pointerX = event.clientX - originX;
+    const pointerY = event.clientY - originY;
+    setZoom((prevZoom) => {
+      const factor = Math.exp(-event.deltaY * 0.0015);
+      const nextZoom = Math.min(
+        CANVAS_ZOOM_MAX,
+        Math.max(CANVAS_ZOOM_MIN, Number((prevZoom * factor).toFixed(3))),
+      );
+      if (nextZoom === prevZoom) return prevZoom;
+      // Keep the world point under the cursor stationary.
+      setPan((prevPan) => {
+        const worldX = (pointerX - prevPan.x) / prevZoom;
+        const worldY = (pointerY - prevPan.y) / prevZoom;
+        return {
+          x: pointerX - worldX * nextZoom,
+          y: pointerY - worldY * nextZoom,
+        };
+      });
+      return nextZoom;
+    });
+  };
+
+  const zoomAtCenter = (nextZoomRaw: number) => {
+    const rect = canvasViewportRef.current?.getBoundingClientRect();
+    const vw = rect?.width ?? CANVAS_MIN_WIDTH;
+    const vh = rect?.height ?? CANVAS_MIN_HEIGHT;
+    const centerX = vw / 2;
+    const centerY = vh / 2;
+    setZoom((prevZoom) => {
+      const nextZoom = Math.min(
+        CANVAS_ZOOM_MAX,
+        Math.max(CANVAS_ZOOM_MIN, Number(nextZoomRaw.toFixed(3))),
+      );
+      if (nextZoom === prevZoom) return prevZoom;
+      setPan((prevPan) => {
+        const worldX = (centerX - prevPan.x) / prevZoom;
+        const worldY = (centerY - prevPan.y) / prevZoom;
+        return {
+          x: centerX - worldX * nextZoom,
+          y: centerY - worldY * nextZoom,
+        };
+      });
+      return nextZoom;
+    });
+  };
+
+  // Frame a set of world-space node coordinates inside the viewport with
+  // padding by setting pan/zoom only. Used by fit-to-selected and
+  // fit-to-all. Never mutates node geometry (ADR 0002 Coordinate Invariance).
+  const fitToNodes = (nodes: ProjectedNode[]) => {
+    if (nodes.length === 0) return;
+    const minX = Math.min(...nodes.map((n) => n.x));
+    const minY = Math.min(...nodes.map((n) => n.y));
+    const maxX = Math.max(...nodes.map((n) => n.x + NODE_WIDTH));
+    const maxY = Math.max(...nodes.map((n) => n.y + NODE_HEIGHT));
+    const boxW = Math.max(1, maxX - minX);
+    const boxH = Math.max(1, maxY - minY);
+    const rect = canvasViewportRef.current?.getBoundingClientRect();
+    const vw = rect?.width ?? CANVAS_MIN_WIDTH;
+    const vh = rect?.height ?? CANVAS_MIN_HEIGHT;
+    const pad = 64;
+    const scaleX = (vw - pad * 2) / boxW;
+    const scaleY = (vh - pad * 2) / boxH;
+    const nextZoom = Math.min(
+      CANVAS_ZOOM_MAX,
+      Math.max(CANVAS_ZOOM_MIN, Number(Math.min(scaleX, scaleY).toFixed(3))),
+    );
+    // Centre the content box in the viewport at the new zoom.
+    const boxCenterX = minX + boxW / 2;
+    const boxCenterY = minY + boxH / 2;
+    setZoom(nextZoom);
+    setPan({
+      x: vw / 2 - boxCenterX * nextZoom,
+      y: vh / 2 - boxCenterY * nextZoom,
+    });
+  };
+
+  const fitToSelectedNode = () => {
+    if (!selectedNode) return;
+    const neighbourIds = new Set<string>([selectedNode.id]);
+    for (const edge of selectedNodeEdges.incoming) {
+      neighbourIds.add(edge.source);
+    }
+    for (const edge of selectedNodeEdges.outgoing) {
+      neighbourIds.add(edge.target);
+    }
+    const frameNodes = projection.visibleNodes.filter(
+      (n) => neighbourIds.has(n.id) || neighbourIds.has(n.recordId),
+    );
+    fitToNodes(frameNodes.length > 0 ? frameNodes : [selectedNode]);
+  };
+
+  const fitToAllNodes = () => {
+    fitToNodes(projection.visibleNodes);
+  };
+
+  const resetCanvasView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
 
   const jumpToNode = (targetId: string) => {
@@ -1925,81 +2130,16 @@ export function ElliesBookWorkbench({
     return Object.keys(projection.backlinkIndex.byTag);
   }, [projection.backlinkIndex.byTag]);
 
-  const renderNotePreviewWithWikilinks = (markdown: string) => {
-    const bodyWithoutFm = markdown.replace(
-      /^---\r?\n[\s\S]*?\r?\n---\r?\n?/,
-      "",
-    );
-    const lines = bodyWithoutFm.split(/\r?\n/);
-
-    return lines.map((line, lineIdx) => {
-      const parts: Array<{
-        type: "text" | "wikilink" | "tag";
-        text: string;
-        target?: string;
-      }> = [];
-      const tokenRegex =
-        /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|#[a-zA-Z][a-zA-Z0-9/_-]*/g;
-      let lastIndex = 0;
-      let match: RegExpExecArray | null;
-
-      while ((match = tokenRegex.exec(line)) !== null) {
-        if (match.index > lastIndex) {
-          parts.push({
-            type: "text",
-            text: line.slice(lastIndex, match.index),
-          });
-        }
-        if (match[0].startsWith("[[")) {
-          const target = match[1].trim();
-          const label = (match[2] ? match[2] : match[1]).trim();
-          parts.push({ type: "wikilink", text: label, target });
-        } else {
-          parts.push({
-            type: "tag",
-            text: match[0],
-            target: match[0].slice(1).toLowerCase(),
-          });
-        }
-        lastIndex = tokenRegex.lastIndex;
-      }
-      if (lastIndex < line.length) {
-        parts.push({ type: "text", text: line.slice(lastIndex) });
-      }
-
-      return (
-        <p key={lineIdx} className="eb-md-line">
-          {parts.map((part, pIdx) => {
-            if (part.type === "wikilink" && part.target) {
-              return (
-                <button
-                  key={pIdx}
-                  type="button"
-                  className="eb-wikilink-pill"
-                  onClick={() => jumpToNode(part.target!)}
-                >
-                  [[{part.text}]]
-                </button>
-              );
-            }
-            if (part.type === "tag" && part.target) {
-              return (
-                <button
-                  key={pIdx}
-                  type="button"
-                  className="eb-tag-pill"
-                  onClick={() => setActiveTagFilter(part.target!)}
-                >
-                  {part.text}
-                </button>
-              );
-            }
-            return <span key={pIdx}>{part.text}</span>;
-          })}
-        </p>
-      );
+  // WS-C: render the authored markdown as a polished, document-grade reading
+  // experience (headings, paragraphs, lists, blockquotes, emphasis, code), not a
+  // flat wall of <p> lines. The `[[wikilink]]` -> jumpToNode and `#tag` -> tag
+  // filter pills keep their exact existing behaviour; parsing stays in the pure
+  // engine (`extractWikilinks`). See app/markdown-render.tsx.
+  const renderNotePreviewWithWikilinks = (markdown: string) =>
+    renderMarkdownDocument(markdown, {
+      onWikilink: (target) => jumpToNode(target),
+      onTag: (tag) => setActiveTagFilter(tag),
     });
-  };
 
   const maxQuarterChartValue = useMemo(() => {
     const vals = quarterChartRows.flatMap((r) => [
@@ -3068,15 +3208,11 @@ export function ElliesBookWorkbench({
                   {!outlineFallback ? (
                     <div
                       className="eb-canvas-controls"
-                      aria-label="Canvas zoom controls"
+                      aria-label="Canvas view controls"
                     >
                       <button
                         type="button"
-                        onClick={() =>
-                          setZoom((z) =>
-                            Math.max(0.75, Number((z - 0.1).toFixed(2))),
-                          )
-                        }
+                        onClick={() => zoomAtCenter(zoom - 0.2)}
                       >
                         Zoom −
                       </button>
@@ -3085,21 +3221,21 @@ export function ElliesBookWorkbench({
                       </span>
                       <button
                         type="button"
-                        onClick={() =>
-                          setZoom((z) =>
-                            Math.min(1.25, Number((z + 0.1).toFixed(2))),
-                          )
-                        }
+                        onClick={() => zoomAtCenter(zoom + 0.2)}
                       >
                         Zoom +
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setZoom(1);
-                          setPan({ x: 0, y: 0 });
-                        }}
+                        onClick={fitToSelectedNode}
+                        title="Frame the selected node and its linked neighbours"
                       >
+                        Fit to selected
+                      </button>
+                      <button type="button" onClick={fitToAllNodes}>
+                        Fit to all
+                      </button>
+                      <button type="button" onClick={resetCanvasView}>
                         Reset view
                       </button>
                     </div>
@@ -3193,16 +3329,48 @@ export function ElliesBookWorkbench({
                         })}
                       </div>
                     </div>
+                  ) : !hasRealProjects ? (
+                    <div
+                      className="eb-canvas-empty"
+                      role="group"
+                      aria-label="No projects yet"
+                    >
+                      <div className="eb-canvas-empty-frame">
+                        <h3 className="eb-canvas-empty-title">
+                          Your canvas is empty
+                        </h3>
+                        <p className="eb-canvas-empty-copy">
+                          Start a project to see its spending flow laid out on
+                          the map.
+                        </p>
+                        <button
+                          type="button"
+                          className="eb-btn-primary"
+                          onClick={() => {
+                            onOpenClassicTab?.("plan");
+                            setJourneyStep("classic");
+                            setMobileNavOpen(false);
+                          }}
+                        >
+                          Start a new project
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     <div
-                      className="eb-canvas-viewport"
+                      ref={canvasViewportRef}
+                      className={`eb-canvas-viewport ${canvasPanStart ? "is-grabbing" : ""}`}
+                      onPointerDown={handleCanvasPointerDown}
                       onPointerMove={handleCanvasPointerMove}
                       onPointerUp={handleCanvasPointerUp}
                       onPointerLeave={handleCanvasPointerUp}
+                      onWheel={handleCanvasWheel}
                     >
                       <div
                         className="eb-canvas-stage"
                         style={{
+                          width: `${stageBounds.width}px`,
+                          height: `${stageBounds.height}px`,
                           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                           transformOrigin: "0 0",
                         }}
@@ -3221,8 +3389,12 @@ export function ElliesBookWorkbench({
 
                         <svg
                           className="eb-edges-svg"
-                          viewBox="0 0 1220 520"
-                          preserveAspectRatio="none"
+                          width={stageBounds.width}
+                          height={stageBounds.height}
+                          style={{
+                            width: `${stageBounds.width}px`,
+                            height: `${stageBounds.height}px`,
+                          }}
                         >
                           {projection.edges.map((edge) => {
                             // Dual-mode lens: the linked-notes overlay only
@@ -3246,10 +3418,14 @@ export function ElliesBookWorkbench({
                             );
                             if (!sourceNode || !targetNode) return null;
 
-                            const x1 = sourceNode.x + 205;
-                            const y1 = sourceNode.y + 42;
+                            // Ports computed from the SAME pixel coordinates
+                            // the nodes are positioned at. The SVG shares this
+                            // 1:1 space (no viewBox remap), so edges stay
+                            // attached at any pan/zoom/drag offset.
+                            const x1 = sourceNode.x + NODE_WIDTH;
+                            const y1 = sourceNode.y + NODE_PORT_Y;
                             const x2 = targetNode.x;
-                            const y2 = targetNode.y + 42;
+                            const y2 = targetNode.y + NODE_PORT_Y;
                             const midX = (x1 + x2) / 2;
                             const pathD =
                               edge.type === "lifecycle_transition"
@@ -3678,7 +3854,11 @@ export function ElliesBookWorkbench({
                               )}
                             </div>
                           ) : null}
-                          {renderNotePreviewWithWikilinks(activeNote.content)}
+                          <div className="eb-md-document">
+                            {renderNotePreviewWithWikilinks(
+                              activeNote.content,
+                            )}
+                          </div>
                         </div>
 
                         <div className="eb-backlink-explorer">
