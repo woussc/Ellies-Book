@@ -39,7 +39,7 @@
 
 ## 3. Team Architecture (Kiro-native — see ADR 0003)
 
-`[Fact]` AGENTS.md external-model roles (Gemini Argon High lead, Claude CLI executor, Gemini review subagents, Telegram gate) are NOT available in Kiro. They are remapped:
+`[Fact]` AGENTS.md external-model roles (lead architect, now referenced against Claude's latest model per ADR 0003 in place of the earlier Gemini reference; Claude CLI executor; review subagents; Telegram gate) are NOT available in Kiro. They are remapped:
 - **Orchestrator + Planner** = lead architect: strategy, spec, tickets, routing, publish.
 - **`coder` subagent** = definitive vertical-slice TDD executor (one ticket at a time, commits on a feature branch).
 - **`semantic-reviewer` subagent** = dual-gate behavioral/spec review (writes a verdict artifact).

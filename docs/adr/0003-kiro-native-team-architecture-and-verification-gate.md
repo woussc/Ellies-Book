@@ -10,7 +10,7 @@
 
 ## 1. Context
 
-`[Fact]` `AGENTS.md` prescribes a multi-model operating contract built on external tools: Gemini 4 Argon (High) as Lead Architect, Claude CLI as Definitive Executor, Gemini Pro/Flash subagents for dual-gate review, and a Telegram bot `@Hydrateh_bot` (via `scripts/notify_telegram.py`) as a human decision gate.
+`[Fact]` `AGENTS.md` prescribes a multi-model operating contract built on external tools: a Lead Architect model (the reference lead-architect model is now Claude's latest model, in place of the earlier Gemini reference), Claude CLI as Definitive Executor, parallel subagents for dual-gate review, and a Telegram bot `@Hydrateh_bot` (via `scripts/notify_telegram.py`) as a human decision gate.
 
 `[Fact]` This work now runs inside the Kiro agent environment. The external models, their CLIs, and the Telegram bot are NOT available here. There is also no external network and no package registry access (`pnpm install` returns HTTP 403 from `registry.npmjs.org`).
 
@@ -26,11 +26,13 @@
 
 | `AGENTS.md` role | Kiro-native equivalent | Responsibility |
 | :--- | :--- | :--- |
-| Gemini 4 Argon (High) - Lead Architect & Orchestrator | **Orchestrator + Planner (lead architect)** | Strategy, spec, ticket decomposition, routing, final publish (push / PR). |
+| Claude (latest model) - Lead Architect & Orchestrator | **Orchestrator + Planner (lead architect)** | Strategy, spec, ticket decomposition, routing, final publish (push / PR). |
 | Claude CLI - Definitive Executor | **`coder` subagent** | Vertical-slice TDD implementation, one ticket at a time, commits on a feature branch. |
-| Gemini Pro/Flash - Parallel Dual-Gate Review | **`semantic-reviewer` subagent** | Behavioral + spec review of the diff; writes a review artifact with an explicit verdict. |
+| Parallel subagents - Parallel Dual-Gate Review | **`semantic-reviewer` subagent** | Behavioral + spec review of the diff; writes a review artifact with an explicit verdict. |
 
 `[Inference]` This mapping keeps the two-tier "plan then execute then review" shape of `AGENTS.md` without depending on any unavailable external surface.
+
+`[Fact]` Reference-model update (per SHUAI): the Lead Architect & Orchestrator role is now referenced against **Claude (latest model)** in place of the earlier Gemini reference. This is a reference-model change only; the Kiro-native **Orchestrator + Planner (lead architect)** still fills the role, and no decision in this ADR changes.
 
 ### Decision B: Preserve the operating discipline
 
