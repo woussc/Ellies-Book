@@ -1152,9 +1152,18 @@ export function ElliesBookWorkbench({
     "00_Project_Overview.md",
   );
   const [syncMessage, setSyncMessage] = useState<string>("");
+  // Plain-language backup status so Decision 1 (local-first + cloud) is legible:
+  // "local" = this change is safe on the device; "cloud" = it is also copied to
+  // the shared cloud copy; "working" = a cloud backup is in progress.
+  const [syncState, setSyncState] = useState<"local" | "cloud" | "working">(
+    "local",
+  );
 
   async function triggerHybridSync() {
+    setSyncState("working");
+    setSyncMessage("Backing up to the cloud…");
     try {
+      // Hybrid Sync Snapshot: push the local-first copy to the shared cloud copy.
       const res = await fetch("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1162,16 +1171,18 @@ export function ElliesBookWorkbench({
       });
       if (res.ok) {
         const json = await res.json();
+        setSyncState("cloud");
         setSyncMessage(
-          `Hybrid Sync Snapshot verified (${json?.receipt?.checksum || syncReceipt.checksum})`,
+          `Backed up to the cloud. Reference ${json?.receipt?.checksum || syncReceipt.checksum}`,
         );
         return;
       }
     } catch {
-      // Fallback to local-first verified receipt
+      // No cloud connection: the local-first copy is still safe on the device.
     }
+    setSyncState("local");
     setSyncMessage(
-      `Hybrid Sync Snapshot verified locally (${syncReceipt.checksum})`,
+      `Saved on this device. Cloud backup is not reachable right now. Reference ${syncReceipt.checksum}`,
     );
   }
 
@@ -3675,7 +3686,7 @@ export function ElliesBookWorkbench({
                                 Backup &amp; Obsidian export
                               </strong>
                               <p className="eb-muted">
-                                Checksum <code>{syncReceipt.checksum}</code> ·{" "}
+                                Reference <code>{syncReceipt.checksum}</code> ·{" "}
                                 {Object.keys(obsidianVaultFiles).length}{" "}
                                 Markdown files (
                                 {parsedVaultBundle.purchaseItems.length} items)
@@ -3700,10 +3711,38 @@ export function ElliesBookWorkbench({
                                 type="button"
                                 className="eb-btn-secondary"
                                 onClick={triggerHybridSync}
+                                disabled={syncState === "working"}
                               >
-                                Back up now
+                                {syncState === "cloud"
+                                  ? "Back up again"
+                                  : "Back up to the cloud"}
                               </button>
                             </div>
+                          </div>
+                          {/* Decision 1 affordance: always show where this work is
+                              safe, in plain language, from 390px to 1440px. */}
+                          <div className="eb-sync-affordance" role="status">
+                            <span
+                              className={`status-pill ${
+                                syncState === "cloud"
+                                  ? "status-positive"
+                                  : syncState === "working"
+                                    ? "status-pending"
+                                    : "status-muted"
+                              }`}
+                              title="Local-first with cloud backup"
+                            >
+                              {syncState === "cloud"
+                                ? "Saved here and backed up to the cloud"
+                                : syncState === "working"
+                                  ? "Backing up to the cloud…"
+                                  : "Saved on this device"}
+                            </span>
+                            <span className="eb-muted">
+                              {syncState === "cloud"
+                                ? "A shared copy is in the cloud. This device still keeps its own copy."
+                                : "Your work is kept on this device first. Use “Back up to the cloud” to copy it to the shared cloud copy."}
+                            </span>
                           </div>
                           {syncMessage ? (
                             <p className="eb-muted" role="status">

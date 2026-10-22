@@ -1501,6 +1501,53 @@ select { appearance: auto; }
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+/* W7-T3: the Overview "The plan" table must fit the white sheet at 1440px
+   without horizontal clipping. The 6 columns share a predictable width budget;
+   the text-heavy columns (item name, supplier, status) wrap instead of forcing
+   the whole table wider than the sheet, while the numeric columns stay compact.
+   The .eb-table-scroll wrapper keeps a graceful horizontal-scroll fallback on
+   very narrow surfaces. */
+.eb-plan-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+}
+
+.eb-plan-table th,
+.eb-plan-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  vertical-align: top;
+}
+
+/* Column width budget (sums to 100%): item 26%, supplier 22%, quarter 9%,
+   quantity x price 18%, total 13%, status 12%. */
+.eb-plan-table th:nth-child(1),
+.eb-plan-table td:nth-child(1) { width: 26%; }
+.eb-plan-table th:nth-child(2),
+.eb-plan-table td:nth-child(2) { width: 22%; }
+.eb-plan-table th:nth-child(3),
+.eb-plan-table td:nth-child(3) { width: 9%; }
+.eb-plan-table th:nth-child(4),
+.eb-plan-table td:nth-child(4) { width: 18%; }
+.eb-plan-table th:nth-child(5),
+.eb-plan-table td:nth-child(5) { width: 13%; }
+.eb-plan-table th:nth-child(6),
+.eb-plan-table td:nth-child(6) { width: 12%; }
+
+/* Keep the item link readable when it wraps; break only truly long tokens. */
+.eb-plan-table .eb-link-btn {
+  overflow-wrap: anywhere;
+}
+
+/* The status pill must not force its column wider than its budget. */
+.eb-plan-table .status-pill {
+  white-space: normal;
+  text-align: left;
 }
 
 .eb-clickable-row {
@@ -1582,6 +1629,26 @@ select { appearance: auto; }
 .eb-quick-save {
   min-height: 38px;
   align-self: end;
+}
+
+/* W7-T5: local-first vs cloud backup affordance (Decision 1).
+   Reads as one calm row on desktop and wraps cleanly on 390px. */
+.eb-sync-affordance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 10px 0 2px;
+  font-size: 13px;
+}
+
+.eb-sync-affordance .status-pill {
+  flex: none;
+}
+
+.eb-sync-affordance .eb-muted {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 /* Classic Studio Slot Wrapper */

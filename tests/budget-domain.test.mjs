@@ -857,3 +857,47 @@ test("the inspector 'Knowledge backlinks' detail row follows the 'Show on map' l
   );
 });
 
+test("the hybrid backup surface shows a plain-language local-vs-cloud affordance (Decision 1 / W7-T5) without finance/dev jargon leaking into the visible copy", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  // Decision 1 is local-first + cloud. The backup surface must carry a view-state
+  // flag that distinguishes "saved on this device" from "backed up to the cloud".
+  assert.match(
+    workbenchSource,
+    /useState<"local" \| "cloud" \| "working">/,
+  );
+
+  // The plain-language affordance and its three states must be present.
+  assert.ok(
+    workbenchSource.includes('className="eb-sync-affordance"'),
+    "the persistent local-vs-cloud affordance must be rendered",
+  );
+  assert.ok(
+    workbenchSource.includes("Saved on this device"),
+    "the local-first state must read in plain language",
+  );
+  assert.ok(
+    workbenchSource.includes("Saved here and backed up to the cloud"),
+    "the cloud-synced state must read in plain language",
+  );
+  assert.ok(
+    cssSource.includes(".eb-sync-affordance"),
+    "the affordance must be styled so it reads from 390px to 1440px",
+  );
+
+  // Raw checksum / snapshot jargon must not appear as primary visible copy.
+  // (The accounting-grade term "Hybrid Sync Snapshot" stays in a code comment
+  // only; "checksum" surfaces to the user as the plain word "Reference".)
+  assert.doesNotMatch(
+    workbenchSource,
+    /Checksum <code>|Hybrid Sync Snapshot verified/,
+  );
+});
+
