@@ -87,7 +87,7 @@ jobs:
         # script can `import` it. This mutates package.json / pnpm-lock.yaml on
         # the runner only; nothing is committed, and the build-and-test job
         # already validated the frozen lockfile.
-        run: pnpm add -D playwright@1
+        run: pnpm add -D -w playwright@1
 
       - name: Install Playwright Chromium + OS deps
         run: pnpm exec playwright install --with-deps chromium
