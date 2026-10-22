@@ -827,18 +827,18 @@ type PerspectiveRow = { label: string; value: string; title?: string };
 export function ElliesBookWorkbench({
   data,
   setData,
-  mode,
   classicStudioSlot,
   onOpenClassicTab,
+  onLoadSampleData,
   attentionCount = 0,
 }: {
   data: WorkbenchStudioData;
   setData: Dispatch<SetStateAction<WorkbenchStudioData>>;
-  mode: "working" | "training";
   classicStudioSlot?: ReactNode;
   onOpenClassicTab?: (
     tab: "profile" | "library" | "plan" | "spend" | "monitor",
   ) => void;
+  onLoadSampleData?: () => void;
   attentionCount?: number;
 }) {
   // Primary User Journey Step: defaults to the Visual Workflow Map (graph) per ADR 0002,
@@ -2274,9 +2274,27 @@ export function ElliesBookWorkbench({
             </button>
           </div>
 
+          {onLoadSampleData ? (
+            <div className="eb-sidebar-utility">
+              <button
+                type="button"
+                className="eb-sidebar-utility-btn"
+                onClick={() => {
+                  onLoadSampleData();
+                  setMobileNavOpen(false);
+                }}
+              >
+                <span>Sample data / Developer</span>
+              </button>
+              <span className="eb-sidebar-utility-note">
+                Loads a complete example project onto the blank workspace.
+              </span>
+            </div>
+          ) : null}
+
           <div className="eb-sidebar-footer">
             <span className="eb-save-indicator" aria-hidden="true" />
-            <span>Saved on this device · {mode} mode</span>
+            <span>Saved on this device</span>
           </div>
         </div>
       </aside>
@@ -2333,6 +2351,17 @@ export function ElliesBookWorkbench({
               <div className="eb-header-controls">
                 <button
                   type="button"
+                  className="eb-btn-primary"
+                  onClick={() => {
+                    onOpenClassicTab?.("plan");
+                    setJourneyStep("classic");
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  + Start a new project
+                </button>
+                <button
+                  type="button"
                   className="eb-btn-secondary"
                   onClick={() => setQuickCaptureOpen("item")}
                 >
@@ -2347,7 +2376,7 @@ export function ElliesBookWorkbench({
                 </button>
                 <button
                   type="button"
-                  className="eb-btn-primary"
+                  className="eb-btn-secondary"
                   onClick={() => handleAttachNote(selectedNode)}
                 >
                   + Add note

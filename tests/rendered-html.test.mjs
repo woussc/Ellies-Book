@@ -54,7 +54,15 @@ test("source includes the v2 project-led control model", async () => {
   assert.match(page, /Needs Finance review/);
   assert.match(page, /Measurement window/);
   assert.match(page, /Expected contribution, never proven causation/);
-  assert.match(page, /TRAINING_KEY/);
+  // Wave 10 WS-A removed training mode end-to-end. Guard the new reality:
+  // the training key and training-mode branch are gone, the default landing
+  // is built from blankData(), and the sample dataset loads on demand via
+  // loadSampleData() -> sampleData().
+  assert.doesNotMatch(page, /TRAINING_KEY/);
+  assert.doesNotMatch(page, /mode === "training"/);
+  assert.match(page, /blankData/);
+  assert.match(page, /sampleData\(\)/);
+  assert.match(page, /loadSampleData/);
   assert.match(page, /001230/);
   assert.match(page, /safeSpreadsheetText/);
   assert.match(page, /sourceDocumentId/);
