@@ -113,14 +113,55 @@ code {
 .progress-meta strong { font-size: 14px; }
 .progress-track { height: 4px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
-.studio-nav { display: grid; gap: 10px; max-width: 100%; margin: 0 0 18px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); overflow: hidden; }
-.studio-nav-group { display: flex; align-items: center; gap: 12px; min-width: 0; max-width: 100%; }
-.studio-nav-group > span { flex: 0 0 82px; color: var(--muted); font-size: 12px; font-weight: 600; }
-.studio-nav-buttons { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
-.studio-nav button { min-height: 36px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); padding: 6px 10px; font-size: 13px; font-weight: 500; }
-.studio-nav button:hover, .studio-nav button.is-active { border-color: var(--accent); background: white; color: var(--accent-dark); }
+/* WS-D: Setup section switcher. Flat, quiet, no bordered chrome. The active
+   item is a neutral grey surface pill (app-screens §3.2), never an accent fill. */
+.studio-nav { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; max-width: 100%; margin: 0 0 20px; padding: 0 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
+.studio-nav-group { display: flex; align-items: center; gap: 12px; min-width: 0; max-width: 100%; flex-wrap: wrap; }
+.studio-nav-group > span { flex: 0 0 auto; color: var(--muted); font-size: var(--eb-step-small); font-weight: 500; }
+.studio-nav-buttons { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.studio-nav button { min-height: 36px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); padding: 6px 12px; font-size: var(--eb-step-body); font-weight: 500; }
+.studio-nav button:hover { color: var(--ink); background: var(--surface); }
+.studio-nav button.is-active { background: var(--surface); color: var(--ink); font-weight: 600; }
 
-.eyebrow { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; font-weight: 500; text-transform: none; letter-spacing: 0; }
+/* WS-D: former ".eyebrow" kicker. No tracked caps, no ornament kicker. A plain
+   quiet caption at the small step; weight and space carry hierarchy. */
+.panel-caption { display: block; color: var(--muted); font-size: var(--eb-step-small); line-height: 1.4; font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+/* ==========================================================================
+   WS-D SETUP: common business intent (dominant element) + tailored panels
+   One question / one dominant element (ADR 0006 Decision 4). The shared intent
+   is stated once at the top; the per-team tailored definitions read as quiet
+   flat panels beneath it, on the same tokens and type scale.
+   ========================================================================== */
+.setup-intent {
+  display: grid;
+  gap: 20px;
+  margin: 0 0 24px;
+  padding: 0 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+.setup-intent-lead { display: grid; gap: 10px; max-width: 70ch; }
+.setup-intent-tier { margin: 0; color: var(--muted); font-size: var(--eb-step-small); font-weight: 500; }
+.setup-intent h1 { font-size: var(--eb-step-h1); font-weight: 600; line-height: 1.25; letter-spacing: -0.015em; margin: 0; max-width: 24ch; }
+.setup-intent-note { margin: 0; color: var(--muted); font-size: var(--eb-step-body); line-height: 1.6; }
+.setup-intent-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--line);
+}
+.setup-intent-fact {
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--eb-surface);
+}
+.setup-intent-fact > span { color: var(--muted); font-size: var(--eb-step-small); }
+.setup-intent-fact > strong { color: var(--ink); font-size: var(--eb-step-lead); font-weight: 600; font-variant-numeric: tabular-nums; }
+.setup-intent-fact > small { color: var(--muted); font-size: var(--eb-step-small); line-height: 1.4; }
+.setup-intent-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .muted { color: var(--muted); }
 .lead { max-width: 680px; color: var(--muted); font-size: 15px; margin: 8px 0 0; }
 h1, h2, h3, p { margin-top: 0; font-family: var(--font-sans); }
@@ -128,8 +169,14 @@ h1 { font-size: 22px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01
 h2 { font-size: 16px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; margin: 4px 0 0; }
 h3 { font-size: 15px; font-weight: 600; line-height: 1.3; margin: 2px 0 0; }
 
-.screen-card, .workspace-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: none; }
-.screen-card { padding: 24px; }
+.workspace-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: none; }
+/* WS-D: Setup screens are flat surface panels, told apart by tone not a box
+   outline or shadow (ADR 0006 Decision 1). */
+.screen-card { background: var(--eb-surface); border: 0; border-radius: 10px; box-shadow: none; padding: 24px; }
+.library-screen-v15 { display: grid; gap: 16px; }
+.controlled-preset { display: grid; gap: 6px; margin-top: 20px; padding: 16px 18px; border-radius: 8px; background: var(--eb-surface); }
+.controlled-preset strong { color: var(--ink); font-size: var(--eb-step-lead); font-weight: 600; }
+.controlled-preset p { margin: 0; color: var(--muted); font-size: var(--eb-step-small); line-height: 1.5; }
 .welcome-card { padding: 28px; }
 .welcome-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(250px, 0.8fr); gap: 28px; align-items: start; }
 .welcome-card h1 { max-width: 600px; }
@@ -147,8 +194,10 @@ h3 { font-size: 15px; font-weight: 600; line-height: 1.3; margin: 2px 0 0; }
 .choice-kicker { color: var(--accent-dark); font-size: 12px; font-weight: 600; }
 .choice-arrow { margin-top: auto; color: var(--accent-dark); font-size: 18px; }
 
-.screen-heading { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 24px; }
-.step-stamp { flex: none; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); border-radius: 99px; padding: 6px 10px; font-size: 12px; }
+.screen-heading { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+/* WS-D: the ".step-stamp" badge is a banned ornament. Removed from the Setup
+   markup; this guard hides any residual instance. */
+.step-stamp { display: none; }
 .field-grid { display: grid; gap: 18px; }
 .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -171,7 +220,9 @@ select { appearance: auto; }
 .radio-card strong, .radio-card small { display: block; }
 .radio-card strong { font-size: 13px; }
 .radio-card small { color: var(--muted); font-size: 12px; margin-top: 3px; }
-.inline-note { margin-top: 20px; padding: 12px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); color: var(--muted); font-size: 13px; }
+/* WS-D: no decorative accent hairline. A quiet flat tone-step note. */
+.inline-note { margin-top: 20px; padding: 14px 16px; border: 0; border-radius: 8px; background: var(--eb-surface); color: var(--muted); font-size: var(--eb-step-small); line-height: 1.5; }
+.inline-note strong { color: var(--ink); }
 
 .button { min-height: 38px; border-radius: 6px; padding: 8px 14px; border: 1px solid transparent; font-weight: 500; font-size: 13px; }
 .button-primary { background: var(--accent); color: white; border-color: var(--accent); }
@@ -212,6 +263,75 @@ select { appearance: auto; }
 .check-chip input { width: auto; min-height: 0; accent-color: var(--accent); }
 .undo-banner { margin-top: 14px; display: flex; justify-content: space-between; align-items: center; background: var(--surface-2); border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; font-size: 13px; }
 .work-card-heading, .outcome-heading, .workspace-card-heading, .subsection-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
+
+/* ==========================================================================
+   WS-D SETUP: tailored per-team definition editors as quiet flat panels
+   (not a form dump). Flat fields, filled surfaces, accent only on the one
+   selected element. No eyebrows, no step badges, no decorative hairlines.
+   ========================================================================== */
+.section-heading, .subsection-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.section-heading > div:first-child, .subsection-heading > div:first-child { display: grid; gap: 4px; max-width: 70ch; }
+.section-heading h2, .subsection-heading h2 { margin: 0; }
+.section-heading p, .subsection-heading p { margin: 0; }
+.library-section { display: grid; gap: 16px; margin-top: 4px; }
+.library-toolbar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; }
+.library-subtabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 8px; background: var(--eb-surface); }
+.library-subtabs button { min-height: 34px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); padding: 6px 12px; font-size: var(--eb-step-body); font-weight: 500; }
+.library-subtabs button:hover { color: var(--ink); }
+.library-subtabs button.is-selected { background: var(--eb-sheet); color: var(--ink); font-weight: 600; }
+.library-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* Tailored definitions: repeated flat panels, separated by tone, no shadow. */
+.definition-list { display: grid; gap: 12px; }
+.definition-card, .curation-card, .requirement-card { display: grid; gap: 14px; padding: 18px; border: 0; border-radius: 10px; background: var(--eb-sheet); }
+.definition-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+/* Tag families board: flat panels on the sheet, one grid gutter. */
+.tag-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.tag-column { display: grid; gap: 12px; padding: 16px; border: 0; border-radius: 10px; background: var(--eb-sheet); }
+.tag-column-header { display: flex; align-items: center; gap: 10px; }
+.tag-column-header input { font-weight: 600; }
+.metadata-rule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.metadata-rule-grid .rule-check { grid-column: span 2; display: flex; align-items: center; gap: 8px; }
+.metadata-rule-grid .rule-check input { width: auto; min-height: 0; accent-color: var(--accent); }
+.tag-column-values { display: grid; gap: 10px; }
+.tag-value-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tag-value-card > div { display: grid; gap: 6px; flex: 1; min-width: 0; }
+.tag-code-input { max-width: 120px; }
+
+/* TagPicker: flat fieldset, chip options, accent only on the selected chip. */
+.tag-picker { display: grid; gap: 12px; margin: 0; padding: 16px; border: 0; border-radius: 10px; background: var(--eb-surface); }
+.tag-picker legend { padding: 0; color: var(--ink); font-size: var(--eb-step-body); font-weight: 600; }
+.tag-picker-family { display: grid; gap: 8px; }
+.tag-family-label { color: var(--muted); font-size: var(--eb-step-small); }
+.tag-family-label em { font-style: normal; }
+.tag-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-option { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--eb-sheet); color: var(--muted); font-size: var(--eb-step-small); cursor: pointer; }
+.tag-option input { width: auto; min-height: 0; accent-color: var(--accent); }
+.tag-option.is-selected { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
+.tag-option small { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Budget settings + roster as flat panels on the sheet. */
+.settings-panel { display: grid; gap: 18px; padding: 20px; border: 0; border-radius: 10px; background: var(--eb-surface); }
+.settings-subpanel { display: grid; gap: 14px; padding-top: 18px; border-top: 1px solid var(--line); }
+.budget-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 2px; border-radius: 10px; overflow: hidden; background: var(--line); }
+.budget-overview-primary, .budget-overview-cell { display: grid; gap: 4px; padding: 14px 16px; background: var(--eb-sheet); }
+.budget-overview-primary strong, .budget-overview-cell strong { color: var(--ink); font-size: var(--eb-step-lead); font-weight: 600; font-variant-numeric: tabular-nums; }
+.budget-overview-primary small, .budget-overview-cell small { color: var(--muted); font-size: var(--eb-step-small); }
+.budget-overview-primary select { margin: 2px 0; }
+.fx-grid { display: grid; gap: 10px; }
+.fx-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fx-row input { max-width: 160px; font-variant-numeric: tabular-nums; }
+.team-roster { display: grid; gap: 10px; }
+.team-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+
+/* KPI-style figures are type, not tiles (app-screens): flat, tabular. */
+.metric-grid, .planning-amounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2px; border-radius: 10px; overflow: hidden; background: var(--line); }
+.metric { display: grid; gap: 4px; padding: 16px 18px; background: var(--eb-sheet); }
+.metric > span { color: var(--muted); font-size: var(--eb-step-small); }
+.metric > strong { color: var(--ink); font-size: var(--eb-step-lead); font-weight: 600; font-variant-numeric: tabular-nums; }
+.metric > small { color: var(--muted); font-size: var(--eb-step-small); line-height: 1.4; }
+
 .work-card-heading { margin-bottom: 18px; }
 .work-card-heading > div:first-of-type { flex: 1; }
 .work-card-heading h2, .outcome-heading h2 { margin-top: 4px; }
