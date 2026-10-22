@@ -820,6 +820,10 @@ const NODE_TYPE_META: Record<
   },
 };
 
+// Inspector detail row. `title` is an optional hover tooltip that keeps the precise
+// accounting term available to auditors while the visible label stays plain language.
+type PerspectiveRow = { label: string; value: string; title?: string };
+
 export function ElliesBookWorkbench({
   data,
   setData,
@@ -1828,7 +1832,7 @@ export function ElliesBookWorkbench({
             ? `${allocRow.vendor_or_warehouse} · ${allocRow.source_country} (${allocRow.source_type})`
             : "Multi-vendor split (China, Vietnam, Germany)",
         },
-      ],
+      ] as PerspectiveRow[],
       managerial: [
         {
           label: "Project initiative",
@@ -1852,11 +1856,18 @@ export function ElliesBookWorkbench({
             ? `${activeProject.outcomes[0].outcomeNameSnapshot || "Shelf execution coverage"}: ${activeProject.outcomes[0].current} / ${activeProject.outcomes[0].target} (Expected contribution, never proven causation)`
             : "Expected contribution tracked separately from spend",
         },
-        {
-          label: "Knowledge backlinks",
-          value: `${selectedNodeBacklinks.length} linked note(s)`,
-        },
-      ],
+        // The inspector backlink row follows the "Show on map" lens (W7-T2): when the
+        // linked-notes overlay is off, the drill-down also hides linked-note counts so
+        // the inspector matches the map. Pure view state; no financial value changes.
+        ...(showNoteLinks
+          ? [
+              {
+                label: "Knowledge backlinks",
+                value: `${selectedNodeBacklinks.length} linked note(s)`,
+              },
+            ]
+          : []),
+      ] as PerspectiveRow[],
       accounting: [
         {
           label: "Official GL code",
@@ -1875,14 +1886,15 @@ export function ElliesBookWorkbench({
           value: money(projection.summary.actualTotal, currency),
         },
         {
-          label: "Open PO commitment",
+          label: "Ordered, not yet paid",
+          title: "Open PO commitment",
           value: `${money(projection.summary.openCommitmentTotal, currency)} (Lineage verified: ${money(directLineageCheck.openCommitmentTotal, currency)})`,
         },
         {
           label: "Finance mapping status",
           value: "Contextual human confirmation required",
         },
-      ],
+      ] as PerspectiveRow[],
       allocValidation,
       glCodeString,
     };
@@ -1895,6 +1907,7 @@ export function ElliesBookWorkbench({
     versionGovernance.pendingDelta,
     selectedNodeBacklinks.length,
     directLineageCheck.openCommitmentTotal,
+    showNoteLinks,
   ]);
 
   const allNoteTags = useMemo(() => {
@@ -3364,9 +3377,12 @@ export function ElliesBookWorkbench({
                       <dl className="eb-perspective-list">
                         {selectedNodePerspectives[inspectorViewTab].map(
                           (row) => (
-                            <div key={row.label} className="eb-perspective-row">
-                              <dt>{row.label}</dt>
-                              <dd>{row.value}</dd>
+                            <div
+                              key={row.label}
+                              className="eb-perspective-row"
+                            >
+                              <dt title={row.title}>{row.label}</dt>
+                              <dd title={row.title}>{row.value}</dd>
                             </div>
                           ),
                         )}
@@ -3719,8 +3735,9 @@ export function ElliesBookWorkbench({
                         <span className="eyebrow">
                           Plan vs. reality trajectory
                         </span>
-                        <h3>
-                          Q1–Q4 approved baseline vs. actuals &amp; open PO
+                        <h3 title="Approved baseline vs. actuals and open PO">
+                          Q1–Q4 approved baseline vs. actuals &amp; ordered, not
+                          yet paid
                         </h3>
                       </div>
                       <div className="eb-chart-legend">
@@ -3732,9 +3749,9 @@ export function ElliesBookWorkbench({
                           <i className="eb-swatch-actual" />
                           Actual
                         </span>
-                        <span>
+                        <span title="Open PO">
                           <i className="eb-swatch-open" />
-                          Open PO
+                          Ordered, not yet paid
                         </span>
                         <span>
                           <i className="eb-swatch-forecast" />
@@ -3747,7 +3764,7 @@ export function ElliesBookWorkbench({
                       className="eb-quarter-svg"
                       viewBox="0 0 520 200"
                       role="img"
-                      aria-label="Quarter trajectory chart showing Q1 to Q4 Approved Baseline against Actuals and Open POs"
+                      aria-label="Quarter trajectory chart showing Q1 to Q4 approved baseline against actuals and amounts ordered but not yet paid"
                     >
                       {[0, 0.5, 1].map((ratio, idx) => {
                         const y = 162 - ratio * 130;

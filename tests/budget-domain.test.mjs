@@ -795,3 +795,65 @@ test("the Visual Workflow Map exposes a clearly-labeled plain-language dual-mode
   );
 });
 
+test("residual 'open PO' accounting jargon stays out of the visible chart copy and uses plain language instead (W7-T4)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // These are the specific UI-chrome strings (inspector label, chart heading,
+  // chart legend, aria-label) where "open PO" leaked into primary visible copy.
+  // They must be gone. We assert the exact chrome strings rather than a bare
+  // global /open PO/ so the guard never trips on the legitimate seed KnowledgeNote
+  // content ("...tracked under open PO [[doc-line-po-vn|...]]."), which is in-domain
+  // note text a user wrote, not UI chrome.
+  //
+  // 1. Inspector detail label.
+  assert.doesNotMatch(workbenchSource, /label: "Open PO commitment"/);
+  // 2. Chart heading visible text.
+  assert.doesNotMatch(workbenchSource, /actuals &amp; open PO\b/);
+  // 3. Chart legend visible label (plain text node between the swatch and </span>).
+  assert.doesNotMatch(workbenchSource, /eb-swatch-open" \/>\s*\n\s*Open PO\b/);
+  // 4. aria-label (accessibility copy is user-visible).
+  assert.doesNotMatch(workbenchSource, /aria-label="[^"]*Open POs?"/);
+
+  // The plain-language replacements established elsewhere in the app must be present.
+  assert.ok(
+    workbenchSource.includes('label: "Ordered, not yet paid"'),
+    "inspector must use the plain-language label 'Ordered, not yet paid'",
+  );
+  assert.ok(
+    workbenchSource.includes("actuals &amp; ordered, not"),
+    "chart heading must use plain-language 'ordered, not yet paid' wording",
+  );
+  assert.match(
+    workbenchSource,
+    /aria-label="[^"]*ordered but not yet paid"/,
+    "chart aria-label must use plain-language wording",
+  );
+
+  // The precise accounting term stays available to auditors in a title/tooltip
+  // attribute only (not primary visible text).
+  assert.match(workbenchSource, /title: "Open PO commitment"/);
+  assert.match(workbenchSource, /title="Open PO"/);
+
+  // The legitimate seed KnowledgeNote content on line 679 must be left intact:
+  // it is in-domain note text, not UI chrome.
+  assert.match(workbenchSource, /tracked under open PO \[\[doc-line-po-vn\|PO-POSM-2026-01\]\]/);
+});
+
+test("the inspector 'Knowledge backlinks' detail row follows the 'Show on map' lens so the drill-down matches the map (W7-T2 consistency)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // The inspector backlink row must be conditionally included on showNoteLinks,
+  // so turning the linked-notes overlay off also removes the backlink count from
+  // the drill-down. Pure view state; no financial value changes.
+  assert.match(
+    workbenchSource,
+    /showNoteLinks[\s\S]{0,120}label: "Knowledge backlinks"/,
+  );
+});
+
