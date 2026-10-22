@@ -15,4 +15,4 @@ You are the **Definitive Task Executor** in the multi-model workflow for **Ellie
    - Run `pnpm run build`
    - Run `node --test tests/rendered-html.test.mjs`
 4. **Checkpoint Discipline**:
-   - After completing each vertical-slice ticket, update `.scratch/HANDOFF-STATE.md` (per `.agent/skills/handoff/SKILL.md`) so Gemini 4 Argon (High) and parallel review subagents can run the Post-Ticket Refiner and Dual-Gate verification without losing context across quota resets.
+   - After completing each vertical-slice ticket, update `.scratch/HANDOFF-STATE.md` (per `.agent/skills/handoff/SKILL.md`) so Claude (latest model) and parallel review subagents can run the Post-Ticket Refiner and Dual-Gate verification without losing context across quota resets.
