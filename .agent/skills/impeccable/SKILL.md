@@ -8,6 +8,8 @@ allowed-tools:
   - Bash(.agent/skills/impeccable/scripts/impeccable *)
 ---
 
+> **[Vendored note — Ellie's Book]** `[Fact]` This skill is vendored REFERENCE-ONLY. The impeccable launcher (`scripts/impeccable`), its `.cmd` wrapper, and the live-browser scripts are NOT vendored and cannot run in this sandbox (npm/network blocked, no `node_modules`). Ignore the `allowed-tools` launcher and the `impeccable context` Setup step; read the verb references in `reference/*.md` directly. Enter UI work through [`.agent/skills/uiux-congress/SKILL.md`](../uiux-congress/SKILL.md) (ADR 0007); ADR 0006 remains the binding look. See [`PROVENANCE.md`](./PROVENANCE.md).
+
 This skill gives you the tools and permission to make design that earns the name out-of-distribution craft. Work as an award-winning design director would: production-grade code, a clear POV, a deep grasp of what the client and its users need, and exceptional craft.
 
 Core principles:
