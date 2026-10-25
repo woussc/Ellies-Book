@@ -33,8 +33,6 @@ destination paths match exactly (no prefix rewrite).
   - **Native variants**: `audit.native`, `adapt.native`, `ios`, `android`.
   - **Degraded helpers**: `reference/degraded/*.md`.
 - `scripts/command-metadata.json`, `scripts/VERSION` — small command metadata and the version marker.
-- `scripts/data/font-index.json`, `scripts/data/font-index-failures.json` — the font-index data (readable
-  offline as reference; the CLI that normally builds/queries them is not vendored).
 - `LICENSE` — the upstream Apache 2.0 license text (repo-root `LICENSE`).
 - `PROVENANCE.md` — this authored record.
 
@@ -47,6 +45,10 @@ runnable here**:
 - **Launcher binary and shell wrappers**: `scripts/impeccable`, `scripts/*.cmd` — the self-contained
   launcher binary and its Windows wrapper.
 - **Browser automation scripts**: `scripts/*.js` (live-browser, modern-screenshot capture, etc.).
+- **Font-index data**: `scripts/data/font-index.json`, `scripts/data/font-index-failures.json` — NOT
+  retained. These are consumed only by impeccable's font-matching CLI, which cannot run here (no `node`,
+  no deps, no browser; fetch blocked at HTTP 403) and is excluded above. With no runnable consumer the
+  data (~1.1 MB) carries no offline reference value, so it was removed as dead weight.
 - **Tool/packaging trees**: `crates/`, `cli/`, `cursor-plugin/`, `browser-bundle/`, `demos/`, `tests/`,
   `.kiro/`, `.claude/` — agent-tool wrappers, build crates, and fixtures, not skill methodology.
 - **Repo-root `DESIGN.md` and `PRODUCT.md`** — impeccable's own "kinpaku" house design philosophy and
