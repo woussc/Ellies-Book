@@ -2,7 +2,30 @@
 
 > Address the user as **SHUAI**. Tag consequential claims with `[Fact]` / `[Inference]` / `[Assumption]` / `[Projection]` / `[Unknown]` (per AGENTS.md + ADR 0003).
 > This file is written so a brand-new session with zero memory can resume confidently.
-> **Checkpoint**: close of **Wave 7 (COMPLETE)**.
+> **Checkpoint**: **Wave 11 (UI/UX Congress) PLANNED** — latest. Prior waves (7-10) below remain for history.
+
+---
+
+## W11 — UI/UX Congress Skills (PLANNED this session)
+
+| Field | Value |
+| :--- | :--- |
+| **Branch** | `[Fact]` `feat/congress-uiux-skills`, off `main` @ `c6f71a0` (Wave 10 UI overhaul merged + live on Pages). |
+| **Gate** | `[Fact]` `node --test tests/budget-domain.test.mjs` = **21/21** at branch creation (baseline, unaffected by docs/vendoring). |
+| **Request** | `[Fact]` SHUAI: install two GitHub skills and blend them with the taste-skill into a single routed "congress of UI/UX design workflow". Skills: `ui-ux-pro-max` (MIT v2.15.0, `nextlevelbuilder/ui-ux-pro-max-skill`) + `impeccable` (**Apache 2.0** v4.7.1, `pbakaus/impeccable`). |
+| **Reach** | `[Fact]` General web + npm + `git clone` BLOCKED (403). Both target repos reachable ONLY via the `gh` gateway (`gh api .../contents/<path> --jq .content | base64 -d`). Skills' scripts CANNOT run in-sandbox → vendored as REFERENCE. |
+| **Task state** | `[Fact]` `.agents/tasks/task-congress-uiux-skills/` (context.json + FEAT-001..004 + task.json). |
+| **Artifacts authored** | `[Fact]` `docs/VENDORING-PLAN-congress.md` (exact source→dest file sets + exclusions) and `.scratch/tickets/W11-uiux-congress.md` (T1-T4). |
+
+### The blend (congress) — synthesis recorded
+- `[Inference]` **taste-skill** (`.agent/skills/design-taste-frontend/`) = ART DIRECTION + the anti-slop VERIFICATION GATE (`scripts/inspect.mjs --app` at 1440/768/390 + critique rubric). Owns PASS/FAIL.
+- `[Inference]` **ui-ux-pro-max** (`.agent/skills/ui-ux-pro-max/`) = DESIGN-INTELLIGENCE LIBRARY (styles / 192 palettes / font pairings / 119 UX guidelines / charts / 22 stacks) + design-system token architecture. Grounds decisions; does not mandate a look.
+- `[Inference]` **impeccable** (`.agent/skills/impeccable/`) = CRAFT & POLISH LOOP (craft→critique→polish→harden verbs + craft-floor) applied in Operate mode during build and before the gate.
+- `[Fact]` **Precedence rule (protects the shipped look)**: **ADR 0006's quiet light app-screen `--eb-*` system stays the binding visual system.** The congress blends PROCESS and taps the LIBRARY; it is NOT a licence to re-skin (no re-theme to kinpaku or any other palette) unless SHUAI explicitly redirects.
+
+### What is DONE vs NEXT
+- `[Fact]` DONE this session: all planning artifacts (task state, vendoring plan, W11 tickets, this handoff) + ADR 0007 authored (see below if present). Branch created; gate 21/21.
+- `[Projection]` NEXT (coder fan-out, each keeps gate 21/21): **T1** vendor `ui-ux-pro-max` selected files; **T2** vendor `impeccable` selected files; **T3** author `docs/adr/0007-uiux-congress-design-workflow.md` + `.agent/skills/uiux-congress/SKILL.md` (if not already committed); **T4** wire AGENTS.md §3 + CLAUDE.md pointer + the two PROVENANCE/LICENSE pairs. `[Flag]` T4 edits AGENTS.md §3 (previously authorized). Orchestrator publishes; do NOT touch PR #4.
 
 ---
 
