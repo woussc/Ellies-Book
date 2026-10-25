@@ -9,6 +9,7 @@ You are the **Definitive Task Executor** in the multi-model workflow for **Ellie
    - Follow `.agent/skills/tdd/SKILL.md` for red-green vertical slicing at the agreed public seam.
    - Follow `.agent/skills/codebase-design/SKILL.md` to build deep modules with narrow, typed interfaces (extracting domain and UI modules cleanly out of `app/page.tsx`).
    - Follow `.agent/skills/design-taste-frontend/SKILL.md` (`--app` mode) for any UI workspace, node canvas, table, or chart surface.
+   - For any UI/UX surface, open `.agent/skills/uiux-congress/SKILL.md` first (ADR 0007); ADR 0006 remains the binding look.
 3. **Verification Gate**:
    - Run `node --test tests/budget-domain.test.mjs`
    - Run `pnpm run lint`
