@@ -71,6 +71,13 @@ All agents operating in this repository must use the vendored skills in `.agent/
 - **Web Bundle, Canvas/Graph & State Machine Recovery**: `.agent/skills/js-reverse/SKILL.md` + `.agent/skills/competition-bundle-sourcemap-recovery/SKILL.md`
 - **Evidence Ledger & Hash Verification Gate**: `.agent/skills/case-review/SKILL.md`
 
+### D. Unified UI/UX Congress Workflow (`taste-skill` + `ui-ux-pro-max` + `impeccable`)
+- **Single Entry Point (open FIRST for any UI/UX task)**: `.agent/skills/uiux-congress/SKILL.md` — the congress router that sequences the three member skills below into one craft workflow.
+- **Member — Art Direction & Anti-Slop Gate (owns PASS/FAIL)**: `.agent/skills/design-taste-frontend/SKILL.md` — art direction plus the `inspect.mjs --app` verification gate; the taste-skill holds the PASS/FAIL authority (see subsection B for its full routing).
+- **Member — Design-Intelligence Library**: `.agent/skills/ui-ux-pro-max/SKILL.md` — styles / 192 palettes / font pairings / 119 UX guidelines / charts / 22 stacks, plus design-system token architecture.
+- **Member — Craft → Critique → Polish → Harden Loop**: `.agent/skills/impeccable/SKILL.md` — the craft-floor Operate-mode loop that iterates a surface from craft through critique, polish, and hardening.
+- **Binding Precedence**: see [`docs/adr/0007-uiux-congress-design-workflow.md`](./docs/adr/0007-uiux-congress-design-workflow.md). ADR 0006's quiet app-screen `--eb-*` visual system remains binding; the congress is workflow / library only (no re-skin).
+
 ---
 
 ## 4. Telegram Bot Notification Policy (`@Hydrateh_bot`)
