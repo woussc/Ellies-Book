@@ -2328,13 +2328,20 @@ export function ElliesBookWorkbench({
     () => quarterChartRows.map((r) => Math.max(0, r.actual + r.open)),
     [quarterChartRows],
   );
-  const kpiRemainingSeries = useMemo(() => {
-    let committed = 0;
-    return quarterChartRows.map((r) => {
-      committed += r.actual + r.open;
-      return Math.max(0, projection.summary.approvedBudget - committed);
-    });
-  }, [quarterChartRows, projection.summary.approvedBudget]);
+  const kpiRemainingSeries = useMemo(
+    () =>
+      // Running budget-remaining per quarter. Computed mutation-free: each entry
+      // reads only its own prefix (rows 0..i) via an inner reduce whose `t` is a
+      // callback parameter. Nothing in the render scope is reassigned inside this
+      // render-phase callback, so the react-hooks rule is satisfied.
+      quarterChartRows.map((_row, i) => {
+        const committed = quarterChartRows
+          .slice(0, i + 1)
+          .reduce((t, r) => t + r.actual + r.open, 0);
+        return Math.max(0, projection.summary.approvedBudget - committed);
+      }),
+    [quarterChartRows, projection.summary.approvedBudget],
+  );
 
   // Render a small inline bar sparkline. It carries data (reference 3's Response
   // Time card); it is NOT a tinted icon tile. Flat fills only, so the data
