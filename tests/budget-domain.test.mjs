@@ -1161,3 +1161,68 @@ test("Wave 12 WS-B: the dark node-graph canvas hero — status node cards + badg
   assert.doesNotMatch(engineSource, /deriveNodeStatus|eb-node-status|eb-minimap|eb-edge-grad/);
 });
 
+test("Wave 12 WS-C: the data-surface legibility pass — KPI big-number + micro-sparkline (never a tinted icon tile), dark-legible tables (no zebra, tabular right-aligned, pale-tint status pills, lightness-step hover/selection), and the Reports switcher wired to the WS-A .eb-surface-tabs top tab row — adds NO glow/gradient to any data class (ADR 0008 Decision 5, UI-spec Stage-2/Stage-4)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  const engineSource = await readFile(
+    new URL("../app/budget-domain.mjs", import.meta.url),
+    "utf8",
+  );
+
+  // ADR 0008 Decision 5: each KPI reads as a BIG NUMBER + tiny label + optional
+  // micro-sparkline. The sparkline carries data (per-quarter series); it is NOT
+  // a tinted icon tile. The markup + its data classes must exist.
+  assert.match(workbenchSource, /renderSparkline\(/);
+  assert.match(workbenchSource, /className="eb-sparkline"/);
+  assert.match(workbenchSource, /eb-sparkline-bar/);
+  assert.match(cssSource, /\.eb-sparkline\s*\{/);
+  assert.match(cssSource, /\.eb-sparkline-bar\s*\{/);
+  // The sparkline series are PRESENTATION views of already-computed quarter
+  // figures; the pure engine must NOT learn any KPI-sparkline presentation.
+  assert.doesNotMatch(engineSource, /eb-sparkline|renderSparkline|kpiSpendSeries|kpiRemainingSeries/);
+
+  // ADR 0008 Decision 5 / UI-spec Stage-2: the ONE headline figure leads at the
+  // h1/lead scale; KPI figures are right-aligned tabular numbers (16-40px, so
+  // the lead figure uses the 24px h1 step, never a >=48px display size).
+  assert.match(cssSource, /\.eb-kpi-lead \.eb-kpi-figure\s*\{[\s\S]*?font-size:\s*var\(--eb-step-h1\)/);
+  assert.match(cssSource, /\.eb-kpi-figure\s*\{[\s\S]*?font-variant-numeric:\s*tabular-nums[\s\S]*?text-align:\s*right/);
+
+  // UI-spec §2.3 / Stage-2: table row hover is ONE lightness step (surface-2),
+  // never a fill flip; the selected row takes the quiet accent fill, so hover
+  // and selection never collide.
+  assert.match(cssSource, /\.eb-clickable-row:hover\s*\{[\s\S]*?background:\s*var\(--surface-2\)/);
+  assert.match(cssSource, /\.eb-clickable-row\.is-selected[\s\S]*?background:\s*var\(--eb-accent-soft\)/);
+  assert.match(workbenchSource, /selectedNodeId === row\.id \? "is-selected" : ""/);
+
+  // ADR 0008 Decision 5: table status pills are a PALE TINT of the status hue,
+  // scoped to the data tables, with readable hue-tinted text. No full-saturation
+  // fills on the data surface.
+  assert.match(cssSource, /\.eb-plan-table \.status-positive,[\s\S]*?background:\s*rgba\(34, 197, 94/);
+  assert.match(cssSource, /\.eb-plan-table \.status-negative,[\s\S]*?background:\s*rgba\(239, 68, 68/);
+
+  // ADR 0008 Decision 8 / UI-spec §2.1-§2.2 (Stage-4): the Reports canonical-
+  // table switcher is wired to the WS-A .eb-surface-tabs top tab row (ONE 2px
+  // accent underline), so picking a table is one obvious click.
+  assert.match(workbenchSource, /className="eb-surface-tabs eb-table-switcher"/);
+  assert.match(workbenchSource, /className=\{`eb-surface-tab eb-table-tab \$\{activeTable === tName \? "is-active" : ""\}`\}/);
+
+  // ADR 0008 Decision 5 (THE CRUX for data): NO glow/gradient/resting shadow on
+  // ANY WS-C data class, so the data surfaces pass inspect.mjs --app with NO
+  // waivers. Assert the WS-C data-class block carries none of the banned props.
+  const dataClassBlocks = cssSource.match(
+    /\.eb-(?:kpi-[a-z-]*|sparkline[a-z-]*|plan-table[a-z- .:>()]*|relational-table[a-z- .:>()]*|table-switcher|clickable-row[a-z- .:]*)\s*\{[^}]*\}/g,
+  ) || [];
+  assert.ok(dataClassBlocks.length > 0, "WS-C data-class CSS blocks must exist to scan");
+  for (const block of dataClassBlocks) {
+    assert.doesNotMatch(block, /linear-gradient|radial-gradient/, `WS-C data class must carry no gradient: ${block.slice(0, 60)}`);
+    assert.doesNotMatch(block, /box-shadow\s*:(?!\s*none)/, `WS-C data class must carry no resting shadow: ${block.slice(0, 60)}`);
+    assert.doesNotMatch(block, /backdrop-filter/, `WS-C data class must carry no glass blur: ${block.slice(0, 60)}`);
+  }
+});
+

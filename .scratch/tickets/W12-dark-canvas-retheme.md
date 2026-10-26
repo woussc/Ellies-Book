@@ -73,7 +73,19 @@
 
 ---
 
-## WS-C - Data-surface legibility pass on dark (Overview, Reports, KPI strip) `[proposed]`
+## WS-C - Data-surface legibility pass on dark (Overview, Reports, KPI strip) `[done]`
+
+> `[Fact]` Implemented on `feat/w12-ws-c-data`. KPI strip = big number + tiny label +
+> flat micro-sparkline (`.eb-sparkline`, per-quarter data, NO tinted icon tile); "left to
+> spend" leads at `--eb-step-h1`, figures right-aligned `tabular-nums` (16-40px). Overview
+> plan table + Reports canonical tables read on dark with no zebra, right-aligned tabular
+> numbers, 1px `--eb-line`/`--rule` separation (no heavy borders, no resting shadow), status
+> pills as pale tints of `--eb-status-*` scoped to the data tables, row hover = one lightness
+> step (`--surface-2`, no fill flip), selected row = `--eb-accent-soft` active fill. The
+> Reports canonical-table switcher is wired to the WS-A `.eb-surface-tabs` scaffold (2px accent
+> underline active). NO glow/gradient/backdrop-filter on any data class (guarded in
+> `tests/budget-domain.test.mjs`); data surfaces run the gate with NO waivers. `node --test
+> tests/budget-domain.test.mjs` = 24/24.
 
 - **Objective**: Make the Overview plan table, the Reports/canonical tables, and the KPI strip calm and legible on the dark ground, with the headline figure leading and status only where a decision is needed. NO gratuitous glow (ADR 0008 Decision 5 legibility carve-out).
 - **Congress steps**: FRAME (Overview answers "committed vs left?"; Reports answers "export the audited tables"); GROUND (app-screens.md §5 KPIs, §7 tables, colors.csv status pills); CRAFT (`typeset` for the figure hierarchy, `layout` for the table grid); VERIFY (`inspect.mjs --app` data surfaces, NO waivers).

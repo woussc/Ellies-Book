@@ -2320,6 +2320,45 @@ export function ElliesBookWorkbench({
     (projection.summary.openCommitmentTotal / budgetDenominator) * 100,
   );
 
+  // WS-C (ADR 0008 Decision 5): micro-sparkline series for the KPI strip. These
+  // are PRESENTATION-only views of already-computed quarter figures (no engine
+  // change, no new domain field). The "paid & ordered" series is the per-quarter
+  // committed spend; the "left to spend" series is the running budget remaining.
+  const kpiSpendSeries = useMemo(
+    () => quarterChartRows.map((r) => Math.max(0, r.actual + r.open)),
+    [quarterChartRows],
+  );
+  const kpiRemainingSeries = useMemo(() => {
+    let committed = 0;
+    return quarterChartRows.map((r) => {
+      committed += r.actual + r.open;
+      return Math.max(0, projection.summary.approvedBudget - committed);
+    });
+  }, [quarterChartRows, projection.summary.approvedBudget]);
+
+  // Render a small inline bar sparkline. It carries data (reference 3's Response
+  // Time card); it is NOT a tinted icon tile. Flat fills only, so the data
+  // surface passes inspect.mjs --app with NO waivers.
+  const renderSparkline = (series: number[], label: string) => {
+    const max = Math.max(1, ...series);
+    return (
+      <span
+        className="eb-sparkline"
+        role="img"
+        aria-label={label}
+        aria-hidden={series.length === 0 ? "true" : undefined}
+      >
+        {series.map((value, idx) => (
+          <span
+            key={idx}
+            className={`eb-sparkline-bar ${idx === series.length - 1 ? "is-latest" : ""}`}
+            style={{ height: `${Math.max(8, Math.round((value / max) * 100))}%` }}
+          />
+        ))}
+      </span>
+    );
+  };
+
   // Build rows for the Overview "The plan" table (6 columns; audit fields kept as secondary text)
   const overviewPurchaseRows = useMemo(() => {
     const rows: Array<{
@@ -2986,6 +3025,10 @@ export function ElliesBookWorkbench({
                 >
                   {money(projection.summary.availableToCommit, currency)}
                 </strong>
+                {renderSparkline(
+                  kpiRemainingSeries,
+                  "Budget remaining trend across Q1 to Q4",
+                )}
                 <span className="eb-kpi-sub">
                   Budget minus what is paid or ordered
                 </span>
@@ -3035,6 +3078,10 @@ export function ElliesBookWorkbench({
                     currency,
                   )}
                 </strong>
+                {renderSparkline(
+                  kpiSpendSeries,
+                  "Paid and ordered spend trend across Q1 to Q4",
+                )}
                 <span className="eb-kpi-sub">
                   Paid {money(projection.summary.actualTotal, currency)} ·
                   Ordered {money(projection.summary.openCommitmentTotal, currency)}
@@ -3122,7 +3169,11 @@ export function ElliesBookWorkbench({
                       </thead>
                       <tbody>
                         {overviewPurchaseRows.map((row) => (
-                          <tr key={row.id}>
+                          <tr
+                            key={row.id}
+                            className={`eb-clickable-row ${selectedNodeId === row.id ? "is-selected" : ""}`}
+                            onClick={() => jumpToNode(row.id)}
+                          >
                             <td data-label="Item">
                               <button
                                 type="button"
@@ -4604,8 +4655,14 @@ export function ElliesBookWorkbench({
                     </p>
                   ) : null}
 
+                  {/* WS-C (ADR 0008 Decision 8 / UI-spec §2.1-§2.2, Stage-4):
+                      the canonical-table switcher is the TOP in-surface tab row.
+                      It consumes the WS-A .eb-surface-tabs scaffold (ONE 2px
+                      accent underline as the active marker), so picking a table
+                      is one obvious low-travel click. setActiveTable only moves
+                      view state, so scroll/selection is preserved on switch. */}
                   <div
-                    className="eb-table-switcher"
+                    className="eb-surface-tabs eb-table-switcher"
                     role="tablist"
                     aria-label="11 Canonical Relational Tables"
                   >
@@ -4619,7 +4676,7 @@ export function ElliesBookWorkbench({
                           type="button"
                           role="tab"
                           aria-selected={activeTable === tName}
-                          className={`eb-table-tab ${activeTable === tName ? "is-active" : ""}`}
+                          className={`eb-surface-tab eb-table-tab ${activeTable === tName ? "is-active" : ""}`}
                           onClick={() => setActiveTable(tName)}
                         >
                           <span>{tName}</span>
@@ -4663,7 +4720,7 @@ export function ElliesBookWorkbench({
                               <tr
                                 key={rowId + "-" + rIdx}
                                 onClick={() => jumpToNode(rowId)}
-                                className="eb-clickable-row"
+                                className={`eb-clickable-row ${selectedNodeId === rowId ? "is-selected" : ""}`}
                               >
                                 {Object.entries(row).map(([col, val]) => {
                                   const isNum = typeof val === "number";
