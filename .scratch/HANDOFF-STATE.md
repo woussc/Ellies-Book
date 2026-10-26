@@ -1,8 +1,40 @@
-# Context Checkpoint & Handoff State — Ellie's Book
+# Context Checkpoint & Handoff State - Ellie's Book
 
 > Address the user as **SHUAI**. Tag consequential claims with `[Fact]` / `[Inference]` / `[Assumption]` / `[Projection]` / `[Unknown]` (per AGENTS.md + ADR 0003).
 > This file is written so a brand-new session with zero memory can resume confidently.
-> **Checkpoint**: **Wave 11 (UI/UX Congress) PLANNED** — latest. Prior waves (7-10) below remain for history.
+> **Checkpoint**: **Wave 12 (Dark node-graph canvas re-theme + interaction model) PLANNED** - latest. Prior waves (7-11) below remain for history.
+
+---
+
+## W12 - Dark canvas re-theme + whole-app interaction model (PLANNED this session)
+
+| Field | Value |
+| :--- | :--- |
+| **Branch** | `[Fact]` `docs/w12-dark-canvas-retheme-plan`, off `main` @ `55d1725` (Wave 10 UI overhaul + the congress merged; app LIVE on the Pages preview). |
+| **Gate** | `[Fact]` `node --test tests/budget-domain.test.mjs` = **21/21** at branch creation (baseline; docs do not affect it). |
+| **Decision (do not reopen)** | `[Fact]` SHUAI chose **Option 2**: a DARK, premium node-graph **CANVAS as the hero** + LEGIBILITY-DISCIPLINED data surfaces (tables/forms/Setup/reports) + a refined **tab/hover/positioning** model across the whole app. This REVERSES ADR 0006's quiet LIGHT direction for the hero and AMENDS it for the rest. |
+| **ADR** | `[Fact]` **ADR 0008** `docs/adr/0008-dark-canvas-retheme-and-interaction-model.md` (Status Proposed). **Supersedes ADR 0006 for the canvas/hero; amends it for data surfaces.** 0008 confirmed next free number (0001-0003,0005,0006,0007 exist; 0004 on open PR #4 - DO NOT touch #4). |
+| **Task state** | `[Fact]` `.agents/tasks/task-w12-dark-canvas-retheme/` (context.json + FEAT-001..003 + task.json). `.agents/` is gitignored (local only). |
+| **Artifacts committed** | `[Fact]` `docs/adr/0008-...md`, `docs/UI-INTERACTION-SPEC-w12.md` (per-stage user-focus critique + interaction model), `.scratch/tickets/W12-dark-canvas-retheme.md` (WS-A -> B/C/D), and this handoff. |
+
+### The plan (congress-driven)
+- `[Fact]` **Dark `--eb-*` token plan** (ADR 0008 Decision 1), grounded in `ui-ux-pro-max/data/colors.csv` row 6 "Financial Dashboard" + row 4 "Luxury dark": ground ramp `#060910`/`#0e1320`/`#161c2b`/`#1c2437`, line `#263044`, soft ink `#e8ecf4` (NOT #fff), muted `#94a3b8`, accent `#35c08a`, status go `#22c55e` / alert `#ef4444` / warn `#f59e0b` / idle `#94a3b8`, canvas-only `--eb-node-glow` + `--eb-edge-*` gradients. Type scale 13/16/20/24 UNCHANGED.
+- `[Fact]` **Status colour** rides the node badge + the edge ribbon; green = go/healthy, red = alert, amber = warn, grey = idle (meaning, not decoration).
+- `[Fact]` **Flow edges** = curved bezier + status-coloured gradient ribbons (thin DAG / thick knowledge overlay), geometry derived from node pixel coords (view state only).
+- `[Fact]` **Interaction model** (SHUAI's first priority): KEEP left rail = global space switcher (grouped, dark active pill); ADD a TOP in-surface tab row (underline/accent pill) for sub-views; subtle data-surface hover (no fill flip); canvas node hover = luminance + status halo; right-docked zoom/fit/branch controls + NEW bottom-right mini-map; preserve view state on tab switch. Per-stage user-focus critique for all 5 surfaces is in `docs/UI-INTERACTION-SPEC-w12.md`.
+- `[Fact]` **THE CRUX - glow vs the taste gate** (ADR 0008 Decision 7): `inspect.mjs --app` FAILs on `gradient`/`heavy-shadow`/`glass`/`icon-chips`, but every rule honours an allow-list (`--allow` or `.taste-skill/direction.json` `{allow:[...]}`). WS-B commits a direction.json waiving exactly those IDs, SCOPED to the canvas, justified per rule; the data surfaces run the gate with NO waivers. NOT a `data-ui` wrapper (that trips `ui-wrapper` on a title-bearing full surface).
+
+### Sequencing (ready to fan out)
+- `[Fact]` **WS-A FOUNDATION (blocking)**: dark `:root` tokens + interaction model in the shell. Files: `app/globals.css` (`:root` + `.eb-sidebar`/`.eb-header`/shell/nav), `app/ellies-book-workbench.tsx` (shell/nav ~2280-2520 + top tab-row scaffold). Merge FIRST.
+- `[Fact]` Then **WS-B / WS-C / WS-D in parallel** off post-WS-A `main`, each its own branch, disjoint regions:
+  - WS-B canvas block (`graph`) + `.eb-canvas*`/`.eb-edge*`/`.eb-graph-node` + NEW `.eb-minimap` + direction.json.
+  - WS-C overview + tables blocks + `.eb-kpi*`/`.eb-plan-table`/`.eb-table*` (NO waivers).
+  - WS-D `app/page.tsx` Setup + the vault block + `.studio-*`/`.eb-vault*`/`.eb-md*` (NO waivers).
+- `[Fact]` **Coordinate Invariance (ADR 0002)** carried into WS-B: visuals/view-state only; do NOT touch `budget-domain.mjs`, the geometry, or the checksum.
+- `[Fact]` **Guards** (`tests/budget-domain.test.mjs`, 21/21): recommended model KEEPS the journey labels + graph-first default, so no guard change needed for nav shape. If a coder renames a guarded label or CSS class (`.eb-workbench`/`.eb-kpi-strip`/`.eb-graph-workspace`/`.eb-command-bar`), the SAME PR re-anchors the guard (coverage preserved, not deleted).
+- `[Fact]` Do NOT touch `budget-domain.mjs`, `db/schema.ts`, `/api/sync`, the Worker, `ci.yml`, `pages.yml`, `vite.config*`.
+- `[Projection]` **Ready to fan out: WS-A first, then B/C/D in parallel on disjoint files / own branches.**
+- `[Fact]` **Honesty**: planner cannot run a browser or the skills' scripts in-sandbox; the spec is reasoned from the references + vendored docs/CSVs. Real visual proof = CI (`inspect.mjs --app` + Playwright) + the Pages preview.
 
 ---
 
