@@ -1161,6 +1161,89 @@ test("Wave 12 WS-B: the dark node-graph canvas hero — status node cards + badg
   assert.doesNotMatch(engineSource, /deriveNodeStatus|eb-node-status|eb-minimap|eb-edge-grad/);
 });
 
+test("Wave 12 WS-D: Setup + Notes on the dark theme — common business intent as the dominant element over flat per-team definition panels, a calm document reading pane (16px/1.6/~70ch) with accent-lift wikilink/tag pills that keep their jump/filter behaviour, and NO glow/gradient on any Setup or notes class (ADR 0008 Decision 5, UI-spec Stage-3/Stage-5)", async () => {
+  const pageSource = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  const markdownSource = await readFile(
+    new URL("../app/markdown-render.tsx", import.meta.url),
+    "utf8",
+  );
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  const engineSource = await readFile(
+    new URL("../app/budget-domain.mjs", import.meta.url),
+    "utf8",
+  );
+
+  // UI-spec Stage-5: Setup states ONE common business intent as the dominant
+  // element at the top; per-team tailored definitions read as flat panels
+  // beneath. The dominant intent is a single h1 on a capped measure.
+  assert.match(pageSource, /className="setup-intent"/);
+  assert.match(pageSource, /Common business intent/);
+  assert.match(pageSource, /className="setup-intent-fact"/);
+  assert.match(cssSource, /\.setup-intent h1\s*\{[\s\S]*?font-size:\s*var\(--eb-step-h1\)/);
+  assert.match(cssSource, /\.setup-intent-lead\s*\{[\s\S]*?max-width:\s*70ch/);
+  // The per-team tailored definitions are flat tone-step panels, no shadow.
+  assert.match(cssSource, /\.definition-card[\s\S]*?background:\s*var\(--eb-sheet\)/);
+
+  // ADR 0008 Decision 5 (Setup forms): real form fields KEEP borders and read
+  // on dark (a bordered surface field, never a hardcoded light fill), and the
+  // focus ring is the accent (the global focus-visible rule).
+  assert.match(cssSource, /input, select, textarea \{[\s\S]*?border:\s*1px solid var\(--line-strong\)[\s\S]*?background:\s*var\(--surface\)/);
+  assert.doesNotMatch(
+    cssSource.match(/\.choice-card\s*\{[^}]*\}/)?.[0] ?? "",
+    /background:\s*white/,
+    "Setup field classes must not carry a hardcoded white fill on dark",
+  );
+
+  // UI-spec Stage-3: the Notes reading pane renders authored markdown as a
+  // DOCUMENT (not a raw dump). The render path stays in markdown-render.tsx and
+  // the inline parsing stays in the PURE engine (extractWikilinks UNCHANGED).
+  assert.match(workbenchSource, /renderMarkdownDocument\(/);
+  assert.match(workbenchSource, /className="eb-md-document"/);
+  assert.match(markdownSource, /export function renderMarkdownDocument/);
+  assert.match(engineSource, /export function extractWikilinks/);
+  assert.doesNotMatch(markdownSource, /function extractWikilinks/); // not re-defined outside the engine
+
+  // Stage-3: body 16px / 1.6 leading, measure capped ~70ch, ink on --eb-sheet.
+  assert.match(cssSource, /\.eb-markdown-preview\s*\{[\s\S]*?font-size:\s*var\(--eb-step-body\)[\s\S]*?line-height:\s*1\.6/);
+  assert.match(cssSource, /\.eb-md-document\s*\{[\s\S]*?max-width:\s*70ch/);
+  // Headings collapse onto 24/20/16, never a fifth reading size.
+  assert.match(cssSource, /\.eb-md-h1\s*\{[\s\S]*?font-size:\s*var\(--eb-step-h1\)/);
+  assert.match(cssSource, /\.eb-md-h2\s*\{[\s\S]*?font-size:\s*var\(--eb-step-lead\)/);
+  assert.match(cssSource, /\.eb-md-h3\s*\{[\s\S]*?font-size:\s*var\(--eb-step-body\)/);
+
+  // Stage-3 / UI-spec §2.3: the wikilink/tag pills are the ONLY colour in the
+  // calm document; they LIFT to the full accent on hover/focus and KEEP their
+  // jump (jumpToNode) / tag-filter behaviour (onClick wiring, CSS-only lift).
+  assert.match(markdownSource, /className="eb-wikilink-pill"[\s\S]*?onClick=\{\(\) => handlers\.onWikilink\(target\)\}/);
+  assert.match(markdownSource, /className="eb-tag-pill"[\s\S]*?onClick=\{\(\) => handlers\.onTag\(tag\)\}/);
+  assert.match(workbenchSource, /onWikilink:\s*\(target\) => jumpToNode\(target\)/);
+  assert.match(cssSource, /\.eb-wikilink-pill:hover,\s*\.eb-wikilink-pill:focus-visible\s*\{[\s\S]*?background:\s*var\(--accent\)/);
+  assert.match(cssSource, /\.eb-tag-pill:hover,\s*\.eb-tag-pill:focus-visible\s*\{[\s\S]*?background:\s*var\(--accent\)/);
+
+  // ADR 0008 Decision 5 (THE CRUX): Setup + Notes run inspect.mjs --app with NO
+  // waivers, so NO glow/gradient/resting-shadow/glass on ANY Setup or notes
+  // class. Scan the owned class families and assert none carries a banned prop.
+  const wsdClassBlocks = cssSource.match(
+    /\.(?:setup-intent[a-z- .:>()]*|definition-[a-z-]+|tag-(?:board|column[a-z- .:>()]*|picker[a-z- .:>()]*|option[a-z- .:]*)|library-[a-z-]+|eb-md-[a-z-]+|eb-markdown-[a-z-]+|eb-vault-[a-z-]+|eb-wikilink-pill[a-z- .:,]*|eb-tag-pill[a-z- .:,]*|status-(?:positive|negative|pending|muted))\s*\{[^}]*\}/g,
+  ) || [];
+  assert.ok(wsdClassBlocks.length > 0, "WS-D Setup/notes CSS blocks must exist to scan");
+  for (const block of wsdClassBlocks) {
+    assert.doesNotMatch(block, /linear-gradient|radial-gradient/, `WS-D Setup/notes class must carry no gradient: ${block.slice(0, 60)}`);
+    assert.doesNotMatch(block, /box-shadow\s*:(?!\s*none)/, `WS-D Setup/notes class must carry no resting shadow: ${block.slice(0, 60)}`);
+    assert.doesNotMatch(block, /backdrop-filter/, `WS-D Setup/notes class must carry no glass blur: ${block.slice(0, 60)}`);
+  }
+});
+
 test("Wave 12 WS-C: the data-surface legibility pass — KPI big-number + micro-sparkline (never a tinted icon tile), dark-legible tables (no zebra, tabular right-aligned, pale-tint status pills, lightness-step hover/selection), and the Reports switcher wired to the WS-A .eb-surface-tabs top tab row — adds NO glow/gradient to any data class (ADR 0008 Decision 5, UI-spec Stage-2/Stage-4)", async () => {
   const workbenchSource = await readFile(
     new URL("../app/ellies-book-workbench.tsx", import.meta.url),
