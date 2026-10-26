@@ -6,6 +6,7 @@ import {
   ReactNode,
   SetStateAction,
   WheelEvent as ReactWheelEvent,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -337,6 +338,49 @@ const CANVAS_ZOOM_MAX = 3;
 const CANVAS_PADDING = 220;
 const CANVAS_MIN_WIDTH = 1220;
 const CANVAS_MIN_HEIGHT = 480;
+
+/* ================================================================
+   WS-B status derivation (ADR 0008 Decision 3) — DISPLAY ONLY.
+   The canvas re-theme reads the SAME projection financials the
+   engine already produced and maps them to one of four status
+   roles for the node badge + edge ribbon. This derives NOTHING new
+   from the domain and MUTATES nothing: it is pure presentation of
+   values already on the node (Coordinate Invariance, ADR 0002).
+     go    = healthy / within budget / a true "go"
+     alert = over budget / over-committed (needs a decision)
+     warn  = nearing the approved limit (>= 85% committed)
+     idle  = neutral / no budget signal (the RESTING state, not green)
+   ================================================================ */
+type CanvasStatus = "go" | "alert" | "warn" | "idle";
+
+const CANVAS_STATUS_LABEL: Record<CanvasStatus, string> = {
+  go: "On budget",
+  alert: "Over budget",
+  warn: "Nearing limit",
+  idle: "No budget signal",
+};
+
+function deriveNodeStatus(node: ProjectedNode): CanvasStatus {
+  const f = node.financials;
+  // A budget ceiling to measure commitment against: the node's own approved
+  // budget, else its planned total. Without a ceiling there is no signal.
+  const ceiling = Number(f.approvedBudget ?? f.plannedTotal ?? 0);
+  // What is already spoken for: actuals + open commitments, else the amount.
+  const committed = Number(
+    (f.actualTotal ?? 0) + (f.openCommitment ?? 0) || f.amount || 0,
+  );
+  if (ceiling > 0) {
+    const ratio = committed / ceiling;
+    if (ratio > 1) return "alert";
+    if (ratio >= 0.85) return "warn";
+    if (committed > 0) return "go";
+    return "idle";
+  }
+  // Lifecycle lines carry an amount but no ceiling: a posted amount is a
+  // committed "go"; a zero/absent amount is the neutral resting state.
+  if (Number(f.amount ?? 0) > 0) return "go";
+  return "idle";
+}
 
 const SEED_PROJECTS: WorkbenchProject[] = [
   {
@@ -930,6 +974,14 @@ export function ElliesBookWorkbench({
 
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // WS-B hover state: which node the pointer is over, so the node raises its
+  // luminance + status halo and its connected edges brighten. Feedback only
+  // (ADR 0008 Decision 7 permitted-exception zone). Pure view state.
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  // WS-B mini-map drag state: dragging the viewport rectangle re-centres pan.
+  // Pure view state (ADR 0002) — never touches node geometry or totals.
+  const [minimapDragging, setMinimapDragging] = useState<boolean>(false);
+  const minimapRef = useRef<HTMLDivElement | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number }>({
     dx: 0,
@@ -946,6 +998,36 @@ export function ElliesBookWorkbench({
   // The scroll/zoom viewport element; used to convert pointer coordinates
   // into stage/world coordinates so zoom-to-cursor and fit maths are exact.
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  // Measured pixel size of the canvas viewport. Mirrored into state by a
+  // ResizeObserver (see effect below) so render-time maths (the mini-map
+  // viewport rectangle) can read the size from STATE instead of reading the
+  // ref's getBoundingClientRect() during render (react-hooks: refs must not be
+  // read in the render body). Pure view state (ADR 0002 Coordinate Invariance).
+  const [canvasViewportSize, setCanvasViewportSize] = useState<{
+    width: number;
+    height: number;
+  }>({ width: CANVAS_MIN_WIDTH, height: CANVAS_MIN_HEIGHT });
+
+  // Keep canvasViewportSize in sync with the viewport element's real pixel box.
+  // The read of canvasViewportRef.current happens INSIDE this effect (allowed),
+  // never in the render body. Runs once on mount and on every resize.
+  useEffect(() => {
+    const el = canvasViewportRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setCanvasViewportSize((prev) =>
+        prev.width === rect.width && prev.height === rect.height
+          ? prev
+          : { width: rect.width, height: rect.height },
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const [notes, setNotes] = useState<KnowledgeNoteItem[]>(INITIAL_NOTES);
   const [auditEvents, setAuditEvents] =
@@ -1637,6 +1719,81 @@ export function ElliesBookWorkbench({
   const resetCanvasView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  };
+
+  // WS-B mini-map (ADR 0008 Decision 8 / UI-spec §2.4). The mini-map is a
+  // scaled thumbnail of the stage bounding box with a rectangle showing the
+  // current viewport. Clicking or dragging the thumbnail re-centres the pan so
+  // the picked point sits in the middle of the viewport. This is PURE VIEW
+  // STATE: it only reads stageBounds + zoom and writes pan, never node x/y,
+  // totals, or the checksum (Coordinate Invariance, ADR 0002).
+  const MINIMAP_W = 184;
+  const MINIMAP_H = 120;
+  const minimapScale = useMemo(() => {
+    const sx = MINIMAP_W / Math.max(1, stageBounds.width);
+    const sy = MINIMAP_H / Math.max(1, stageBounds.height);
+    return Math.min(sx, sy);
+  }, [stageBounds.width, stageBounds.height]);
+
+  // The viewport rectangle in mini-map pixel space. pan maps stage(0,0) to the
+  // viewport top-left; the visible window is viewportSize / zoom in stage units.
+  const minimapViewport = useMemo(() => {
+    // Read the viewport pixel size from STATE (mirrored by the ResizeObserver
+    // effect), never from the ref during render. react-hooks forbids reading
+    // ref.current in the render body (a useMemo callback runs at render time).
+    const vw = canvasViewportSize.width || CANVAS_MIN_WIDTH;
+    const vh = canvasViewportSize.height || CANVAS_MIN_HEIGHT;
+    const worldX = -pan.x / zoom;
+    const worldY = -pan.y / zoom;
+    return {
+      left: worldX * minimapScale,
+      top: worldY * minimapScale,
+      width: (vw / zoom) * minimapScale,
+      height: (vh / zoom) * minimapScale,
+    };
+  }, [
+    pan.x,
+    pan.y,
+    zoom,
+    minimapScale,
+    canvasViewportSize.width,
+    canvasViewportSize.height,
+  ]);
+
+  const centerPanOnMinimapPoint = (clientX: number, clientY: number) => {
+    const box = minimapRef.current?.getBoundingClientRect();
+    if (!box) return;
+    // Stage-space world point the user pointed at inside the thumbnail.
+    const worldX = (clientX - box.left) / minimapScale;
+    const worldY = (clientY - box.top) / minimapScale;
+    const rect = canvasViewportRef.current?.getBoundingClientRect();
+    const vw = rect?.width ?? CANVAS_MIN_WIDTH;
+    const vh = rect?.height ?? CANVAS_MIN_HEIGHT;
+    // Pan so that world point lands in the centre of the viewport.
+    setPan({
+      x: vw / 2 - worldX * zoom,
+      y: vh / 2 - worldY * zoom,
+    });
+  };
+
+  const handleMinimapPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMinimapDragging(true);
+    centerPanOnMinimapPoint(event.clientX, event.clientY);
+  };
+
+  const handleMinimapPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (!minimapDragging) return;
+    centerPanOnMinimapPoint(event.clientX, event.clientY);
+  };
+
+  const handleMinimapPointerUp = () => {
+    if (minimapDragging) setMinimapDragging(false);
   };
 
   const jumpToNode = (targetId: string) => {
@@ -3204,42 +3361,6 @@ export function ElliesBookWorkbench({
                       </div>
                     </div>
                   ) : null}
-
-                  {!outlineFallback ? (
-                    <div
-                      className="eb-canvas-controls"
-                      aria-label="Canvas view controls"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => zoomAtCenter(zoom - 0.2)}
-                      >
-                        Zoom −
-                      </button>
-                      <span className="eb-zoom-readout">
-                        {Math.round(zoom * 100)}%
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => zoomAtCenter(zoom + 0.2)}
-                      >
-                        Zoom +
-                      </button>
-                      <button
-                        type="button"
-                        onClick={fitToSelectedNode}
-                        title="Frame the selected node and its linked neighbours"
-                      >
-                        Fit to selected
-                      </button>
-                      <button type="button" onClick={fitToAllNodes}>
-                        Fit to all
-                      </button>
-                      <button type="button" onClick={resetCanvasView}>
-                        Reset view
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="eb-graph-workspace">
@@ -3396,6 +3517,86 @@ export function ElliesBookWorkbench({
                             height: `${stageBounds.height}px`,
                           }}
                         >
+                          {/* WS-B status flow-ribbon gradients (ADR 0008
+                              Decision 4). A ribbon fades from transparent at
+                              the source port to its status hue at the target,
+                              so the eye reads direction + health. SVG-only
+                              paint; the gradients carry status DATA, they are
+                              not chrome decoration (direction.json waiver). */}
+                          <defs>
+                            <linearGradient
+                              id="eb-edge-grad-go"
+                              x1="0"
+                              y1="0"
+                              x2="1"
+                              y2="0"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="var(--eb-status-go)"
+                                stopOpacity="0"
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="var(--eb-status-go)"
+                                stopOpacity="0.9"
+                              />
+                            </linearGradient>
+                            <linearGradient
+                              id="eb-edge-grad-alert"
+                              x1="0"
+                              y1="0"
+                              x2="1"
+                              y2="0"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="var(--eb-status-alert)"
+                                stopOpacity="0"
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="var(--eb-status-alert)"
+                                stopOpacity="0.9"
+                              />
+                            </linearGradient>
+                            <linearGradient
+                              id="eb-edge-grad-warn"
+                              x1="0"
+                              y1="0"
+                              x2="1"
+                              y2="0"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="var(--eb-status-warn)"
+                                stopOpacity="0"
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="var(--eb-status-warn)"
+                                stopOpacity="0.9"
+                              />
+                            </linearGradient>
+                            <linearGradient
+                              id="eb-edge-grad-idle"
+                              x1="0"
+                              y1="0"
+                              x2="1"
+                              y2="0"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="var(--eb-status-idle)"
+                                stopOpacity="0"
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="var(--eb-status-idle)"
+                                stopOpacity="0.55"
+                              />
+                            </linearGradient>
+                          </defs>
                           {projection.edges.map((edge) => {
                             // Dual-mode lens: the linked-notes overlay only
                             // renders when the toggle is on. This changes which
@@ -3432,14 +3633,29 @@ export function ElliesBookWorkbench({
                                 ? `M ${sourceNode.x + 102} ${sourceNode.y + 82} C ${sourceNode.x + 140} ${(y1 + y2) / 2}, ${targetNode.x + 140} ${(y1 + y2) / 2}, ${targetNode.x + 102} ${targetNode.y}`
                                 : `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
 
+                            // The ribbon is coloured by the TARGET node's
+                            // status — the money flows into the target, so its
+                            // health is what the edge reports. Display only;
+                            // derived from projection values already on the
+                            // node (ADR 0002). knowledge_backlink stays idle.
+                            const edgeStatus: CanvasStatus =
+                              edge.type === "knowledge_backlink"
+                                ? "idle"
+                                : deriveNodeStatus(targetNode);
+                            const isEdgeHot =
+                              hoveredNodeId === sourceNode.id ||
+                              hoveredNodeId === targetNode.id;
+
                             return (
                               <g
                                 key={edge.id}
-                                className={`eb-edge-group eb-edge-${edge.type}`}
+                                className={`eb-edge-group eb-edge-${edge.type} eb-edge-status-${edgeStatus} ${isEdgeHot ? "is-hot" : ""}`}
+                                data-status={edgeStatus}
                               >
                                 <path
                                   d={pathD}
                                   className={`eb-edge-path eb-path-${edge.type}`}
+                                  stroke={`url(#eb-edge-grad-${edgeStatus})`}
                                 />
                               </g>
                             );
@@ -3468,19 +3684,40 @@ export function ElliesBookWorkbench({
                                     currency,
                                   );
 
+                          // Status for the top-left badge + card halo. Notes
+                          // carry no budget signal, so they rest at idle. All
+                          // others map from projection values already present
+                          // (display only; ADR 0002 Coordinate Invariance).
+                          const nodeStatus: CanvasStatus =
+                            node.nodeType === "Knowledge_Notes"
+                              ? "idle"
+                              : deriveNodeStatus(node);
+                          // The muted subtitle: node type in plain words.
+                          const nodeSubtitle =
+                            NODE_TYPE_META[node.nodeType]?.badge ||
+                            node.nodeType;
+                          const isHovered = hoveredNodeId === node.id;
+
                           return (
                             <div
                               key={node.id}
                               role="button"
                               tabIndex={0}
-                              aria-label={`${node.nodeType} node ${node.label}`}
-                              className={`eb-graph-node ${NODE_TYPE_META[node.nodeType]?.toneClass || ""} ${isSelected ? "is-selected" : ""}`}
+                              aria-label={`${node.nodeType} node ${node.label} — ${CANVAS_STATUS_LABEL[nodeStatus]}`}
+                              className={`eb-graph-node ${NODE_TYPE_META[node.nodeType]?.toneClass || ""} eb-node-status-${nodeStatus} ${isSelected ? "is-selected" : ""} ${isHovered ? "is-hovered" : ""}`}
+                              data-status={nodeStatus}
                               style={{
                                 left: `${node.x}px`,
                                 top: `${node.y}px`,
                               }}
                               onPointerDown={(e) =>
                                 handleNodePointerDown(e, node)
+                              }
+                              onPointerEnter={() => setHoveredNodeId(node.id)}
+                              onPointerLeave={() =>
+                                setHoveredNodeId((cur) =>
+                                  cur === node.id ? null : cur,
+                                )
                               }
                               onClick={() => setSelectedNodeId(node.id)}
                               onKeyDown={(e) => {
@@ -3490,6 +3727,11 @@ export function ElliesBookWorkbench({
                                 }
                               }}
                             >
+                              <span
+                                className={`eb-node-status-badge eb-node-status-badge-${nodeStatus}`}
+                                title={CANVAS_STATUS_LABEL[nodeStatus]}
+                                aria-hidden="true"
+                              />
                               <div className="eb-node-top">
                                 <span className="eb-node-type-pill">
                                   {NODE_TYPE_META[node.nodeType]?.badge ||
@@ -3512,6 +3754,9 @@ export function ElliesBookWorkbench({
                               <strong className="eb-node-title">
                                 {node.label}
                               </strong>
+                              <span className="eb-node-subtitle">
+                                {nodeSubtitle}
+                              </span>
 
                               <div className="eb-node-meta">
                                 <code>{node.id}</code>
@@ -3529,6 +3774,113 @@ export function ElliesBookWorkbench({
                             </div>
                           );
                         })}
+                      </div>
+
+                      {/* WS-B right-docked view controls (ADR 0008 Decision 8).
+                          A vertical cluster pinned to the canvas right edge so
+                          it is always where the hand expects it and never
+                          covers a node. These are the SAME zoom/fit/reset
+                          actions that already existed — only re-docked. Pure
+                          view state. */}
+                      <div
+                        className="eb-canvas-controls"
+                        aria-label="Canvas view controls"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => zoomAtCenter(zoom + 0.2)}
+                          aria-label="Zoom in"
+                        >
+                          Zoom +
+                        </button>
+                        <span className="eb-zoom-readout">
+                          {Math.round(zoom * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => zoomAtCenter(zoom - 0.2)}
+                          aria-label="Zoom out"
+                        >
+                          Zoom −
+                        </button>
+                        <button
+                          type="button"
+                          onClick={fitToSelectedNode}
+                          title="Frame the selected node and its linked neighbours"
+                        >
+                          Fit to selected
+                        </button>
+                        <button type="button" onClick={fitToAllNodes}>
+                          Fit to all
+                        </button>
+                        <button type="button" onClick={resetCanvasView}>
+                          Reset view
+                        </button>
+                      </div>
+
+                      {/* WS-B mini-map (ADR 0008 Decision 8 / UI-spec §2.4),
+                          docked bottom-right. A scaled thumbnail of the node
+                          bounding box with a viewport rectangle; dragging or
+                          clicking it re-centres pan. A scale slider mirrors the
+                          zoom. All PURE VIEW STATE (ADR 0002). */}
+                      <div
+                        className="eb-minimap"
+                        aria-label="Canvas mini-map and scale"
+                      >
+                        <div
+                          ref={minimapRef}
+                          className={`eb-minimap-canvas ${minimapDragging ? "is-dragging" : ""}`}
+                          role="presentation"
+                          style={{
+                            width: `${MINIMAP_W}px`,
+                            height: `${MINIMAP_H}px`,
+                          }}
+                          onPointerDown={handleMinimapPointerDown}
+                          onPointerMove={handleMinimapPointerMove}
+                          onPointerUp={handleMinimapPointerUp}
+                          onPointerLeave={handleMinimapPointerUp}
+                        >
+                          {projection.visibleNodes.map((node) => {
+                            const ns = deriveNodeStatus(node);
+                            return (
+                              <span
+                                key={node.id}
+                                className={`eb-minimap-node eb-node-status-${node.nodeType === "Knowledge_Notes" ? "idle" : ns}`}
+                                style={{
+                                  left: `${node.x * minimapScale}px`,
+                                  top: `${node.y * minimapScale}px`,
+                                  width: `${Math.max(3, NODE_WIDTH * minimapScale)}px`,
+                                  height: `${Math.max(2, NODE_HEIGHT * minimapScale)}px`,
+                                }}
+                              />
+                            );
+                          })}
+                          <span
+                            className="eb-minimap-viewport"
+                            style={{
+                              left: `${minimapViewport.left}px`,
+                              top: `${minimapViewport.top}px`,
+                              width: `${minimapViewport.width}px`,
+                              height: `${minimapViewport.height}px`,
+                            }}
+                          />
+                        </div>
+                        <label className="eb-minimap-scale">
+                          <span className="eb-minimap-scale-label">
+                            Scale {Math.round(zoom * 100)}%
+                          </span>
+                          <input
+                            type="range"
+                            min={CANVAS_ZOOM_MIN * 100}
+                            max={CANVAS_ZOOM_MAX * 100}
+                            step={5}
+                            value={Math.round(zoom * 100)}
+                            onChange={(e) =>
+                              zoomAtCenter(Number(e.target.value) / 100)
+                            }
+                            aria-label="Canvas scale"
+                          />
+                        </label>
                       </div>
                     </div>
                   )}

@@ -932,12 +932,33 @@ select { appearance: auto; }
   gap: 10px;
 }
 
-.eb-mode-pills,
-.eb-canvas-controls {
+.eb-mode-pills {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+/* WS-B (ADR 0008 Decision 8): the view-control cluster is re-docked to the
+   RIGHT edge of the canvas as a vertical stack on a frosted surface, so it is
+   always where the hand expects it and never covers a node. The glass/elevation
+   here is scoped to the canvas hero (direction.json waiver); it must not leak
+   onto any data surface. */
+.eb-canvas-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--eb-line);
+  border-radius: 12px;
+  background: rgba(14, 19, 32, 0.72);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.8);
 }
 
 /* Dual-mode lens toggle (W7-T2): plain-language control that picks whether the
@@ -965,7 +986,9 @@ select { appearance: auto; }
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--eb-ink);
+  padding: 2px 0;
 }
 
 .eb-graph-workspace {
@@ -1065,40 +1088,131 @@ select { appearance: auto; }
   overflow: visible;
 }
 
+/* WS-B status flow ribbons (ADR 0008 Decision 4). Edges are status-coloured
+   gradient ribbons: the per-edge `stroke` is set inline to a status gradient
+   (url(#eb-edge-grad-*)) derived from the target node's health. Thin for the
+   lifecycle DAG, thicker/translucent for the knowledge-link overlay. The
+   gradient carries status DATA (direction.json waiver); the bezier geometry is
+   unchanged (view state from node pixel coordinates). */
 .eb-edge-path {
   fill: none;
-  stroke-width: 1.75;
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition:
+    stroke-width 120ms ease,
+    opacity 120ms ease;
 }
 
-.eb-path-containment { stroke: #525558; }
-.eb-path-purchase_link { stroke: #1b6c80; stroke-width: 2; }
-.eb-path-lifecycle_transition { stroke: #2f70bb; stroke-dasharray: 5 3; stroke-width: 2; }
-.eb-path-knowledge_backlink { stroke: #6e59a5; stroke-dasharray: 2 3; }
+/* Edge-type weight: the lifecycle/containment DAG reads thin; the note overlay
+   reads thicker and more translucent so it layers over the spend flow. */
+.eb-path-containment { stroke-width: 1.75; opacity: 0.85; }
+.eb-path-purchase_link { stroke-width: 2.25; opacity: 0.9; }
+.eb-path-lifecycle_transition { stroke-width: 2; stroke-dasharray: 5 3; opacity: 0.9; }
+.eb-path-knowledge_backlink { stroke-width: 4; opacity: 0.4; }
 
+/* Hover brightening (ADR 0008 Decision 7, feedback only): when a connected node
+   is hovered, its edges thicken and brighten. Scoped to the canvas. */
+.eb-edge-group.is-hot .eb-edge-path {
+  stroke-width: 3.25;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(232, 236, 244, 0.35));
+}
+
+/* WS-B dark luminous node card (ADR 0008 Decision 1/3). A rounded raised card
+   on --eb-raised carrying --eb-node-glow (the canvas-only elevation + faint
+   halo). The glow/elevation is scoped to the canvas hero (direction.json
+   waiver) and must not appear on any data surface. */
 .eb-graph-node {
   position: absolute;
   width: 205px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-strong);
-  border-left-width: 4px;
-  border-radius: 8px;
-  background: var(--surface);
+  padding: 12px 13px 11px;
+  border: 1px solid var(--eb-line);
+  border-left-width: 3px;
+  border-radius: 14px;
+  background: var(--eb-raised);
+  box-shadow: var(--eb-node-glow);
   cursor: grab;
   display: grid;
-  gap: 4px;
+  gap: 3px;
+  transition:
+    box-shadow 140ms ease,
+    transform 140ms ease,
+    border-color 140ms ease,
+    filter 140ms ease;
 }
 
 .eb-graph-node.is-selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--eb-accent);
+  box-shadow:
+    0 0 0 1px var(--eb-accent),
+    0 10px 28px -8px rgba(53, 192, 138, 0.35);
 }
 
-.eb-node-project { border-left-color: #131416; }
-.eb-node-wp { border-left-color: #525558; }
-.eb-node-item { border-left-color: #1b6c80; }
-.eb-node-alloc { border-left-color: #2f70bb; }
-.eb-node-lifecycle { border-left-color: #1e7b4f; }
-.eb-node-note { border-left-color: #6e59a5; }
+/* Hover raises luminance + shows the status halo; connected edges brighten in
+   JS (is-hot). Feedback only, canvas-scoped (ADR 0008 Decision 7). */
+.eb-graph-node.is-hovered {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+
+/* The top-left circular STATUS badge — the product's signature status mark.
+   Coloured by the node's derived status (Decision 3): go/alert/warn ride their
+   hue; idle/neutral is the RESTING grey, never green. The tinted circle is the
+   waived `icon-chips` signal in direction.json. */
+.eb-node-status-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid var(--eb-raised);
+  background: var(--eb-status-idle);
+  box-shadow: 0 0 0 1px var(--eb-line);
+}
+
+.eb-node-status-badge-go {
+  background: var(--eb-status-go);
+  box-shadow: 0 0 0 1px var(--eb-line), 0 0 8px 1px rgba(34, 197, 94, 0.55);
+}
+.eb-node-status-badge-alert {
+  background: var(--eb-status-alert);
+  box-shadow: 0 0 0 1px var(--eb-line), 0 0 8px 1px rgba(239, 68, 68, 0.55);
+}
+.eb-node-status-badge-warn {
+  background: var(--eb-status-warn);
+  box-shadow: 0 0 0 1px var(--eb-line), 0 0 8px 1px rgba(245, 158, 11, 0.5);
+}
+.eb-node-status-badge-idle {
+  background: var(--eb-status-idle);
+}
+
+/* The status halo on the card itself — a faint ring in the status hue so the
+   node that needs a decision is the first thing read (UI-spec Stage 1). It
+   strengthens on hover/selection. */
+.eb-node-status-alert {
+  border-left-color: var(--eb-status-alert);
+}
+.eb-node-status-alert.is-hovered,
+.eb-node-status-alert.is-selected {
+  box-shadow:
+    0 0 0 1px var(--eb-status-alert),
+    0 10px 28px -8px rgba(239, 68, 68, 0.4);
+}
+.eb-node-status-warn {
+  border-left-color: var(--eb-status-warn);
+}
+.eb-node-status-warn.is-hovered {
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.6),
+    0 10px 28px -8px rgba(245, 158, 11, 0.35);
+}
+.eb-node-status-go {
+  border-left-color: var(--eb-status-go);
+}
+.eb-node-status-idle {
+  border-left-color: var(--eb-line);
+}
 
 .eb-node-top {
   display: flex;
@@ -1108,9 +1222,20 @@ select { appearance: auto; }
 }
 
 .eb-node-type-pill {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--eb-muted);
+}
+
+/* The muted subtitle under the title (references 1/4: title + muted subtitle). */
+.eb-node-subtitle {
   font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
+  color: var(--eb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .eb-node-collapse-toggle {
@@ -1153,6 +1278,82 @@ select { appearance: auto; }
   background: var(--surface-2);
   color: var(--muted);
   font-size: 12px;
+}
+
+/* WS-B mini-map (ADR 0008 Decision 8 / UI-spec §2.4), docked bottom-right over
+   the canvas. A scaled thumbnail of the node bounding box + a viewport
+   rectangle showing the current pan/zoom; dragging it re-centres pan. A scale
+   slider mirrors the zoom. Pure view state (ADR 0002). The frosted surface +
+   elevation are canvas-scoped (direction.json waiver). */
+.eb-minimap {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 6;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--eb-line);
+  border-radius: 12px;
+  background: rgba(14, 19, 32, 0.78);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.8);
+}
+
+.eb-minimap-canvas {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--eb-line);
+  border-radius: 8px;
+  background:
+    radial-gradient(
+      120% 120% at 50% 0%,
+      rgba(53, 192, 138, 0.06),
+      rgba(6, 9, 16, 0) 60%
+    ),
+    var(--eb-ground);
+  cursor: pointer;
+}
+
+.eb-minimap-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+.eb-minimap-node {
+  position: absolute;
+  border-radius: 2px;
+  background: var(--eb-status-idle);
+  opacity: 0.85;
+}
+
+.eb-minimap-node.eb-node-status-go { background: var(--eb-status-go); }
+.eb-minimap-node.eb-node-status-alert { background: var(--eb-status-alert); }
+.eb-minimap-node.eb-node-status-warn { background: var(--eb-status-warn); }
+.eb-minimap-node.eb-node-status-idle { background: var(--eb-status-idle); }
+
+.eb-minimap-viewport {
+  position: absolute;
+  border: 1.5px solid var(--eb-accent);
+  border-radius: 3px;
+  background: rgba(53, 192, 138, 0.12);
+  pointer-events: none;
+}
+
+.eb-minimap-scale {
+  display: grid;
+  gap: 4px;
+}
+
+.eb-minimap-scale-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--eb-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.eb-minimap-scale input[type="range"] {
+  width: 100%;
+  accent-color: var(--eb-accent);
 }
 
 /* Outline Fallback Tree */
