@@ -42,5 +42,7 @@ yarn-error.log*
 /dev.stdout.log
 /dev.stderr.log
 
-# taste-skill inspector screenshots (local only)
-/.taste-skill/
+# taste-skill inspector screenshots (local only), except the committed
+# scoped canvas allow-list the gate reads in CI (ADR 0008 Decision 7, WS-B).
+/.taste-skill/*
+!/.taste-skill/direction.json
