@@ -6,6 +6,7 @@ import {
   ReactNode,
   SetStateAction,
   WheelEvent as ReactWheelEvent,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -997,6 +998,36 @@ export function ElliesBookWorkbench({
   // The scroll/zoom viewport element; used to convert pointer coordinates
   // into stage/world coordinates so zoom-to-cursor and fit maths are exact.
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  // Measured pixel size of the canvas viewport. Mirrored into state by a
+  // ResizeObserver (see effect below) so render-time maths (the mini-map
+  // viewport rectangle) can read the size from STATE instead of reading the
+  // ref's getBoundingClientRect() during render (react-hooks: refs must not be
+  // read in the render body). Pure view state (ADR 0002 Coordinate Invariance).
+  const [canvasViewportSize, setCanvasViewportSize] = useState<{
+    width: number;
+    height: number;
+  }>({ width: CANVAS_MIN_WIDTH, height: CANVAS_MIN_HEIGHT });
+
+  // Keep canvasViewportSize in sync with the viewport element's real pixel box.
+  // The read of canvasViewportRef.current happens INSIDE this effect (allowed),
+  // never in the render body. Runs once on mount and on every resize.
+  useEffect(() => {
+    const el = canvasViewportRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setCanvasViewportSize((prev) =>
+        prev.width === rect.width && prev.height === rect.height
+          ? prev
+          : { width: rect.width, height: rect.height },
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const [notes, setNotes] = useState<KnowledgeNoteItem[]>(INITIAL_NOTES);
   const [auditEvents, setAuditEvents] =
@@ -1707,9 +1738,11 @@ export function ElliesBookWorkbench({
   // The viewport rectangle in mini-map pixel space. pan maps stage(0,0) to the
   // viewport top-left; the visible window is viewportSize / zoom in stage units.
   const minimapViewport = useMemo(() => {
-    const rect = canvasViewportRef.current?.getBoundingClientRect();
-    const vw = rect?.width ?? CANVAS_MIN_WIDTH;
-    const vh = rect?.height ?? CANVAS_MIN_HEIGHT;
+    // Read the viewport pixel size from STATE (mirrored by the ResizeObserver
+    // effect), never from the ref during render. react-hooks forbids reading
+    // ref.current in the render body (a useMemo callback runs at render time).
+    const vw = canvasViewportSize.width || CANVAS_MIN_WIDTH;
+    const vh = canvasViewportSize.height || CANVAS_MIN_HEIGHT;
     const worldX = -pan.x / zoom;
     const worldY = -pan.y / zoom;
     return {
@@ -1718,7 +1751,14 @@ export function ElliesBookWorkbench({
       width: (vw / zoom) * minimapScale,
       height: (vh / zoom) * minimapScale,
     };
-  }, [pan.x, pan.y, zoom, minimapScale]);
+  }, [
+    pan.x,
+    pan.y,
+    zoom,
+    minimapScale,
+    canvasViewportSize.width,
+    canvasViewportSize.height,
+  ]);
 
   const centerPanOnMinimapPoint = (clientX: number, clientY: number) => {
     const box = minimapRef.current?.getBoundingClientRect();
