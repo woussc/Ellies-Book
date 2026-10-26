@@ -1082,3 +1082,82 @@ test("Wave 12 WS-A: the ADR 0008 dark --eb-* token set + the interaction model l
   }
 });
 
+test("Wave 12 WS-B: the dark node-graph canvas hero — status node cards + badges, status gradient flow edges, right-docked controls, and a bottom-right mini-map — is wired without touching node geometry or the domain engine (ADR 0008 Decisions 3/4/6/7/8, ADR 0002 Coordinate Invariance)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  const directionSource = await readFile(
+    new URL("../.taste-skill/direction.json", import.meta.url),
+    "utf8",
+  );
+  const engineSource = await readFile(
+    new URL("../app/budget-domain.mjs", import.meta.url),
+    "utf8",
+  );
+
+  // ADR 0008 Decision 3: node status is DERIVED from projection financials for
+  // DISPLAY only (never a new domain field). The derivation maps to the four
+  // status roles; idle is the resting state, not green.
+  assert.match(workbenchSource, /function deriveNodeStatus\(/);
+  assert.match(workbenchSource, /type CanvasStatus = "go" \| "alert" \| "warn" \| "idle"/);
+  // The derivation reads values already on the node, never mutates them.
+  assert.match(workbenchSource, /node\.financials/);
+  assert.match(workbenchSource, /eb-node-status-badge/);
+  assert.match(workbenchSource, /data-status=\{nodeStatus\}/);
+
+  // ADR 0008 Decision 1/3: the node card is the dark luminous card carrying the
+  // canvas-only glow token + a muted subtitle, and the status badge rides the
+  // status hue (idle is the grey resting state, never green).
+  assert.match(cssSource, /\.eb-graph-node\s*\{[\s\S]*?box-shadow:\s*var\(--eb-node-glow\)/);
+  assert.match(cssSource, /\.eb-node-subtitle\s*\{/);
+  assert.match(cssSource, /\.eb-node-status-badge-go\s*\{[\s\S]*?background:\s*var\(--eb-status-go\)/);
+  assert.match(cssSource, /\.eb-node-status-badge-idle\s*\{[\s\S]*?background:\s*var\(--eb-status-idle\)/);
+
+  // ADR 0008 Decision 4: edges are status-coloured gradient ribbons; the per-edge
+  // stroke is a status gradient derived from the target node (the money flows in).
+  assert.match(workbenchSource, /linearGradient[\s\S]*?id="eb-edge-grad-go"/);
+  assert.match(workbenchSource, /stroke=\{`url\(#eb-edge-grad-\$\{edgeStatus\}\)`\}/);
+  assert.match(workbenchSource, /deriveNodeStatus\(targetNode\)/);
+  // The bezier geometry stays computed from node pixel coordinates (view state).
+  assert.match(workbenchSource, /const pathD\s*=/);
+  // The knowledge_backlink overlay STAYS gated on showNoteLinks (lens unchanged).
+  assert.match(
+    workbenchSource,
+    /edge\.type === "knowledge_backlink" &&\s*!showNoteLinks/,
+  );
+
+  // ADR 0008 Decision 8: the control cluster re-docks to the RIGHT edge as a
+  // vertical stack, keeping the existing zoom/fit/reset actions.
+  assert.match(cssSource, /\.eb-canvas-controls\s*\{[\s\S]*?position:\s*absolute[\s\S]*?flex-direction:\s*column/);
+  for (const action of ["Fit to selected", "Fit to all", "Reset view"]) {
+    assert.ok(workbenchSource.includes(action), `the right-docked controls must keep "${action}"`);
+  }
+
+  // ADR 0008 Decision 8 / UI-spec §2.4: a NEW bottom-right mini-map with a
+  // viewport rectangle + a scale slider, driven by pure view state (pan/zoom).
+  assert.match(workbenchSource, /className="eb-minimap"/);
+  assert.match(workbenchSource, /eb-minimap-viewport/);
+  assert.match(workbenchSource, /centerPanOnMinimapPoint/);
+  assert.match(cssSource, /\.eb-minimap\s*\{[\s\S]*?position:\s*absolute[\s\S]*?bottom:\s*14px[\s\S]*?right:\s*14px/);
+  // The mini-map writes PAN only; it never writes node x/y.
+  assert.match(workbenchSource, /setPan\(\{\s*x: vw \/ 2 - worldX \* zoom/);
+
+  // ADR 0008 Decision 7 (THE CRUX): the scoped canvas allow-list is committed
+  // and waives exactly the four canvas rules; the data surfaces run NO waivers.
+  const direction = JSON.parse(directionSource);
+  assert.equal(direction.kind, "app");
+  assert.deepEqual(
+    [...direction.allow].sort(),
+    ["glass", "gradient", "heavy-shadow", "icon-chips"],
+  );
+
+  // ADR 0002 Coordinate Invariance: the re-theme is view/presentation only. The
+  // pure domain engine carries NO status-badge/gradient/mini-map presentation.
+  assert.doesNotMatch(engineSource, /deriveNodeStatus|eb-node-status|eb-minimap|eb-edge-grad/);
+});
+
