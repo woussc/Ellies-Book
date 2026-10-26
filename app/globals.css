@@ -5,53 +5,77 @@
   --font-display: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* ADR 0006 Decision 1: palette roles (SINGLE source of truth).
-     Quiet tinted ground, softened ink, one strict accent. No pure white, no
-     near-black. Surfaces are told apart by tone, never by shadow. */
-  --eb-ground: #f6f7f8;      /* tinted L-frame ground: sidebar + outer frame */
-  --eb-sheet: #fdfdfc;       /* the working sheet: one soft step up from the ground */
-  --eb-surface: #f1f2f3;     /* flat panels/fields: a tone step from the sheet */
-  --eb-ink: #1f2328;         /* main text: a soft near-black, not #000 */
-  --eb-muted: #5c6269;       /* secondary text; still readable on ground and sheet */
-  --eb-line: #e5e7ea;        /* the single 1px separator tone; never an ornament */
-  --eb-accent: #2f6d5b;      /* one calm deep-green accent; marks the action + its one figure */
-  --eb-accent-ink: #ffffff;
-  --eb-accent-dark: #255647; /* pressed/hover state of the accent action */
-  --eb-accent-soft: #e7efec; /* quiet accent wash for the one active data element */
+  /* ADR 0008 Decision 1: DARK palette roles (SINGLE source of truth).
+     The same token NAMES keep their ROLES; only the VALUES move to a dark
+     near-black ramp. Elevation is by a lightness step, never by shadow, on
+     chrome and data surfaces. One strict luminous accent. Soft near-white ink,
+     never pure #fff. Grounded in ui-ux-pro-max colors.csv row 6 "Financial
+     Dashboard" + row 4 "E-commerce Luxury". */
 
-  /* ADR 0006 Decision 2: a decisive type scale, few sizes, far apart.
-     Body never below 16px for reading. */
+  /* GROUND RAMP (near-black; elevation by lightness alone) */
+  --eb-ground: #060910;      /* app ground: the near-black frame + canvas void */
+  --eb-sheet: #0e1320;       /* the working data sheet, one lightness step up from ground */
+  --eb-surface: #161c2b;     /* panels / fields / node cards: one more step up, flat */
+  --eb-raised: #1c2437;      /* a node card or a floating panel that must read as luminous */
+  --eb-line: #263044;        /* the single 1px separator tone; a whisper on the dark ground */
+
+  /* TEXT RAMP (soft, not #fff at max contrast; dark rule #bbb -> #fff) */
+  --eb-ink: #e8ecf4;         /* main text: a soft near-white, ~13:1 on --eb-sheet, NOT #ffffff */
+  --eb-muted: #94a3b8;       /* secondary text; still >=4.5:1 on --eb-sheet and --eb-surface */
+
+  /* ACCENT (one calm luminous accent; the one primary action + the one active element) */
+  --eb-accent: #35c08a;      /* luminous green accent, legible on dark */
+  --eb-accent-ink: #04140d;  /* ink ON the accent fill */
+  --eb-accent-dark: #28a074; /* pressed/hover of the accent action */
+  --eb-accent-soft: #112a22; /* quiet accent wash for the one active data element */
+
+  /* STATUS SEMANTICS (meaning, not decoration - ADR 0008 Decision 3) */
+  --eb-status-go: #22c55e;    /* green: healthy / go / approved */
+  --eb-status-alert: #ef4444; /* red: alert / over / error */
+  --eb-status-warn: #f59e0b;  /* amber: warning / pending-attention */
+  --eb-status-idle: #94a3b8;  /* grey: pending / off / no-signal */
+
+  /* CANVAS-ONLY luminous tokens (permitted-exception zone - ADR 0008 Decision 7).
+     DEFINED here for WS-B to consume; NOT applied to any shell chrome. */
+  --eb-node-glow: 0 0 0 1px #263044, 0 8px 24px -8px rgba(53, 192, 138, 0.18);
+  --eb-edge-go: linear-gradient(90deg, rgba(34, 197, 94, 0), rgba(34, 197, 94, 0.9));
+  --eb-edge-alert: linear-gradient(90deg, rgba(239, 68, 68, 0), rgba(239, 68, 68, 0.9));
+  --eb-edge-idle: linear-gradient(90deg, rgba(148, 163, 184, 0), rgba(148, 163, 184, 0.6));
+
+  /* ADR 0006 Decision 2 (CARRIED FORWARD unchanged in size): a decisive type
+     scale, few sizes, far apart. Body never below 16px for reading. */
   --eb-step-small: 0.8125rem; /* 13px  captions, table sublabels */
   --eb-step-body: 1rem;       /* 16px  body / table cells (floor) */
   --eb-step-lead: 1.25rem;    /* 20px  the one finding line under the title */
   --eb-step-h1: 1.5rem;       /* 24px  the single sheet h1 */
 
-  /* Existing semantic aliases now resolve to the ADR 0006 tokens, so every
-     .eb-* and legacy rule inherits the quiet palette from one place. */
+  /* Existing semantic aliases now resolve to the ADR 0008 DARK tokens, so every
+     .eb-* and legacy .studio-* rule inherits the dark palette from one place. */
   --ground: var(--eb-ground);
   --surface: var(--eb-sheet);
   --surface-2: var(--eb-surface);
-  --surface-3: #e8eaec;
-  --raised: var(--eb-surface);
+  --surface-3: var(--eb-raised);
+  --raised: var(--eb-raised);
   --active: var(--eb-surface);
   --border: var(--eb-line);
   --line: var(--eb-line);
-  --line-strong: #d4d7da;
-  --rule: #eef0f1;
-  --control: #d4d7da;
+  --line-strong: #324056;     /* a slightly brighter separator for fields/controls on dark */
+  --rule: #1a2030;
+  --control: #324056;
   --ink: var(--eb-ink);
   --text: var(--eb-ink);
   --muted: var(--eb-muted);
   --accent: var(--eb-accent);
+  --accent-ink: var(--eb-accent-ink);
   --accent-dark: var(--eb-accent-dark);
   --accent-soft: var(--eb-accent-soft);
   --warm: var(--eb-surface);
-  --warning: #92400e;
-  --warning-soft: #fef3c7;
-  --danger: #c4242a;
-  --negative: #c4242a;
-  --danger-soft: #fee2e2;
-  --positive: #1e7b4f;
+  --warning: var(--eb-status-warn);
+  --warning-soft: #3a2a0a;
+  --danger: var(--eb-status-alert);
+  --negative: var(--eb-status-alert);
+  --danger-soft: #3a1414;
+  --positive: var(--eb-status-go);
   --shadow: none;
   --radius: 8px;
 }
@@ -424,7 +448,7 @@ select { appearance: auto; }
   height: 34px;
   border-radius: 6px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-ink);
   font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;
@@ -509,15 +533,26 @@ select { appearance: auto; }
   text-align: left;
 }
 
+/* Hover = ONE lightness step up on the dark ground; never a fill flip
+   (app-screens.md §7.8). The muted label lifts to the main ink. */
 .eb-nav-item:hover {
-  background: var(--surface-2);
+  background: var(--eb-surface);
   color: var(--ink);
 }
 
+/* Active space = a raised brightness-step marker on dark (ADR 0008 Decision 8;
+   app-screens.md §3.2 dark rule), NOT a glow or a gradient. A quiet 2px accent
+   rule on the leading edge + accent-tinted label is the one "you are here"
+   mark per level. */
 .eb-nav-item.is-active {
-  background: var(--active);
-  color: var(--ink);
+  background: var(--eb-raised);
+  color: var(--eb-ink);
   font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.eb-nav-item.is-active > span:first-child {
+  color: var(--accent);
 }
 
 .eb-sidebar-footer {
@@ -574,7 +609,9 @@ select { appearance: auto; }
   line-height: 1.35;
 }
 
-/* Main White Framed Sheet */
+/* Main framed working sheet, now the dark --eb-sheet (ADR 0008 Decision 1):
+   one lightness step up from the near-black ground, told apart by tone + a 1px
+   --eb-line whisper, never by a shadow. */
 .eb-workbench {
   display: grid;
   gap: 18px;
@@ -640,6 +677,53 @@ select { appearance: auto; }
   gap: 8px;
 }
 
+/* ADR 0008 Decision 8 / interaction-spec §2.1-§2.2: a REUSABLE top in-surface
+   tab row for any surface that has SUB-VIEWS (e.g. the Reports canonical-table
+   switcher wired by WS-C). It lives at the top of the working sheet, where the
+   eye already is, so sub-view switching is low-travel. Global SPACE switching
+   never moves here; it stays in the left rail only. Active marker = ONE 2px
+   accent underline on a 1px rule (reference 5), never a fill flip and never two
+   active markers at once. Hover lifts the muted label one ink step. */
+.eb-surface-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.eb-surface-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin-bottom: -1px; /* sit the underline on the 1px rule */
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--eb-step-body);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.eb-surface-tab:hover {
+  color: var(--ink);
+}
+
+.eb-surface-tab.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.eb-surface-tab.is-active > span:first-child {
+  color: var(--accent);
+}
+
 /* Standard Flat Buttons (6px radius, zero shadow) */
 .eb-btn-primary {
   min-height: 36px;
@@ -647,7 +731,7 @@ select { appearance: auto; }
   border: 1px solid var(--accent);
   border-radius: 6px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-ink);
   font-size: 13px;
   font-weight: 500;
 }

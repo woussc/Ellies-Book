@@ -1021,3 +1021,64 @@ test("Wave 10 WS-A: the hidden sample/practice toggle is removed, a left-rail Sa
   }
 });
 
+test("Wave 12 WS-A: the ADR 0008 dark --eb-* token set + the interaction model live in the shell (dark ground, status + canvas tokens, raised active-space marker, reusable top in-surface tab-row scaffold)", async () => {
+  const cssSource = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // ADR 0008 Decision 1: the dark ground ramp is the single source of truth.
+  // --eb-ground must be the near-black value, not the old light #f6f7f8.
+  assert.match(cssSource, /--eb-ground:\s*#060910/);
+  assert.doesNotMatch(cssSource, /--eb-ground:\s*#f6f7f8/);
+  // A soft near-white ink, never pure #fff (dark legibility rule).
+  assert.match(cssSource, /--eb-ink:\s*#e8ecf4/);
+
+  // ADR 0008 Decision 1/3: the status semantics + canvas-only luminous tokens
+  // are DEFINED in :root for WS-B to consume. (Defining them here does not
+  // apply them to any shell chrome.)
+  for (const token of [
+    "--eb-raised:",
+    "--eb-status-go:",
+    "--eb-status-alert:",
+    "--eb-status-warn:",
+    "--eb-status-idle:",
+    "--eb-node-glow:",
+    "--eb-edge-go:",
+    "--eb-edge-alert:",
+    "--eb-edge-idle:",
+  ]) {
+    assert.ok(cssSource.includes(token), `globals.css :root is missing the ADR 0008 token ${token}`);
+  }
+
+  // ADR 0008 Decision 2: the type scale is unchanged (13/16/20/24).
+  assert.match(cssSource, /--eb-step-small:\s*0\.8125rem/);
+  assert.match(cssSource, /--eb-step-body:\s*1rem/);
+  assert.match(cssSource, /--eb-step-lead:\s*1\.25rem/);
+  assert.match(cssSource, /--eb-step-h1:\s*1\.5rem/);
+
+  // ADR 0008 Decision 8 / interaction-spec §2.2: the active SPACE marker is a
+  // raised brightness step, not a glow/gradient.
+  assert.match(cssSource, /\.eb-nav-item\.is-active\s*\{[\s\S]*?background:\s*var\(--eb-raised\)/);
+
+  // ADR 0008 Decision 8 / interaction-spec §2.1-§2.2: a reusable TOP in-surface
+  // tab-row scaffold exists for surfaces with sub-views, with ONE 2px accent
+  // underline as the active marker (WS-C wires the Reports switcher to it).
+  assert.ok(cssSource.includes(".eb-surface-tabs"), "globals.css must provide the .eb-surface-tabs scaffold");
+  assert.match(
+    cssSource,
+    /\.eb-surface-tab\.is-active\s*\{[\s\S]*?border-bottom-color:\s*var\(--accent\)/,
+  );
+
+  // The shell chrome stays frozen for B/C/D: the graph-first default and the
+  // guarded shell CSS classes survive the re-theme.
+  assert.match(workbenchSource, /useState<JourneyStep>\("graph"\)/);
+  for (const klass of [".eb-workbench", ".eb-kpi-strip", ".eb-graph-workspace", ".eb-command-bar"]) {
+    assert.match(cssSource, new RegExp(klass.replace(".", "\\.")));
+  }
+});
+
