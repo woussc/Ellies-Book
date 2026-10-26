@@ -784,11 +784,15 @@ select { appearance: auto; }
   overflow: hidden;
 }
 
+/* WS-C (ADR 0008 Decision 5 legibility carve-out): each KPI reads as a BIG
+   NUMBER + tiny label + optional micro-sparkline, NEVER a tinted icon tile.
+   Separation is a 1px --eb-line whisper and a one-step lightness lift on the
+   lead cell; NO glow, NO gradient, NO resting shadow on this data surface. */
 .eb-kpi-cell {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 4px;
+  gap: 6px;
   padding: 14px 16px;
   border-right: 1px solid var(--line);
   background: var(--surface);
@@ -798,41 +802,79 @@ select { appearance: auto; }
   border-right: 0;
 }
 
+/* The ONE headline figure ("left to spend") leads: one lightness step up and a
+   larger figure, so the user's eye lands on it first (Stage-2 critique). */
 .eb-kpi-lead {
   background: var(--surface-2);
 }
 
 .eb-kpi-label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--eb-step-small);
   font-weight: 500;
 }
 
+/* Figures sit on their own line, right-aligned tabular numbers so digits line
+   up down the strip. 16-40px only (kpi-size rule; none >= 48px). */
 .eb-kpi-figure {
-  font-size: 22px;
+  font-size: var(--eb-step-lead);   /* 20px supporting figures */
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  text-align: right;
   color: var(--ink);
 }
 
+/* The headline figure is the single h1-scale number on the strip (24px),
+   still inside the 40px kpi-size ceiling. The one active/headline figure may
+   carry the accent sparingly. */
 .eb-kpi-lead .eb-kpi-figure {
-  font-size: 26px;
+  font-size: var(--eb-step-h1);     /* 24px the one headline figure */
 }
 
 .eb-kpi-figure.is-positive {
-  color: var(--positive);
+  color: var(--eb-accent);
 }
 
 .eb-kpi-figure.is-negative {
-  color: var(--danger);
+  color: var(--eb-status-alert);
 }
 
 .eb-kpi-sub {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
+}
+
+/* Micro-sparkline: a small inline bar series that carries data (reference 3's
+   Response Time card). It is NOT a tinted icon tile. Bars read in --eb-muted;
+   the single most-recent bar lifts to ink so the trend end is legible. No
+   glow/gradient: flat fills only, so the data surface passes with NO waivers. */
+.eb-sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 22px;
+  margin-top: 2px;
+}
+
+.eb-sparkline-bar {
+  flex: 1 1 0;
+  min-width: 3px;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--eb-muted);
+}
+
+.eb-sparkline-bar.is-latest {
+  background: var(--eb-ink);
+}
+
+/* On the lead cell the sparkline end rides the one permitted accent, marking
+   the single active data element on the strip. */
+.eb-kpi-lead .eb-sparkline-bar.is-latest {
+  background: var(--eb-accent);
 }
 
 /* Clean Budget Progress Bar */
@@ -1993,43 +2035,32 @@ select { appearance: auto; }
   font-weight: 500;
 }
 
+/* WS-C: the Reports canonical-table switcher is the WS-A .eb-surface-tabs row.
+   The .eb-table-switcher modifier only adds a horizontal-scroll fallback for the
+   11 tabs; all active styling (the ONE 2px accent underline) comes from the
+   .eb-surface-tab scaffold, so there is no fill flip and no second active
+   marker. The count pill rides each tab. */
 .eb-table-switcher {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.eb-table-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.eb-table-tab.is-active {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #ffffff;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .eb-count-pill {
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--active);
-  color: var(--ink);
+  color: var(--muted);
   font-size: 12px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.eb-table-tab.is-active .eb-count-pill {
-  background: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
+/* On the active tab the count pill lifts to the accent wash so the active table
+   row reads at a glance, still a flat tint (no glow). */
+.eb-surface-tab.is-active .eb-count-pill {
+  background: var(--eb-accent-soft);
+  color: var(--eb-accent);
 }
 
 .eb-table-scroll {
@@ -2155,8 +2186,54 @@ select { appearance: auto; }
   cursor: pointer;
 }
 
+/* WS-C (ADR 0008 Decision 5 + UI-spec Stage-2/§2.3): row hover is ONE lightness
+   step, never a fill flip; the selected row takes the quiet accent fill, so a
+   hover is never mistaken for a selection. No glow/gradient. */
 .eb-clickable-row:hover {
   background: var(--surface-2);
+}
+
+.eb-clickable-row.is-selected,
+.eb-clickable-row.is-selected:hover {
+  background: var(--eb-accent-soft);
+}
+
+/* WS-C status pills, scoped to the DATA tables only (the shared global
+   .status-* definitions stay owned by their surfaces). On dark each pill reads
+   as a PALE TINT of the status hue with readable hue-tinted text and a 1px
+   hue-tinted border; the numbers/labels stay legible. Flat fills, no glow. */
+.eb-plan-table .status-pill,
+.eb-relational-table .status-pill {
+  border-width: 1px;
+  font-weight: 600;
+}
+
+.eb-plan-table .status-positive,
+.eb-relational-table .status-positive {
+  background: rgba(34, 197, 94, 0.14);
+  color: #7ee2a8;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.eb-plan-table .status-pending,
+.eb-relational-table .status-pending {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f6c667;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.eb-plan-table .status-negative,
+.eb-relational-table .status-negative {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f4a1a1;
+  border-color: rgba(239, 68, 68, 0.42);
+}
+
+.eb-plan-table .status-muted,
+.eb-relational-table .status-muted {
+  background: var(--surface-2);
+  color: var(--muted);
+  border-color: var(--line);
 }
 
 .eb-table-empty {
