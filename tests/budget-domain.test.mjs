@@ -496,10 +496,18 @@ test("W13-D3: the workbench wires an optional workspace id into /api/sync withou
   );
 
   // Workspace state: empty = this device only; the id persists under the
-  // sync key so the next backup reuses it.
+  // sync key so the next backup reuses it. The initial value is read lazily
+  // from localStorage on the first client render (W13-CI-LINT-FIX: the old
+  // read-it-in-an-effect shape tripped react-hooks/set-state-in-effect, so
+  // the effect is gone and the input carries suppressHydrationWarning for
+  // the server ("") vs client (stored id) difference).
   assert.match(
     workbenchSource,
-    /const \[workspaceId, setWorkspaceId\] = useState<string>\(""\)/,
+    /const \[workspaceId, setWorkspaceId\] = useState<string>\(\(\) => \{/,
+  );
+  assert.match(
+    workbenchSource,
+    /if \(typeof window === "undefined"\) return "";/,
   );
   assert.match(workbenchSource, /ellies-book-workspace-sync-v1/);
   assert.match(workbenchSource, /updateWorkspaceId\(e\.target\.value\)/);
