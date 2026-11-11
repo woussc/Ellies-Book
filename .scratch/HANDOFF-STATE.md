@@ -2,39 +2,77 @@
 
 > Address the user as **SHUAI**. Tag consequential claims with `[Fact]` / `[Inference]` / `[Assumption]` / `[Projection]` / `[Unknown]` (per AGENTS.md + ADR 0003).
 > This file is written so a brand-new session with zero memory can resume confidently.
-> **Checkpoint**: **Wave 12 (Dark node-graph canvas re-theme + interaction model) PLANNED** - latest. Prior waves (7-11) below remain for history.
+> **Checkpoint**: **Wave 12 COMPLETE (`110e2fd`, gate `25/25`), Wave 13 IMPLEMENTED in the local clone (gate `28/28`) & Wave 14 CLOSED (gate `30/30`, uncommitted, nothing pushed)** - latest. Prior waves (7-11) below remain for history.
 
 ---
 
-## W12 - Dark canvas re-theme + whole-app interaction model (PLANNED this session)
+## W13 - Verification Debt Closure, W8 Follow-ups & Cloudflare D1 Multi-Tenant Deployment Frontier (IMPLEMENTED 10 Nov 2026, local clone, uncommitted)
 
 | Field | Value |
 | :--- | :--- |
-| **Branch** | `[Fact]` `docs/w12-dark-canvas-retheme-plan`, off `main` @ `55d1725` (Wave 10 UI overhaul + the congress merged; app LIVE on the Pages preview). |
-| **Gate** | `[Fact]` `node --test tests/budget-domain.test.mjs` = **21/21** at branch creation (baseline; docs do not affect it). |
-| **Decision (do not reopen)** | `[Fact]` SHUAI chose **Option 2**: a DARK, premium node-graph **CANVAS as the hero** + LEGIBILITY-DISCIPLINED data surfaces (tables/forms/Setup/reports) + a refined **tab/hover/positioning** model across the whole app. This REVERSES ADR 0006's quiet LIGHT direction for the hero and AMENDS it for the rest. |
-| **ADR** | `[Fact]` **ADR 0008** `docs/adr/0008-dark-canvas-retheme-and-interaction-model.md` (Status Proposed). **Supersedes ADR 0006 for the canvas/hero; amends it for data surfaces.** 0008 confirmed next free number (0001-0003,0005,0006,0007 exist; 0004 on open PR #4 - DO NOT touch #4). |
-| **Task state** | `[Fact]` `.agents/tasks/task-w12-dark-canvas-retheme/` (context.json + FEAT-001..003 + task.json). `.agents/` is gitignored (local only). |
-| **Artifacts committed** | `[Fact]` `docs/adr/0008-...md`, `docs/UI-INTERACTION-SPEC-w12.md` (per-stage user-focus critique + interaction model), `.scratch/tickets/W12-dark-canvas-retheme.md` (WS-A -> B/C/D), and this handoff. |
+| **Current `main` HEAD SHA** | `[Fact]` `110e2fd` ("Merge pull request #12 — Wave 12 dark canvas re-theme complete", 26 Oct 2026). |
+| **Mandatory green gate** | `[Fact]` `node --test tests/budget-domain.test.mjs` = **25/25 passing** on `main` @ `110e2fd`. |
+| **CI-only gates** | `[Fact]` `pnpm install` fails HTTP 403 in this sandbox (no `node_modules`). `pnpm run lint`, `pnpm run build`, `tests/rendered-html.test.mjs`, `inspect.mjs --app`, and Playwright are CI-only (ADR 0003). |
+| **Wave 13 Ticket Files** | `[Fact]` `.scratch/tickets/W13-verification-debt-and-w8-followups.md` (`W13-T1`, `W13-T2`, `W13-T3`) and `.scratch/tickets/W13-d1-multitenant-auth-deployment.md` (`W13-D1`, `W13-D2`, `W13-D3`, `W13-D4`). |
+| **Hard Guardrails** | `[Fact]` Coordinate Invariance (ADR 0002) governs every ticket: do NOT touch `app/budget-domain.mjs`, `worker/index.ts`, `ci.yml`, `pages.yml`, `vite.config*`, or `AGENTS.md` §2. Do NOT touch open PR #4. |
 
-### The plan (congress-driven)
-- `[Fact]` **Dark `--eb-*` token plan** (ADR 0008 Decision 1), grounded in `ui-ux-pro-max/data/colors.csv` row 6 "Financial Dashboard" + row 4 "Luxury dark": ground ramp `#060910`/`#0e1320`/`#161c2b`/`#1c2437`, line `#263044`, soft ink `#e8ecf4` (NOT #fff), muted `#94a3b8`, accent `#35c08a`, status go `#22c55e` / alert `#ef4444` / warn `#f59e0b` / idle `#94a3b8`, canvas-only `--eb-node-glow` + `--eb-edge-*` gradients. Type scale 13/16/20/24 UNCHANGED.
-- `[Fact]` **Status colour** rides the node badge + the edge ribbon; green = go/healthy, red = alert, amber = warn, grey = idle (meaning, not decoration).
-- `[Fact]` **Flow edges** = curved bezier + status-coloured gradient ribbons (thin DAG / thick knowledge overlay), geometry derived from node pixel coords (view state only).
-- `[Fact]` **Interaction model** (SHUAI's first priority): KEEP left rail = global space switcher (grouped, dark active pill); ADD a TOP in-surface tab row (underline/accent pill) for sub-views; subtle data-surface hover (no fill flip); canvas node hover = luminance + status halo; right-docked zoom/fit/branch controls + NEW bottom-right mini-map; preserve view state on tab switch. Per-stage user-focus critique for all 5 surfaces is in `docs/UI-INTERACTION-SPEC-w12.md`.
-- `[Fact]` **THE CRUX - glow vs the taste gate** (ADR 0008 Decision 7): `inspect.mjs --app` FAILs on `gradient`/`heavy-shadow`/`glass`/`icon-chips`, but every rule honours an allow-list (`--allow` or `.taste-skill/direction.json` `{allow:[...]}`). WS-B commits a direction.json waiving exactly those IDs, SCOPED to the canvas, justified per rule; the data surfaces run the gate with NO waivers. NOT a `data-ui` wrapper (that trips `ui-wrapper` on a title-bearing full surface).
+### Completed vs. In-Progress vs. Proposed Ticket IDs
+- `[Fact]` **Completed (`main` @ `110e2fd`)**:
+  - **Waves 1–6**: Core domain engine (`app/budget-domain.mjs`), 14-table Drizzle schema (`db/schema.ts`), dual-mode graph + Obsidian vault round-trip, `/api/sync` baseline, approachability & mobile bottom-sheet redesign.
+  - **Wave 7 (`W7-T1`..`W7-T5`)**: Graph-first default landing (`c44de9d`), plain-language dual-mode toggle (`ceef89f`), "open PO" jargon removal (`f1c987d`), 1440px `.eb-plan-table` fit + plain-language hybrid sync affordance (`4fa8068`).
+  - **Wave 8 partial (`W8-candidate-A` CSS/test + `W8-candidate-B` basic re-anchor)**: Landed in `tests/budget-domain.test.mjs` (test #15, line 759, & test #20, lines 909-943), though `.scratch/tickets/W8-post-wave7-followups.md` was left marked `proposed` and `W8-candidate-A` still awaits SHUAI's keep/revert confirmation (`W13-T2`).
+  - **Wave 10 (`WS-A`..`WS-D`)**: Quiet app-screen token architecture, training-mode removal, sample-data loader, shared 1:1 coordinate SVG edges, dependency-free markdown renderer (`app/markdown-render.tsx`), Setup common business intent.
+  - **Wave 11 (`W11-T1`..`W11-T4`)**: Vendored `ui-ux-pro-max` + `impeccable` and wired `.agent/skills/uiux-congress/SKILL.md` + ADR 0007.
+  - **Wave 12 (`W12-WS-A`, `W12-WS-B`, `W12-WS-C`, `W12-WS-D`)**: All 4 dark-canvas re-theme workstreams merged at `110e2fd`; domain gate advanced from `21/21` to **25/25**.
+  - **Wave 13 `W13-T1` (10 Nov 2026)**: Wave 12 / Wave 8 status & gate-count debt closed (W12 ticket `done` at 25/25, ADR 0008 accepted, W8 ticket reconciled) and the `W8-candidate-B` hybrid sync UI guard hardened (three plain-language states + `fetch("/api/sync")` wiring + comment-only obsolete phrasing); gate 25/25 green.
+  - **Wave 13 `W13-T2` (10 Nov 2026)**: 390px `.eb-plan-table` stacked cards kept & dark-tuned per Gate 1 (card `--eb-surface`, `1px --eb-line` separators, `--eb-muted` labels, tabular figures, zero banned ornament); test #20 extended; Open Items #1–#3 closed.
+  - **Wave 13 `W13-D1` (10 Nov 2026)**: Multi-tenant schema (`workspaces`, `workspaceMembers`, `workspace_id` default `ws-local-default` on `businessFunctions` + `projects`) + `db/migrations/0001_canonical_and_workspaces.sql` (16 tables + tenant index, executed clean in real SQLite); gate 26/26 green.
+  - **Wave 13 `W13-D2` (10 Nov 2026)**: `resolveSyncContext` (Access email + Bearer + workspace header, local-anonymous fallback), 403 tenant guard, 409 checksum guard, 10 mutable tables on `onConflictDoUpdate`, `budgetVersions` + `auditEvents` append-only, fresh SYNC audit row per write, GET hydrates from D1; gate 27/27 green; semantics verified in real SQLite.
+  - **Wave 13 `W13-D3` (10 Nov 2026)**: Optional workspace id in the workbench (localStorage `ellies-book-workspace-sync-v1`, plain-language field by the backup button); `X-Ellie-Workspace-Id` sent when set, Bearer only from `sessionStorage` when configured; guarded sync copy verbatim; gate 28/28 green.
+- `[Fact]` **In-Progress Ticket IDs**:
+  - **None** (`0` in-progress tickets; working tree is clean on `main` @ `110e2fd`).
+- `[Projection]` **Next Unblocked Frontier Tickets (Ready to Execute Immediately)**:
+  1. **`W13-T3` (Unblocked in Build-Capable CI Env)**: Run `pnpm run lint && pnpm run build && node --test tests/rendered-html.test.mjs` + `inspect.mjs --app` at `1440px / 768px / 390px` (waivers on canvas only; zero waivers on data surfaces).
+- `[Fact]` **Wave 13 implementation COMPLETE in the local clone (10 Nov 2026, uncommitted, nothing pushed)**: `W13-T1` (status debt + sync guard), `W13-T2` (390px cards kept & dark-tuned), `W13-D1` (schema + migration), `W13-D2` (auth/upsert sync), `W13-D3` (workbench wiring). Gate **28/28** green. Remaining: `W13-T3` (CI-only visual/build gate) and `W13-D4` (deferred live cutover; needs Cloudflare account/D1 ids + a separate approval).
+- `[Projection]` **Deferred**:
+  - **`W13-D4` (Live Cloudflare D1 Provisioning & Remote Cutover)**: **Deferred** until `W13-D1..D3` merge and SHUAI supplies the `[Unknown]` Cloudflare account / D1 `database_id` values outside the offline sandbox.
 
-### Sequencing (ready to fan out)
-- `[Fact]` **WS-A FOUNDATION (blocking)**: dark `:root` tokens + interaction model in the shell. Files: `app/globals.css` (`:root` + `.eb-sidebar`/`.eb-header`/shell/nav), `app/ellies-book-workbench.tsx` (shell/nav ~2280-2520 + top tab-row scaffold). Merge FIRST.
-- `[Fact]` Then **WS-B / WS-C / WS-D in parallel** off post-WS-A `main`, each its own branch, disjoint regions:
-  - WS-B canvas block (`graph`) + `.eb-canvas*`/`.eb-edge*`/`.eb-graph-node` + NEW `.eb-minimap` + direction.json.
-  - WS-C overview + tables blocks + `.eb-kpi*`/`.eb-plan-table`/`.eb-table*` (NO waivers).
-  - WS-D `app/page.tsx` Setup + the vault block + `.studio-*`/`.eb-vault*`/`.eb-md*` (NO waivers).
-- `[Fact]` **Coordinate Invariance (ADR 0002)** carried into WS-B: visuals/view-state only; do NOT touch `budget-domain.mjs`, the geometry, or the checksum.
-- `[Fact]` **Guards** (`tests/budget-domain.test.mjs`, 21/21): recommended model KEEPS the journey labels + graph-first default, so no guard change needed for nav shape. If a coder renames a guarded label or CSS class (`.eb-workbench`/`.eb-kpi-strip`/`.eb-graph-workspace`/`.eb-command-bar`), the SAME PR re-anchors the guard (coverage preserved, not deleted).
-- `[Fact]` Do NOT touch `budget-domain.mjs`, `db/schema.ts`, `/api/sync`, the Worker, `ci.yml`, `pages.yml`, `vite.config*`.
-- `[Projection]` **Ready to fan out: WS-A first, then B/C/D in parallel on disjoint files / own branches.**
-- `[Fact]` **Honesty**: planner cannot run a browser or the skills' scripts in-sandbox; the spec is reasoned from the references + vendored docs/CSVs. Real visual proof = CI (`inspect.mjs --app` + Playwright) + the Pages preview.
+---
+
+## W14 - Triage of the Qwen Wave 12 Review v2 Findings (TRIAGED 10 Nov 2026, no implementation)
+
+| Field | Value |
+| :--- | :--- |
+| **Ticket file** | `[Fact]` `.scratch/tickets/W14-qwen-review-v2-triage.md` (triage only, no code changes). |
+| **Source** | `[Fact]` Qwen review v2, 10 Nov 2026, full files in 32 chunks with grep verification (241 parsed, 143 verified, 98 dropped). Model gate said BLOCKED (36 blockers). Full record `.scratch/reviews/W12-qwen-review-v2.md`. |
+| **Result** | `[Fact]` 15 plausible items triaged against the code at `110e2fd`: 4 REFUTED (W14-3, W14-6, W14-9, W14-12), 5 DROPPED as dead code (W14-4, W14-7, W14-8, W14-10, W14-11 — all in `void`-marked Legacy components), 4 DROPPED as intended (W14-1, W14-2, W14-5, W14-15), 2 DROPPED as unreachable (W14-13, W14-14). **Zero confirmed defects. No fix recommended.** Five optional polish notes recorded in the ticket. |
+| **Decision needed** | `[Projection]` SHUAI's call: (A) close Wave 14 as triaged with zero fixes (recommended), (B) take up any optional polish note as a small implementation slice, or (C) second opinion from agy on the five dropped-as-intended items. |
+| **Open note** | `[Fact]` The 107 polish findings from the v2 review were not triaged. They live only in `/kaggle/working/w12-review-v2.md` in the still-running Kaggle session; pull them into the repo before that session ends if SHUAI wants them kept.
+| **Second opinion** | `[Fact]` SHUAI chose Option C (agy second opinion) 10 Nov 2026 ~21:04. First attempt: the agy run (Gemini 4 Argon, plan mode, bare `--continue`) was killed by a runtime restart at ~22:54 after ~1h46m with no verdict saved — its output lived in `/tmp`, which the restart wiped, and no resumable conversation was found. Nothing was changed in the repo (read-only run). `[Fact]` Re-run 11 Nov 2026 ~00:16 (SHUAI approved): fresh run failed at once with an explicit error — headless agy cannot run shell commands without a `command` permission it cannot prompt for, so `git show` was auto-denied ("jetski: no output produced"). The bare `--continue` resume then ran the full 10-minute bound and printed nothing (verdict file `.scratch/reviews/W14-agy-second-opinion.md` is 0 bytes). `[Inference]` The permission denial is the root cause of both the stalls and the long silent runs. `[Fact]` The prompt now lives in the repo at `.scratch/reviews/W14-agy-second-opinion-prompt.md` (no longer /tmp-only). `[Fact]` SHUAI then chose the no-permission route 11 Nov 2026 00:35: Jinggru extracted the cited code at `110e2fd` into `.scratch/reviews/W14-agy-input-110e2fd.md` and agy read only files. **Verdict landed 11 Nov 2026 ~00:40, saved at `.scratch/reviews/W14-agy-second-opinion.md`: AGREE 4 of 5, DISAGREE 1 of 5 (W14-5, should-fix/polish).** W14-5 flips to a real defect — the toggle blocks deselection unconditionally and the family can be switched to multi at runtime; Jinggru verified both claims plus two errors in its own W14-5 triage. Agy also found a W14-1 nuance (baseline total counts only the first item for multi-item unapproved projects, verified) and W14-2/W14-15 polish notes. None is a blocker.
+| **Implementation slice** | `[Fact]` **Wave 14 CLOSED 11 Nov 2026.** SHUAI approved the fix slice 00:48. W14-F1 (`TagPicker.toggle` last-tag guard + "required" caption, `app/page.tsx`) and W14-F2 (baseline total sums all items, `app/ellies-book-workbench.tsx`) implemented in the local clone with one guard test each; domain gate **30/30** green (29/29 after F1, 30/30 after F2). Nothing committed, nothing pushed. Remaining frontier: W13-T3 (CI-only) and W13-D4 (deferred).
+
+---
+
+## W12 - Dark canvas re-theme + whole-app interaction model — COMPLETE (Merged at `110e2fd`)
+
+| Field | Value |
+| :--- | :--- |
+| **Merged Commit SHA** | `[Fact]` `110e2fd` on `main` (Merge PR #12, 26 Oct 2026). |
+| **Mandatory Gate** | `[Fact]` `node --test tests/budget-domain.test.mjs` = **25/25 passing** (advanced from `21/21` at W12 planning by adding 4 test suites: `WS-A`, `WS-B`, `WS-D`, `WS-C`). |
+| **Governing ADR** | `[Fact]` **ADR 0008** `docs/adr/0008-dark-canvas-retheme-and-interaction-model.md` — supersedes ADR 0006 for the dark luminous canvas hero and amends ADR 0006 for legibility-disciplined dark data surfaces. |
+| **Coordinate Invariance** | `[Fact]` Held across all four workstreams (ADR 0002): `app/budget-domain.mjs`, `db/schema.ts`, and `app/api/sync/route.ts` were untouched; `deriveNodeStatus`, bezier gradient ribbons, and `.eb-minimap` operate purely on view state. |
+
+### Verified Wave 12 Workstream Outcomes (`25/25` green)
+| Workstream | Verified Outcome (`[Fact]`) | Test Guard in `tests/budget-domain.test.mjs` |
+| :--- | :--- | :--- |
+| **W12-WS-A** (Foundation) | Dark `--eb-*` `:root` ramp (`#060910` ground, `#0e1320` sheet, `#161c2b` surface, `#1c2437` raised, `#e8ecf4` soft ink, `#35c08a` accent, status + canvas tokens), raised `.eb-nav-item.is-active` space marker, and `.eb-surface-tabs` top in-surface tab scaffold (2px accent underline). | Test #22 (lines 1024–1083) |
+| **W12-WS-B** (Canvas Hero) | Dark luminous `.eb-graph-node` cards (`--eb-node-glow`), `deriveNodeStatus()` badge (`go`/`alert`/`warn`/`idle` resting), status-gradient bezier flow ribbons (`#eb-edge-grad-*`), right-docked vertical `.eb-canvas-controls`, bottom-right `.eb-minimap` writing `pan` only, and committed `.taste-skill/direction.json` scoped allow-list (`glass`, `gradient`, `heavy-shadow`, `icon-chips`). | Test #23 (lines 1085–1162) |
+| **W12-WS-C** (Data Surfaces) | KPI strip with `renderSparkline()` (`.eb-sparkline`) + right-aligned `tabular-nums` lead figure at `--eb-step-h1`; dark-legible `.eb-plan-table` and canonical tables with pale-tint status pills, lightness-step hover (`--surface-2`), `--eb-accent-soft` selection, Reports switcher wired to `.eb-surface-tabs`, and zero gradient/shadow/glass on any data class. | Test #25 (lines 1247–1310) |
+| **W12-WS-D** (Setup + Notes) | Setup dominant `.setup-intent` `h1` (`Common business intent`, `70ch`) over flat `--eb-sheet` `.definition-card` panels + bordered dark form inputs; Notes `.eb-md-document` (`16px`/`1.6`/`70ch`) via `renderMarkdownDocument()` with accent-lift `.eb-wikilink-pill` and `.eb-tag-pill` preserving `jumpToNode` and tag filtering; zero gradient/shadow/glass on any Setup/notes class. | Test #24 (lines 1164–1245) |
+
+### Stale Gate Counts Corrected in This Handoff (`[Fact]`)
+- Historical sections below record the gate count at the time each earlier wave landed (`Wave 7` = `19/19`, `Wave 10` = `20/20`, `Wave 11` / `Wave 12 plan` = `21/21`, `W12-WS-C branch` = `24/24`).
+- The canonical current gate count on `main` @ `110e2fd` is **25/25**.
 
 ---
 
@@ -157,9 +195,9 @@
 
 ## 7. Open items (non-blocking — surfaced by dual-gate review; awaiting SHUAI where noted)
 
-1. `[Decision for SHUAI]` The Overview plan table has **no true 390px stacked-card layout**. `data-label` attributes exist on cells, but there is no `content: attr(data-label)` card-mode CSS, so on mobile the table falls back to horizontal scroll. If a mobile card layout is wanted, it is a separate future ticket (W8-candidate-A). Flagged to SHUAI on PR #1. **Do NOT auto-apply.**
-2. `[Note]` Pre-existing test guard `assert.match(src, /Hybrid Sync Snapshot/)` is now satisfied only by a code comment (the phrase is no longer user-visible). Consider re-anchoring that guard to a visible string or the `/api/sync` call if that assurance still matters (W8-candidate-B).
-3. `[Note / Decision for SHUAI]` AGENTS.md §2 still names "Gemini 4 Argon (High)" as lead architect while ADR 0003 now says Claude (latest model). Left as-is intentionally (AGENTS.md is the operating contract / workspace rule file). A one-line pointer in AGENTS.md → ADR 0003 would remove the apparent contradiction, but editing AGENTS.md requires SHUAI's explicit say-so. **Do NOT auto-apply.**
+1. `[Closed W13-T2, 10 Nov 2026]` The Overview plan table HAS a 390px stacked-card layout (`@media (max-width: 680px)`, `content: attr(data-label)`, test #20) — the earlier "no true layout" reading was wrong. SHUAI decided Gate 1 (keep & dark-tune, 10 Nov 2026); W13-T2 dark-tuned it (card `--eb-surface`, `1px --eb-line` separators, `--eb-muted` labels, tabular figures, zero banned ornament) and extended test #20. Gate 25/25 green.
+2. `[Closed W13-T1, 10 Nov 2026]` Pre-existing test guard `assert.match(src, /Hybrid Sync Snapshot/)` was re-anchored to the visible string "Saved here and backed up to the cloud" (test #15, line 759) and hardened in the hybrid-backup-surface test (all three plain-language states + `fetch("/api/sync")` wiring + comment-only obsolete phrasing). (W8-candidate-B.)
+3. `[Closed — Gate 4, 10 Nov 2026]` AGENTS.md §2 still names "Gemini 4 Argon (High)" as lead architect while ADR 0003 now says Claude (latest model). SHUAI decided Gate 4: LEAVE AGENTS.md §2 untouched. No edit made; the discrepancy stands as a known record.
 4. `[CI-only]` Visual confirmation at 1440px / 768px / 390px for the plan table (no clipping), the sync affordance (clean wrap), and the mobile capture sheet is still REQUIRED in a build-capable env — cannot be produced in this sandbox.
 
 ---

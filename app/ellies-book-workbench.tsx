@@ -1180,7 +1180,7 @@ export function ElliesBookWorkbench({
           reason: "Initial project baseline",
           total:
             activeProject.approvedAmount ||
-            requirementTotal(enrichedItems[0] || {}),
+            enrichedItems.reduce((sum, item) => sum + requirementTotal(item), 0),
           currency,
           purchaseItems: enrichedItems,
         }),
@@ -1282,14 +1282,62 @@ export function ElliesBookWorkbench({
     "local",
   );
 
+  // W13-D3: optional shared-workspace id for cloud backup (Gate 2). Empty =
+  // this device only (the local-first default). The id is not a secret; it is
+  // kept in localStorage so the next backup reuses it. A bearer token, when
+  // one is configured by a future sign-in flow, is read from sessionStorage
+  // at call time and never rendered or persisted here.
+  const [workspaceId, setWorkspaceId] = useState<string>("");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(
+        "ellies-book-workspace-sync-v1",
+      );
+      if (saved) setWorkspaceId(saved);
+    } catch {
+      /* workspace is optional */
+    }
+  }, []);
+
+  function updateWorkspaceId(next: string) {
+    setWorkspaceId(next);
+    try {
+      if (next) {
+        window.localStorage.setItem("ellies-book-workspace-sync-v1", next);
+      } else {
+        window.localStorage.removeItem("ellies-book-workspace-sync-v1");
+      }
+    } catch {
+      /* workspace is optional */
+    }
+  }
+
   async function triggerHybridSync() {
     setSyncState("working");
     setSyncMessage("Backing up to the cloud…");
     try {
       // Hybrid Sync Snapshot: push the local-first copy to the shared cloud copy.
+      const syncHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (workspaceId) {
+        syncHeaders["X-Ellie-Workspace-Id"] = workspaceId;
+      }
+      let storedToken = "";
+      try {
+        storedToken =
+          window.sessionStorage.getItem(
+            "ellies-book-workspace-token-v1",
+          ) ?? "";
+      } catch {
+        storedToken = "";
+      }
+      if (storedToken) {
+        syncHeaders["Authorization"] = `Bearer ${storedToken}`;
+      }
       const res = await fetch("/api/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: syncHeaders,
         body: JSON.stringify(projectPayload),
       });
       if (res.ok) {
@@ -4326,6 +4374,17 @@ export function ElliesBookWorkbench({
                                   </option>
                                 ))}
                               </select>
+                              <input
+                                type="text"
+                                aria-label="Shared workspace (optional)"
+                                className="eb-table-search"
+                                value={workspaceId}
+                                placeholder="Shared workspace (optional)"
+                                title="Optional: the shared cloud workspace this copy backs up to. Leave empty to keep it on this device only."
+                                onChange={(e) =>
+                                  updateWorkspaceId(e.target.value)
+                                }
+                              />
                               <button
                                 type="button"
                                 className="eb-btn-secondary"

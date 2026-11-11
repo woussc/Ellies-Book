@@ -1,11 +1,11 @@
 # Wave 12: Dark node-graph canvas re-theme + whole-app interaction model (parallel-safe workstreams)
 
-- **Wave**: Wave 12 (proposed / not yet started)
-- **Status**: `proposed`
+- **Wave**: Wave 12 (done — merged at `110e2fd`, 26 Oct 2026)
+- **Status**: `done`
 - **Blocked By**: WS-A is the foundation. WS-B, WS-C, WS-D all rebase on WS-A and start only after it merges.
 - **Governing ADRs**: **ADR 0008 (dark canvas re-theme + interaction model)** - supersedes ADR 0006 for the canvas/hero, amends it for data surfaces. ADR 0007 (congress workflow), ADR 0002 (Coordinate Invariance), ADR 0005 (Pages preview).
 - **Design method**: the congress (`.agent/skills/uiux-congress/SKILL.md`), Operate mode. For each ticket: FRAME (the surface's one question + dominant element), GROUND (ui-ux-pro-max `data/*.csv` + `design-system/`), CRAFT (impeccable `layout`/`typeset`/`colorize`/`craft-floor`), VERIFY (taste-skill `inspect.mjs --app`).
-- **Mandatory gate for every ticket**: `node --test tests/budget-domain.test.mjs` stays green (**21/21** on `main` @ `55d1725`). lint / build / rendered-html / `inspect.mjs --app` / Playwright are **CI-only** in this sandbox (ADR 0003); visual confirmation is on the Pages preview `https://woussc.github.io/Ellies-Book/` after merge.
+- **Mandatory gate for every ticket**: `node --test tests/budget-domain.test.mjs` stays green (**25/25** on `main` @ `110e2fd`). lint / build / rendered-html / `inspect.mjs --app` / Playwright are **CI-only** in this sandbox (ADR 0003); visual confirmation is on the Pages preview `https://woussc.github.io/Ellies-Book/` after merge.
 
 > `[Context]` SHUAI chose Option 2: a DARK premium node-graph CANVAS as the hero, LEGIBILITY-DISCIPLINED data surfaces, and a refined whole-app tab/hover/positioning model. See ADR 0008 for the dark `--eb-*` token plan, status colours, flow edges, the legibility carve-out, and the glow/gradient-vs-gate reconciliation; see `docs/UI-INTERACTION-SPEC-w12.md` for the per-stage user-focus critique and the interaction model.
 
@@ -30,7 +30,7 @@
 
 ---
 
-## WS-A - Foundation: dark tokens + interaction model `[proposed]` `[BLOCKING]`
+## WS-A - Foundation: dark tokens + interaction model `[done]` `[BLOCKING]`
 
 - **Objective**: Establish the ADR 0008 dark `--eb-*` token system and the whole-app interaction model (left rail = spaces; top in-surface tabs = sub-views; active/hover/positioning) so B/C/D rebase on it.
 - **Congress steps**: FRAME (shell answers "where am I and how do I move?"); GROUND (colors.csv row 6 Financial Dashboard + row 4 Luxury dark; app-interface.csv nav/tab/state rows; design-system token-architecture.md); CRAFT (impeccable `layout` for the shell, `colorize` for the token ramp); VERIFY (`inspect.mjs --app` shell: dark active pill readable, no banned ornament on chrome).
@@ -42,14 +42,14 @@
   5. Keep the top `eb-header` as title + finding line + contextual actions (recedes otherwise). Preserve view state on tab switch (do not unmount surfaces).
 - **Touches**: `app/globals.css` (`:root` + `.eb-sidebar`/`.eb-header`/shell/nav/active/hover classes), `app/ellies-book-workbench.tsx` (shell/nav JSX ~2280-2460, `eb-header` ~2470-2520, the top in-surface tab row scaffold).
 - **Acceptance criteria**:
-  - `node --test tests/budget-domain.test.mjs` = 21/21 (journey labels, graph-first default, `Quick actions`, `1. Operational`/`2. Managerial`/`3. Accounting`, lens/showNoteLinks, and `.eb-workbench`/`.eb-kpi-strip`/`.eb-graph-workspace`/`.eb-command-bar` CSS presence all intact). If a guarded CSS class is renamed, the SAME PR re-anchors the guard.
+  - `node --test tests/budget-domain.test.mjs` = 25/25 (journey labels, graph-first default, `Quick actions`, `1. Operational`/`2. Managerial`/`3. Accounting`, lens/showNoteLinks, and `.eb-workbench`/`.eb-kpi-strip`/`.eb-graph-workspace`/`.eb-command-bar` CSS presence all intact). If a guarded CSS class is renamed, the SAME PR re-anchors the guard.
   - The app renders on a dark ground with a readable active-space marker and a working in-surface tab-row scaffold; no glow/gradient on the shell chrome.
   - CI: lint + build + rendered-html green; `inspect.mjs --app` 0 FAIL on the shell (no gradients/glows/shadows on chrome, body >=16px, contrast passes, one h1).
 - **Verification**: domain gate locally; CI `inspect.mjs --app` + Playwright 1440/768/390; visual on the Pages preview after merge.
 
 ---
 
-## WS-B - Canvas hero re-theme (dark nodes + status badges + gradient edges + right controls + mini-map) `[proposed]`
+## WS-B - Canvas hero re-theme (dark nodes + status badges + gradient edges + right controls + mini-map) `[done]`
 
 - **Objective**: Re-theme the already-shipped canvas engine into the dark luminous node-graph hero from references 1, 3, 4, 5. This is a VISUAL re-theme + edge treatment + controls/mini-map, NOT an engine rebuild (infinite pan/zoom/fit already exist).
 - `[Fact]` **What already exists** (do not rebuild): `CANVAS_ZOOM_MIN 0.2`/`MAX 3`, empty-canvas pan, `fitToSelectedNode`/`fitToAllNodes`/`resetCanvasView`, and a shared 1:1 coordinate SVG (`eb-edges-svg` sized to `stageBounds`, no `viewBox` remap) so edges stay attached at any offset. Node `x`/`y` come from `projection` (the pure domain engine).
@@ -67,7 +67,7 @@
 - **Acceptance criteria**:
   - The canvas renders dark luminous node cards with status badges, status-coloured gradient bezier edges, a right-docked control cluster, and a working bottom-right mini-map; node status is read before any label.
   - Dragging/panning/zooming keeps edges attached at any offset (unchanged behaviour); the mini-map tracks the viewport.
-  - `node --test tests/budget-domain.test.mjs` = 21/21 (Coordinate Invariance + lens guards intact).
+  - `node --test tests/budget-domain.test.mjs` = 25/25 (Coordinate Invariance + lens guards intact).
   - CI: lint/build/rendered-html green; `inspect.mjs --app` 0 FAIL on the canvas WITH the committed scoped allow-list; Playwright shows attached status edges at an offset.
 - **Verification**: domain gate; CI visual with the direction.json allow-list; manual pan/zoom/mini-map check on the Pages preview.
 
@@ -85,7 +85,7 @@
 > Reports canonical-table switcher is wired to the WS-A `.eb-surface-tabs` scaffold (2px accent
 > underline active). NO glow/gradient/backdrop-filter on any data class (guarded in
 > `tests/budget-domain.test.mjs`); data surfaces run the gate with NO waivers. `node --test
-> tests/budget-domain.test.mjs` = 24/24.
+> tests/budget-domain.test.mjs` = 25/25.
 
 - **Objective**: Make the Overview plan table, the Reports/canonical tables, and the KPI strip calm and legible on the dark ground, with the headline figure leading and status only where a decision is needed. NO gratuitous glow (ADR 0008 Decision 5 legibility carve-out).
 - **Congress steps**: FRAME (Overview answers "committed vs left?"; Reports answers "export the audited tables"); GROUND (app-screens.md §5 KPIs, §7 tables, colors.csv status pills); CRAFT (`typeset` for the figure hierarchy, `layout` for the table grid); VERIFY (`inspect.mjs --app` data surfaces, NO waivers).
@@ -99,13 +99,13 @@
 - **Acceptance criteria**:
   - The headline figure leads the Overview; the plan table is legible on dark with tabular right-aligned numbers and status-only colour; the Reports table switcher is an obvious top tab row.
   - No tinted icon tiles on KPIs; no heavy borders or resting shadows on data panels.
-  - `node --test tests/budget-domain.test.mjs` = 21/21.
+  - `node --test tests/budget-domain.test.mjs` = 25/25.
   - CI: lint/build/rendered-html green; `inspect.mjs --app` 0 FAIL on the overview + tables surfaces with NO waivers.
 - **Verification**: domain gate; CI visual; open Overview + Reports on the Pages preview.
 
 ---
 
-## WS-D - Setup + Notes on dark `[proposed]`
+## WS-D - Setup + Notes on dark `[done]`
 
 - **Objective**: Bring the Setup surface (common intent + per-team tailored definitions) and the Notes reading pane onto the dark theme, keeping both legibility-disciplined (Setup forms, Notes document). No glow; real form fields keep borders.
 - **Congress steps**: FRAME (Setup answers "common goal + per-team tailoring?"; Notes answers "what was decided and why?"); GROUND (app-screens.md §8 forms/settings, type.md reading measure); CRAFT (`typeset` for the reading pane, `layout` for the settings panels); VERIFY (`inspect.mjs --app` Setup + Notes, NO waivers).
@@ -118,7 +118,7 @@
 - **Acceptance criteria**:
   - Setup states one common intent as its dominant element with quiet per-team panels beneath; no banned ornaments.
   - The Notes reading pane reads as a calm document on dark with working `[[wikilink]]`/`#tag` pills.
-  - `node --test tests/budget-domain.test.mjs` = 21/21 (no jargon-guard regressions; `extractWikilinks` unchanged).
+  - `node --test tests/budget-domain.test.mjs` = 25/25 (no jargon-guard regressions; `extractWikilinks` unchanged).
   - CI: lint/build/rendered-html green; `inspect.mjs --app` 0 FAIL on Setup + Notes with NO waivers.
 - **Verification**: domain gate; CI visual; open Setup + Notes on the Pages preview.
 
@@ -132,4 +132,4 @@
 
 1. **WS-A** (blocking foundation: dark tokens + interaction model) -> merge to `main`.
 2. **WS-B + WS-C + WS-D** in parallel off post-WS-A `main`, one feature branch + PR each, on disjoint files.
-3. Each slice keeps the domain gate at 21/21, passes CI (`lint` + `build` + `rendered-html` + `inspect.mjs --app` + Playwright), and is visually confirmed on the Pages preview after merge. WS-B commits the scoped `.taste-skill/direction.json` allow-list; WS-C and WS-D run the gate with NO waivers.
+3. Each slice keeps the domain gate at 25/25, passes CI (`lint` + `build` + `rendered-html` + `inspect.mjs --app` + Playwright), and is visually confirmed on the Pages preview after merge. WS-B commits the scoped `.taste-skill/direction.json` allow-list; WS-C and WS-D run the gate with NO waivers.

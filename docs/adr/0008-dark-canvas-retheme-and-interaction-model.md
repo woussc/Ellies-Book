@@ -1,6 +1,6 @@
 # ADR 0008: Dark Node-Graph Canvas Re-theme and Whole-App Interaction Model
 
-- **Status**: Proposed
+- **Status**: Accepted (implemented in Wave 12, merged at 110e2fd)
 - **Date**: 2026-10-26
 - **Decider**: **SHUAI** (`Chen Shuaizhou`)
 - **Scope**: The visual system and the whole-app interaction model (tab switching, hover, positioning). A DARK, premium node-graph **canvas as the hero**; LEGIBILITY-DISCIPLINED data surfaces (tables, forms, Setup, reports); and a refined tab/hover/positioning model across every surface.
@@ -32,7 +32,7 @@
 
 `[Inference]` **Common visual language** across all five, to encode: dark near-black grounds; luminous rounded node cards; curved bezier/gradient flow EDGES (thin or thick); STATUS COLOUR (green=go/healthy, red=alert, amber=warn) on the node badge + the edge; a right-docked zoom/fit/branch + mini-map cluster; a top nav of text tabs with ONE active pill or underline + an optional segmented timeline control; a left grouped/collapsible rail; dense but legible right-side health/metric panels; KPI = big number + tiny label + micro-sparkline, never a tinted icon tile.
 
-`[Fact]` **Ground truth of the shipped app** (verified in code, Wave 10 merged at `main` `55d1725`):
+`[Fact]` **Ground truth of the shipped app** (verified in code, Wave 10 merged at `main` `110e2fd`):
 - Left `eb-sidebar` is the global space switcher with a grey `is-active` pill and `eb-count-pill` counts; the five spaces are `1. Workflow map`, `2. Overview`, `3. Notes`, `4. Reports & export`, and a `Setup` group (`app/ellies-book-workbench.tsx` ~2280-2460).
 - The top `eb-header` holds the project title, the plain-English finding line, and the contextual action cluster (~2470-2520). This is already ADR 0006 Decision 3's "left = spaces, top = page actions" model.
 - The canvas engine is already built: `CANVAS_ZOOM_MIN 0.2` / `CANVAS_ZOOM_MAX 3`, empty-canvas pan, `fitToSelectedNode` / `fitToAllNodes` / `resetCanvasView`, and a **shared 1:1 coordinate SVG** (`eb-edges-svg` sized to `stageBounds`, no `viewBox` remap) so edges stay attached at any pan/zoom/offset (~3208-3440). Node `x`/`y` come from `projection` (the pure domain engine). **There is no mini-map yet.**
@@ -40,7 +40,7 @@
 
 `[Fact]` **The gate we must not break.** The taste-skill `scripts/inspect.mjs --app` is the CI PASS/FAIL authority (ADR 0006/0007). Its app mode runs `judgeApp()` plus a filtered `judge()` (`.agent/skills/design-taste-frontend/scripts/lib/rules.mjs`). The rules that a dark glowing node-graph would trip are: `gradient` (FAIL; from `judge()` and NOT in `APP_SKIP`, so it still fires in app mode), `heavy-shadow` and `glass` (FAIL; from `judgeApp()`), `icon-chips` (FAIL at >=2 hues), `rainbow-chart` (FAIL over 6 hues), and `colour-sprawl` (WARN over 12% coloured pixels). `[Fact]` **Every one of these is suppressible**: each `add()` is gated by `if (!allow.includes(id))`, and `inspect.mjs` merges allowances from `--allow id,id` and from a `.taste-skill/direction.json` `{ "allow": [...] }`. This is the lever that makes a dark hero pass the gate (Decision 7).
 
-`[Fact]` **Honesty.** The planner cannot run a browser or the skills' scripts in this sandbox (no `node_modules`; network blocked). Token values and the gate reconciliation are reasoned from the references + the vendored skill docs/CSVs. The only runnable gate here is `node --test tests/budget-domain.test.mjs` (**21/21** on this branch). The real visual proof is CI (`inspect.mjs --app` + Playwright at 1440/768/390) and the live Pages preview `https://woussc.github.io/Ellies-Book/`.
+`[Fact]` **Honesty.** The planner cannot run a browser or the skills' scripts in this sandbox (no `node_modules`; network blocked). Token values and the gate reconciliation are reasoned from the references + the vendored skill docs/CSVs. The only runnable gate here is `node --test tests/budget-domain.test.mjs` (**25/25** on this branch). The real visual proof is CI (`inspect.mjs --app` + Playwright at 1440/768/390) and the live Pages preview `https://woussc.github.io/Ellies-Book/`.
 
 ---
 
@@ -174,13 +174,13 @@ Status rides the **node badge** (the top-left circular +/status badge in referen
 - `[Projection]` If the nav redesign changes the pinned journey labels or structure, the test guards below must be UPDATED to the new reality by the coder (coverage preserved, not deleted).
 
 ### Test guards affected (what must update if nav changes)
-`[Fact]` In `tests/budget-domain.test.mjs` (currently **21/21**):
+`[Fact]` In `tests/budget-domain.test.mjs` (currently **25/25**):
 - The pinned journey labels `1. Workflow map` / `2. Overview` / `3. Notes` / `4. Reports & export` and `Quick actions`, and the `1. Operational` / `2. Managerial` / `3. Accounting` labels (~482-494). If WS-A keeps the five spaces and their labels (recommended), NO change is needed. If a label or structure changes, the WS-A coder updates the guard to assert the NEW label, keeping coverage.
 - `useState<JourneyStep>("graph")` graph-first default (~503). KEEP; the canvas hero only strengthens this.
 - The `Show on map` lens + `showNoteLinks` wiring and the dual-mode toggle. KEEP.
 - The CSS-presence guards `.eb-workbench` / `.eb-kpi-strip` / `.eb-graph-workspace` / `.eb-command-bar` (~497-500). These class names must survive the re-theme, or the guard is re-anchored to the renamed class in the same PR.
 
 ### Verification (every surface)
-1. `node --test tests/budget-domain.test.mjs` stays **21/21** (this ADR is docs-only; it does not touch `app/`).
+1. `node --test tests/budget-domain.test.mjs` stays **25/25** (this ADR is docs-only; it does not touch `app/`).
 2. CI: `pnpm run lint` + `pnpm run build` + `tests/rendered-html.test.mjs` green; `inspect.mjs --app` reports 0 FAIL at 1440/768/390 on the DATA surfaces with NO waivers, and 0 FAIL on the CANVAS with the scoped, justified `direction.json` allow-list (Decision 7).
 3. Visual review on the live Pages preview `https://woussc.github.io/Ellies-Book/` after merge.
