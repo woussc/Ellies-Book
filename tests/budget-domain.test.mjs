@@ -365,6 +365,191 @@ test("db/schema.ts defines all canonical Drizzle SQLite tables from GLOSSARY.md"
   }
 });
 
+test("W13-D1: db/schema.ts adds multi-tenant workspace tables + workspace_id scoping, and the D1 migration covers all 16 tables", async () => {
+  const schemaSource = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  // The two new workspace tables must be exported Drizzle tables.
+  for (const tableName of ["workspaces", "workspaceMembers"]) {
+    assert.match(
+      schemaSource,
+      new RegExp(`export const ${tableName}\\s*=\\s*sqliteTable\\(`),
+      `Missing Drizzle sqliteTable definition: ${tableName}`,
+    );
+  }
+  assert.match(schemaSource, /sqliteTable\("workspaces"/);
+  assert.match(schemaSource, /sqliteTable\("workspace_members"/);
+  assert.match(schemaSource, /references\(\(\) => workspaces\.workspaceId\)/);
+  // workspace_id scoping must exist on exactly businessFunctions + projects,
+  // defaulted so local-first single-user rows keep working unchanged.
+  const scopedColumns = schemaSource.match(
+    /workspaceId: text\("workspace_id"\)\.notNull\(\)\.default\("ws-local-default"\)/g,
+  ) ?? [];
+  assert.equal(scopedColumns.length, 2, "workspace_id must scope businessFunctions and projects");
+
+  // The migration must carry CREATE TABLE IF NOT EXISTS for all 16 tables
+  // plus the tenant-scoped project index, so a fresh D1 apply matches the schema.
+  const migration = await readFile(
+    new URL("../db/migrations/0001_canonical_and_workspaces.sql", import.meta.url),
+    "utf8",
+  );
+  for (const tableName of [
+    "business_functions",
+    "projects",
+    "work_packages",
+    "budget_versions",
+    "purchase_items",
+    "sourcing_allocations",
+    "lifecycle_records",
+    "lifecycle_lines",
+    "purchase_links",
+    "lifecycle_transitions",
+    "knowledge_notes",
+    "audit_events",
+    "outcome_definitions",
+    "project_outcomes",
+    "workspaces",
+    "workspace_members",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(`CREATE TABLE IF NOT EXISTS \`${tableName}\``),
+      `Migration is missing CREATE TABLE for: ${tableName}`,
+    );
+  }
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS `projects_workspace_id_record_id_idx`/);
+});
+
+test("W13-D2: /api/sync resolves workspace context, upserts idempotently, guards tenant + checksum, and hydrates GET from D1", async () => {
+  const routeSource = await readFile(
+    new URL("../app/api/sync/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  // Gate 2: the resolver reads all three auth inputs and falls back to the
+  // local default workspace — no login wall for local-first use.
+  assert.match(routeSource, /export function resolveSyncContext\(request\?: Request\)/);
+  assert.match(routeSource, /Cf-Access-Authenticated-User-Email/);
+  assert.match(routeSource, /X-Ellie-Workspace-Id/);
+  assert.match(routeSource, /Authorization/);
+  assert.match(routeSource, /workspaceId: "ws-local-default"/);
+  assert.match(routeSource, /authenticatedMode: "local-anonymous"/);
+  assert.match(routeSource, /REQUIRE_WORKSPACE_AUTH/);
+
+  // Gate 2: a project id owned by another workspace is refused, not overwritten.
+  assert.match(routeSource, /error: "workspace-mismatch"/);
+  assert.match(routeSource, /status: 403/);
+
+  // Gate 3: checksum-guarded optimistic upsert — If-Match-Checksum is checked
+  // against the stored snapshot, and a mismatch returns 409 + server checksum.
+  assert.match(routeSource, /If-Match-Checksum/);
+  assert.match(routeSource, /error: "checksum-mismatch"/);
+  assert.match(routeSource, /serverChecksum/);
+  assert.match(routeSource, /status: 409/);
+
+  // Exactly the 10 mutable tables upsert; the workspace row, budget versions,
+  // and both audit-event inserts stay onConflictDoNothing (append-only).
+  const upserts = routeSource.match(/\.onConflictDoUpdate\(/g) ?? [];
+  assert.equal(upserts.length, 10, "exactly 10 mutable tables must upsert");
+  const doNothings = routeSource.match(/\.onConflictDoNothing\(/g) ?? [];
+  assert.equal(doNothings.length, 4, "workspaces + budgetVersions + 2 audit inserts must not upsert");
+  assert.match(
+    routeSource,
+    /\.insert\(projects\)[\s\S]{0,1200}?\.onConflictDoUpdate\(/,
+  );
+  assert.match(
+    routeSource,
+    /\.insert\(purchaseItems\)[\s\S]{0,1200}?\.onConflictDoUpdate\(/,
+  );
+  assert.doesNotMatch(
+    routeSource,
+    /\.insert\(budgetVersions\)[\s\S]{0,1200}?\.onConflictDoUpdate\(/,
+  );
+  assert.doesNotMatch(
+    routeSource,
+    /\.insert\(auditEvents\)[\s\S]{0,1200}?\.onConflictDoUpdate\(/,
+  );
+
+  // Every sync writes under the resolved workspace, and each sync appends one
+  // fresh SYNC audit row carrying the payload checksum as its source ref.
+  assert.match(routeSource, /workspaceId: ctx\.workspaceId/);
+  assert.match(routeSource, /action: "SYNC"/);
+  assert.match(routeSource, /sourceRef: preReceipt\.checksum/);
+  assert.match(routeSource, /crypto\.randomUUID\(\)/);
+
+  // GET hydrates from D1 when a stored project matches workspace + record id,
+  // and falls back to the default project otherwise.
+  assert.match(routeSource, /export async function GET\(request\?: Request\)/);
+  assert.match(routeSource, /searchParams\.get\("workspaceId"\)/);
+  assert.match(routeSource, /searchParams\.get\("projectId"\)/);
+  assert.match(routeSource, /loadStoredProjectPayload\(db, workspaceId, recordId\)/);
+  assert.match(routeSource, /hydrated/);
+
+  // Coordinate Invariance (ADR 0002): projections and receipts still come
+  // only from the pure domain engine, never from stored coordinates.
+  assert.match(routeSource, /buildProjectGraphProjection\(payload\)/);
+  assert.match(routeSource, /buildHybridSyncReceipt\(payload/);
+});
+
+test("W13-D3: the workbench wires an optional workspace id into /api/sync without changing any guarded sync copy", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // Workspace state: empty = this device only; the id persists under the
+  // sync key so the next backup reuses it. The initial value is read lazily
+  // from localStorage on the first client render (W13-CI-LINT-FIX: the old
+  // read-it-in-an-effect shape tripped react-hooks/set-state-in-effect, so
+  // the effect is gone and the input carries suppressHydrationWarning for
+  // the server ("") vs client (stored id) difference).
+  assert.match(
+    workbenchSource,
+    /const \[workspaceId, setWorkspaceId\] = useState<string>\(\(\) => \{/,
+  );
+  assert.match(
+    workbenchSource,
+    /if \(typeof window === "undefined"\) return "";/,
+  );
+  assert.match(workbenchSource, /ellies-book-workspace-sync-v1/);
+  assert.match(workbenchSource, /updateWorkspaceId\(e\.target\.value\)/);
+
+  // The header is sent only when a workspace is set; a bearer token is read
+  // from sessionStorage at call time and never rendered or persisted here.
+  assert.match(workbenchSource, /syncHeaders\["X-Ellie-Workspace-Id"\] = workspaceId/);
+  assert.match(
+    workbenchSource,
+    /if \(workspaceId\) \{\s*syncHeaders\["X-Ellie-Workspace-Id"\] = workspaceId;/,
+  );
+  assert.match(
+    workbenchSource,
+    /sessionStorage\.getItem\(\s*"ellies-book-workspace-token-v1"/,
+  );
+  assert.match(
+    workbenchSource,
+    /syncHeaders\["Authorization"\] = `Bearer \$\{storedToken\}`/,
+  );
+
+  // The three guarded plain-language sync strings are unchanged.
+  assert.ok(workbenchSource.includes("Saved on this device"));
+  assert.ok(workbenchSource.includes("Backing up to the cloud…"));
+  assert.ok(
+    workbenchSource.includes("Saved here and backed up to the cloud"),
+  );
+
+  // The new visible copy is plain language: no auth/dev jargon in the
+  // workspace field's label, placeholder, or tooltip.
+  const workspaceCopy =
+    "Shared workspace (optional) Optional: the shared cloud workspace this copy backs up to. Leave empty to keep it on this device only.";
+  assert.ok(
+    workbenchSource.includes('placeholder="Shared workspace (optional)"'),
+  );
+  assert.ok(
+    workbenchSource.includes(
+      'title="Optional: the shared cloud workspace this copy backs up to. Leave empty to keep it on this device only."',
+    ),
+  );
+  assert.doesNotMatch(workspaceCopy, /JWT|OAuth|Bearer|D1|tenant|checksum|token/i);
+});
+
 test("CANONICAL_TABLE_NAMES and canonical table export helpers format Excel-safe TSV, CSV, and Markdown across all 11 tables", () => {
   assert.equal(CANONICAL_TABLE_NAMES.length, 11);
   assert.deepEqual(CANONICAL_TABLE_NAMES, [
@@ -751,11 +936,12 @@ test("buildHybridSyncReceipt and /api/sync route normalize 11 canonical tables, 
   assert.match(workbenchSource, /buildHybridSyncReceipt/);
   assert.match(workbenchSource, /\/api\/sync/);
   assert.match(workbenchSource, /00_Project_Overview\.md/);
-  // W8-B re-anchor: the "Hybrid Sync Snapshot" phrasing only survives in a code
-  // comment now (W7-T5 replaced the visible copy with a plain-language sync
-  // affordance), so matching it proved nothing user-facing. Anchor instead to a
-  // currently-VISIBLE sync-affordance state string so this guard still fails if
-  // the hybrid-sync surface is removed from the UI.
+  // W8-B re-anchor (W13-T1): the "Hybrid Sync Snapshot" phrasing only survives
+  // in a code comment now (W7-T5 replaced the visible copy with a plain-language
+  // sync affordance), so matching it proved nothing user-facing. This assert is
+  // the re-anchor record; the full three-state contract (all three plain-language
+  // strings + the fetch("/api/sync") wiring + comment-only obsolete phrasing)
+  // lives in the hybrid-backup-surface test below.
   assert.match(workbenchSource, /Saved here and backed up to the cloud/);
 });
 
@@ -893,9 +1079,34 @@ test("the hybrid backup surface shows a plain-language local-vs-cloud affordance
     "the cloud-synced state must read in plain language",
   );
   assert.ok(
+    workbenchSource.includes("Backing up to the cloud…"),
+    "the working state must read in plain language",
+  );
+  assert.ok(
     cssSource.includes(".eb-sync-affordance"),
     "the affordance must be styled so it reads from 390px to 1440px",
   );
+
+  // W13-T1 (W8-B hardening): the working state must be wired to a real
+  // /api/sync call — the trigger sets "working", posts the payload, and only
+  // then flips to "cloud" or back to "local".
+  assert.match(
+    workbenchSource,
+    /async function triggerHybridSync\(\)[\s\S]{0,1500}fetch\("\/api\/sync", \{\s*method: "POST"/,
+  );
+
+  // The obsolete "Hybrid Sync Snapshot" phrasing must survive only in code
+  // comments, never as visible copy: every line carrying it must be a comment.
+  const snapshotLines = workbenchSource
+    .split("\n")
+    .filter((line) => line.includes("Hybrid Sync Snapshot"));
+  assert.ok(snapshotLines.length > 0, "the re-anchor comment must still exist");
+  for (const line of snapshotLines) {
+    assert.ok(
+      line.trim().startsWith("//"),
+      `obsolete sync phrasing must stay in a code comment only: ${line.trim()}`,
+    );
+  }
 
   // Raw checksum / snapshot jargon must not appear as primary visible copy.
   // (The accounting-grade term "Hybrid Sync Snapshot" stays in a code comment
@@ -940,6 +1151,37 @@ test("the Overview plan table collapses to a labeled stacked-card layout on smal
   assert.match(cssSource, /\.eb-plan-table td::before\s*\{[\s\S]*?content:\s*attr\(data-label\)/);
   // The redundant header row must be visually removed in card mode.
   assert.match(cssSource, /\.eb-plan-table thead\s*\{[\s\S]*?(position:\s*absolute|display:\s*none)/);
+
+  // W13-T2 (Gate 1: keep & dark-tune): the card-mode rules must use the ADR 0008
+  // dark tokens — card background one lightness step above the sheet, standard
+  // 1px --eb-line separators, muted labels, tabular figures — and carry no
+  // banned ornament (shadow/gradient/glass) on any .eb-plan-table rule.
+  const mobileCss = cssSource.slice(cssSource.indexOf("@media (max-width: 680px)"));
+  assert.match(
+    mobileCss,
+    /\.eb-plan-table tbody tr\s*\{[^}]*background:\s*var\(--eb-surface\)/,
+  );
+  assert.match(
+    mobileCss,
+    /\.eb-plan-table tbody tr\s*\{[^}]*border:\s*1px solid var\(--eb-line\)/,
+  );
+  assert.match(
+    mobileCss,
+    /\.eb-plan-table td::before\s*\{[^}]*color:\s*var\(--eb-muted\)/,
+  );
+  assert.match(
+    mobileCss,
+    /\.eb-plan-table td\.is-numeric\s*\{\s*font-variant-numeric:\s*tabular-nums/,
+  );
+  const planTableBlocks = mobileCss.match(/\.eb-plan-table[^{]*\{[^}]*\}/g) ?? [];
+  assert.ok(planTableBlocks.length > 0, "card-mode plan-table rules must exist");
+  for (const block of planTableBlocks) {
+    assert.doesNotMatch(
+      block,
+      /box-shadow|linear-gradient|radial-gradient|backdrop-filter/,
+      `card-mode plan-table rule must carry no banned ornament: ${block.slice(0, 60)}`,
+    );
+  }
 });
 
 test("Wave 10 WS-A: the hidden sample/practice toggle is removed, a left-rail Sample data / Developer button loads the sample dataset, and the default landing is blank (ADR 0006 Decision 5)", async () => {
@@ -1309,3 +1551,32 @@ test("Wave 12 WS-C: the data-surface legibility pass — KPI big-number + micro-
   }
 });
 
+test("Wave 14 F1: a Business intent tag can be deselected unless it is the last one, and the picker labels the intent family 'required' instead of promising 'click again to clear' (W14-5 fix)", async () => {
+  const pageSource = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // The guard blocks deselection only when the clicked value is the last
+  // selected tag in the intent family, so multi-select intent tags can be
+  // cleared and single-select intent tags can still be switched.
+  assert.match(pageSource, /const selectedInFamily = selected\.filter\(\(id\) => tagValueFor\(data, id\)\?\.family\.id === family\.id\);/);
+  assert.match(pageSource, /if \(has && label\.startsWith\("Project metadata tags"\) && family\.id === "tag-business-intent" && selectedInFamily\.length <= 1\) return;/);
+  // The old unconditional block must be gone.
+  assert.doesNotMatch(pageSource, /family\.id === "tag-business-intent"\) return;/);
+  // The intent family caption says "required", never "click again to clear".
+  assert.match(pageSource, /family\.id === "tag-business-intent" \? "required" : family\.selection === "multi" \? "multi-select" : "single-select; click again to clear"/);
+});
+
+test("Wave 14 F2: the baseline version total sums every item, not only the first, when no amount is approved (W14-1 fix)", async () => {
+  const workbenchSource = await readFile(
+    new URL("../app/ellies-book-workbench.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // The baseline total is the sum of all items' requirement totals, so a
+  // multi-item project with no approved amount is no longer undercounted.
+  // An empty list still reduces to 0, and an approved amount still wins.
+  assert.match(workbenchSource, /enrichedItems\.reduce\(\(sum, item\) => sum \+ requirementTotal\(item\), 0\)/);
+  assert.doesNotMatch(workbenchSource, /requirementTotal\(enrichedItems\[0\]/);
+});

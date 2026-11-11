@@ -2596,9 +2596,9 @@ select { appearance: auto; }
     display: block;
     margin-bottom: 12px;
     padding: 4px 0;
-    border: 1px solid var(--line);
+    border: 1px solid var(--eb-line);
     border-radius: 10px;
-    background: var(--surface);
+    background: var(--eb-surface);
   }
 
   .eb-plan-table tbody tr:last-child {
@@ -2617,8 +2617,14 @@ select { appearance: auto; }
     width: 100% !important;
     padding: 8px 14px;
     text-align: left;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--eb-line);
     white-space: normal;
+  }
+
+  /* Figures keep tabular numerals in card mode (restated here so the guard
+     does not depend on the base .eb-relational-table rule alone). */
+  .eb-plan-table td.is-numeric {
+    font-variant-numeric: tabular-nums;
   }
 
   .eb-plan-table tbody tr td:last-child {
@@ -2629,7 +2635,7 @@ select { appearance: auto; }
   .eb-plan-table td::before {
     content: attr(data-label);
     flex: 0 0 auto;
-    color: var(--muted);
+    color: var(--eb-muted);
     font-size: 12px;
     font-weight: 600;
     text-transform: none;
