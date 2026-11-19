@@ -3,7 +3,7 @@
 import { useRef, useState, type PointerEvent, type SetStateAction } from "react";
 import type { BoardModule, BoardSize, Budget, Expense } from "./model.mjs";
 import { money, totals } from "./model.mjs";
-import { boardLayout, changeBoard, noteConnections, orderedNodes, type BoardAction } from "./board-model.mjs";
+import { boardLayout, changeBoard, noteConnections, orderedNodes, resolveNoteLink, type BoardAction } from "./board-model.mjs";
 import { renderMarkdownDocument } from "../markdown-render";
 
 const titles: Record<BoardModule, string> = { budget: "Budget & plans", committed: "Committed", paid: "Paid", notes: "Notes & connections" };
@@ -46,7 +46,7 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
     setAnnouncement(id ? `Following ${budget.categories.find(c => c.id === id)?.name}. Related nodes are highlighted.` : "Showing all connections.");
   }
   function followLink(target: string) {
-    const link = connections.resolved.find(r => r.id === target || r.label.toLowerCase() === target.toLowerCase());
+    const link = resolveNoteLink(budget, target);
     if (link) follow(link.categoryId);
     else setAnnouncement(`No record named “${target}” yet. The note is kept as written.`);
   }

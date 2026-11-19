@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { exampleBudget, totals, serializeBook, parseBook } from "../app/book/model.mjs";
-import { boardLayout, changeBoard, noteConnections, orderedNodes } from "../app/book/board-model.mjs";
+import { boardLayout, changeBoard, noteConnections, orderedNodes, resolveNoteLink } from "../app/book/board-model.mjs";
 
 test("shuffling, resizing and opening nodes are view-only and survive a Markdown backup", () => {
   const original = exampleBudget();
@@ -36,4 +36,17 @@ test("a card can move after the last card without changing money", () => {
   const moved = changeBoard(b, { type: "move", id: "budget", before: null });
   assert.deepEqual(boardLayout(moved).order, ["committed", "paid", "notes", "budget"]);
   assert.deepEqual(totals(moved), totals(b));
+});
+
+test("duplicate descriptions resolve consistently regardless of earlier id links", () => {
+  const b = exampleBudget();
+  b.expenses = [
+    { ...b.expenses[0], id: "first", description: "Shared name", categoryId: "category-0" },
+    { ...b.expenses[0], id: "second", description: "Shared name", categoryId: "category-1" },
+  ];
+  b.notes = "[[second]] then [[Shared name|The first record]]";
+  assert.deepEqual(noteConnections(b).resolved.map(r => r.id), ["second", "first"]);
+  assert.equal(resolveNoteLink(b, "Shared name").id, "first");
+  assert.equal(resolveNoteLink(b, "second").categoryId, "category-1");
+  assert.equal(resolveNoteLink(b, "missing"), undefined);
 });

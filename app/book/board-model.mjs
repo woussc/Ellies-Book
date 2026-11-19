@@ -39,13 +39,17 @@ export function changeBoard(budget, action) {
   return { ...budget, board };
 }
 
-export function noteConnections(budget) {
-  const parsed = extractWikilinks(budget.notes);
+export function resolveNoteLink(budget, target) {
   const records = [...budget.categories.map(c => ({ ...c, label: c.name, categoryId: c.id })),
     ...budget.expenses.map(e => ({ ...e, label: e.description }))];
+  return records.find(r => r.id === target) ?? records.find(r => r.label.toLowerCase() === target.toLowerCase());
+}
+
+export function noteConnections(budget) {
+  const parsed = extractWikilinks(budget.notes);
   const resolved = [], unresolved = [];
   for (const link of parsed.wikilinks) {
-    const record = records.find(r => r.id === link.target || r.label.toLowerCase() === link.target.toLowerCase());
+    const record = resolveNoteLink(budget, link.target);
     if (record) {
       if (!resolved.some(r => r.id === record.id)) resolved.push(record);
     } else if (!unresolved.includes(link.target)) unresolved.push(link.target);

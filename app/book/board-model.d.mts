@@ -5,6 +5,7 @@ export type BoardAction = { type: "move"; id: BoardModule; before: BoardModule |
 export function boardLayout(budget: Budget): BoardLayout;
 export function orderedNodes<T extends { id: string }>(rows: T[], layout: BoardLayout): T[];
 export function changeBoard(budget: Budget, action: BoardAction): Budget;
+export function resolveNoteLink(budget: Budget, target: string): { id: string; label: string; categoryId: string } | undefined;
 export function noteConnections(budget: Budget): {
   resolved: { id: string; label: string; categoryId: string }[];
   unresolved: string[];
