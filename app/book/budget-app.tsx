@@ -12,6 +12,7 @@ import {
   blankBudget,
   csvText,
   editCategory,
+  editBudgetDetails,
   exampleBudget,
   localDate,
   money,
@@ -167,20 +168,7 @@ export default function BudgetApp() {
   function create(
     details: Pick<Budget, "name" | "total" | "profile" | "period">,
   ) {
-    const saved = change(
-      {
-        ...budget,
-        ...details,
-        categories:
-          !budget.created && budget.profile !== details.profile
-            ? blankBudget(details.profile).categories
-            : budget.categories,
-        created: true,
-      },
-      budget.created
-        ? "Updated budget details"
-        : "Created and confirmed budget",
-    );
+    const saved = setBudget(editBudgetDetails(budget, details));
     notify(saved ? "Budget details saved. Let’s give it a plan." : "Budget details are not saved. Download a book backup before leaving.");
     go("plan");
   }

@@ -6,6 +6,7 @@ import {
   blankBudget,
   csvText,
   editCategory,
+  editBudgetDetails,
   exampleBudget,
   legacyBackup,
   parseBook,
@@ -130,6 +131,25 @@ test("category changes preserve before/after values in the audit trail", () => {
   assert.match(edited.events.at(-1).text, /2000 → 2100/);
   assert.match(edited.events.at(-1).text, /001230/);
   assert.equal(editCategory(edited, id, { amount: 2100 }), edited);
+});
+test("budget detail edits retain prior funding and descriptive values after a Markdown round trip", () => {
+  const original = { ...blankBudget(), created: true, name: "December", total: 1200, period: "December 2026" };
+  const updated = editBudgetDetails(original, { name: "Holiday", total: 1500, profile: "Team", period: "January 2027" });
+  assert.equal(original.total, 1200);
+  assert.equal(updated.total, 1500);
+  const event = parseBook(serializeBook(updated)).events.at(-1);
+  assert.deepEqual(event.before, { name: "December", total: 1200, profile: "Household", period: "December 2026" });
+  assert.deepEqual(event.after, { name: "Holiday", total: 1500, profile: "Team", period: "January 2027" });
+  assert.match(event.text, /Budget total: \$1,200 → \$1,500/);
+  assert.match(event.text, /Name: December → Holiday/);
+  assert.match(event.text, /Period: December 2026 → January 2027/);
+  assert.match(event.text, /Profile: Household → Team/);
+  assert.equal(editBudgetDetails(updated, event.after), updated);
+  const fresh = blankBudget();
+  const created = editBudgetDetails(fresh, { name: "Team book", total: 100, profile: "Team", period: "May 2027" });
+  assert.equal(created.created, true);
+  assert.equal(created.categories[0].name, "People");
+  assert.match(created.events.at(-1).text, /Created and confirmed budget/);
 });
 test("an example saved by the earlier preview never becomes a personal budget", () => {
   const map = new Map([
