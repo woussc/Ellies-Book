@@ -176,6 +176,10 @@ function normalizeStage(rawStage) {
   return "PO";
 }
 
+function spendingLineOf(line) {
+  return String(line?.spendingLineId ?? line?.spending_line_id ?? "");
+}
+
 export function computeLifecycleLineage(arg1 = {}, arg2 = [], arg3 = []) {
   const input =
     Array.isArray(arg1)
@@ -217,6 +221,9 @@ export function computeLifecycleLineage(arg1 = {}, arg2 = [], arg3 = []) {
     const toId = String(tr.toLineId || tr.to_line_id || tr.targetLineId || "");
     if (!fromId) continue;
     const toLine = lineMap.get(toId);
+    const fromSpendingLine = spendingLineOf(lineMap.get(fromId));
+    const toSpendingLine = spendingLineOf(toLine);
+    if (fromSpendingLine && toSpendingLine && fromSpendingLine !== toSpendingLine) continue;
     const amount = Number(tr.convertedAmount ?? tr.amount ?? toLine?.amount ?? 0);
     outgoingConvertedByLine.set(fromId, (outgoingConvertedByLine.get(fromId) || 0) + amount);
   }

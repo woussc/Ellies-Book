@@ -1,5 +1,12 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — QA1 baseline money findings
+
+- [Fact] Branch from `main` @ `5505b30`. Ticket: `.scratch/tickets/QA1-baseline-money-fixes.md`, completed in this change.
+- [Fact] F1 fixed in `computeLifecycleLineage`: a `LifecycleTransition` between lines on different spending lines no longer reduces Open Commitment. Regression test `QA baseline F1` failed before the fix and passes after it.
+- [Fact] F2–F5 live only in legacy Studio screens (`app/page.tsx`) and are left unchanged; see the ticket table. PR 16 `look-b-model.mjs` forecast gap is noted for PR 16.
+- [Fact] `node --test tests/budget-domain.test.mjs`: 31 passed. `pnpm run lint`: exit 0. `pnpm run build`: exit 0. `node --test tests/rendered-html.test.mjs`: 4 passed. PR 15 `look-a-preview` + domain tests pass with this domain change.
+
 ## Latest checkpoint — PR13 intent regression
 
 - [Fact] Branch `feat/wave-13-14`, starting commit `2cc9a02`. Ticket: `.scratch/tickets/PR13-intent-toggle.md`, completed in this change. Current commit: the commit containing this checkpoint (`git rev-parse HEAD`).

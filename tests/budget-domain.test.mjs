@@ -1580,3 +1580,24 @@ test("Wave 14 F2: the baseline version total sums every item, not only the first
   assert.match(workbenchSource, /enrichedItems\.reduce\(\(sum, item\) => sum \+ requirementTotal\(item\), 0\)/);
   assert.doesNotMatch(workbenchSource, /requirementTotal\(enrichedItems\[0\]/);
 });
+
+test("QA baseline F1: a LifecycleTransition never reduces the Open Commitment of a PO line on a different spending line", () => {
+  const lineage = computeLifecycleLineage({
+    approvedBudget: 24000,
+    lifecycleLines: [
+      { id: "po-groceries", stage: "PO", amount: 380, spendingLineId: "line-groceries" },
+      { id: "act-utilities", stage: "Actual", amount: 120, spendingLineId: "line-utilities" },
+    ],
+    transitions: [
+      { id: "tr-wrong", fromLineId: "po-groceries", toLineId: "act-utilities", transitionType: "PO->Actual", convertedAmount: 120 },
+    ],
+  });
+
+  const groceries = lineage.poLineStatus.find((line) => line.lineId === "po-groceries");
+  assert.equal(groceries.openCommitment, 380);
+  assert.equal(groceries.status, "open");
+  assert.equal(lineage.actualTotal, 120);
+  assert.equal(lineage.openCommitmentTotal, 380);
+  // Available to Commit = Approved Budget - Actuals - Open Commitments
+  assert.equal(lineage.availableToCommit, 24000 - 120 - 380);
+});
