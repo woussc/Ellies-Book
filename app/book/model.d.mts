@@ -16,6 +16,7 @@ export type Expense = {
   history: string[];
 };
 export type Budget = {
+  board?: BoardLayout;
   id: string;
   name: string;
   profile: Profile;
@@ -27,6 +28,14 @@ export type Budget = {
   expenses: Expense[];
   notes: string;
   events: { text: string; at: string; before?: unknown; after?: unknown }[];
+};
+export type BoardModule = "budget" | "committed" | "paid" | "notes";
+export type BoardSize = "compact" | "regular" | "wide";
+export type BoardLayout = {
+  order: BoardModule[];
+  sizes: Partial<Record<BoardModule, BoardSize>>;
+  expanded: string[];
+  nodeOrder: string[];
 };
 export const STORAGE_KEY: string;
 export const SAMPLE_STORAGE_KEY: string;

@@ -403,3 +403,13 @@ test("unconfirmed ideas affect forecast but never approved headroom or paid spen
   b.expenses = [{ id: "idea", categoryId: b.categories[0].id, amount: 200, status: "planned", history: ["planned"] }];
   assert.deepEqual(totals(b), { plan: 100, spent: 0, committed: 0, left: 1000, forecast: 200 });
 });
+
+test("board view metadata is validated without changing the Markdown or money contracts", () => {
+  const b = exampleBudget();
+  b.board = { order: ["paid", "budget", "committed", "notes"], sizes: { paid: "wide" }, expanded: ["rent"], nodeOrder: ["rent"] };
+  assert.deepEqual(parseBook(serializeBook(b)), b);
+  assert.deepEqual(totals(b), totals(exampleBudget()));
+  for (const board of [null, { ...b.board, order: ["paid", "paid"] }, { ...b.board, sizes: { paid: "enormous" } }, { ...b.board, expanded: [123] }]) {
+    assert.throws(() => serializeBook({ ...b, board }), /board/i);
+  }
+});

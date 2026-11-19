@@ -29,6 +29,7 @@ import {
 import { useBook } from "./use-book";
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
+import NodeBoard from "./node-board";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -37,7 +38,7 @@ const pages: { id: Page; label: string; short: string; icon: string }[] = [
   { id: "start", label: "My budget", short: "Budget", icon: "book" },
   { id: "plan", label: "Plan by category", short: "Plan", icon: "plan" },
   { id: "spend", label: "Log spending", short: "Log", icon: "plus" },
-  { id: "home", label: "Where I stand", short: "Overview", icon: "home" },
+  { id: "home", label: "Where I stand", short: "Board", icon: "flow" },
   { id: "report", label: "Share a report", short: "Share", icon: "share" },
 ];
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
@@ -178,8 +179,6 @@ export default function BudgetApp() {
   const [toast, setToast] = useState<{ text: string; kind: ToastKind } | null>(null);
   const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
-  const [view, setView] = useState("categories");
-  const [focus, setFocus] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [draft, setDraft] = useState({
     description: "",
@@ -188,7 +187,6 @@ export default function BudgetApp() {
     status: "paid",
     date: localDate(),
   });
-  const [showNote, setShowNote] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const newEntryDraft = useRef(draft);
@@ -198,8 +196,6 @@ export default function BudgetApp() {
   const removalHeading = useRef<HTMLHeadingElement>(null);
   const removeTrigger = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const followedCategory =
-    budget.categories.find((category) => category.id === focus) ?? budget.categories[0];
   const t = totals(budget);
   const allocated = budget.categories.reduce((s, c) => s + c.amount, 0);
   const unassigned = round(budget.total - allocated);
@@ -223,7 +219,7 @@ export default function BudgetApp() {
     window.scrollTo({ top: 0 });
     setTimeout(() => titleRef.current?.focus(), 0);
   }
-  function openExpense(expense: Expense, trigger: HTMLButtonElement) {
+  function openExpense(expense: Expense, trigger?: HTMLButtonElement) {
     if (editingId === expense.id) {
       spendingForm.current?.scrollIntoView({ block: "start" });
       spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
@@ -231,7 +227,7 @@ export default function BudgetApp() {
     }
     if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
     if (!editingId) newEntryDraft.current = draft;
-    editingTrigger.current = trigger;
+    editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
     setConfirmRemoval(false);
     setDraft({ ...expense, amount: String(expense.amount) });
@@ -265,11 +261,11 @@ export default function BudgetApp() {
     const saved = setBudget(editBudgetDetails(budget, details));
     notify(
       saved
-        ? "Budget details saved. Let’s give it a plan."
+        ? "Budget details saved. Your board is ready."
         : "Budget details are not saved. Download a book backup before leaving.",
       saved ? "success" : "error",
     );
-    go("plan");
+    go("home");
   }
   async function restore(file: File | undefined) {
     if (!file) return;
@@ -1104,344 +1100,31 @@ export default function BudgetApp() {
               {page === "home" && (
                 <>
                   {header(
-                    "Room for what matters.",
+                    "Your money, connected.",
                     `${budget.name} · ${budget.period}`,
-                    <button
-                      className="primary heading-action"
-                      onClick={() => go("spend")}
-                    >
-                      <Icon name="plus" size={19} />
-                      Log spending
+                    <button className="primary heading-action" onClick={() => go("spend")}>
+                      <Icon name="plus" size={19} /> Log spending
                     </button>,
                   )}
-                  <section className="overview-summary">
-                    <div className="left-amount">
-                      <span>
-                        {t.left < 0 ? "Over budget" : "Left to spend"}
-                      </span>
-                      <strong className={t.left < 0 ? "negative" : ""}>
-                        {money(Math.abs(t.left))}
-                        <span>USD</span>
-                      </strong>
-                      <p>After what you’ve paid and what’s still to pay.</p>
-                    </div>
-                    <div className="overview-numbers">
-                      <div>
-                        <span>Total budget</span>
-                        <strong>{money(budget.total)}</strong>
-                      </div>
-                      <div>
-                        <span>Planned</span>
-                        <strong>{money(t.plan)}</strong>
-                      </div>
-                      <div>
-                        <span>
-                          Spent <small>· paid</small>
-                        </span>
-                        <strong>{money(t.spent)}</strong>
-                      </div>
-                      <div>
-                        <span>Still to pay</span>
-                        <strong>{money(t.committed)}</strong>
-                      </div>
-                    </div>
-                  </section>
-                  <div className="overview-grid">
-                    <section className="paper category-overview">
-                      <div className="section-heading">
-                        <h2>Your money, at a glance</h2>
-                        <button
-                          className="text-button"
-                          onClick={() => go("plan")}
-                        >
-                          Edit plan <Icon name="arrow" size={16} />
-                        </button>
-                      </div>
-                      <div className="segmented" aria-label="Overview view">
-                        <button
-                          aria-pressed={view === "categories"}
-                          className={view === "categories" ? "selected" : ""}
-                          onClick={() => setView("categories")}
-                        >
-                          <Icon name="plan" size={17} />
-                          By category
-                        </button>
-                        <button
-                          aria-pressed={view === "flow"}
-                          className={view === "flow" ? "selected" : ""}
-                          onClick={() => setView("flow")}
-                        >
-                          <Icon name="flow" size={18} />
-                          Money flow
-                        </button>
-                      </div>
-                      {view === "categories" ? (
-                        <div className="category-list">
-                          {budget.categories.map((c) => {
-                            const s = totals(budget, c.id);
-                            return (
-                              <article key={c.id} className="category-budget">
-                                <div className="category-budget-head">
-                                  <strong>{c.name}</strong>
-                                  <span
-                                    className={s.left < 0 ? "negative" : ""}
-                                  >
-                                    {money(s.left)} left
-                                  </span>
-                                </div>
-                                <div className="category-track">
-                                  <span
-                                    className="paid-fill"
-                                    style={{
-                                      width: `${Math.min(100, (s.spent / (c.amount || 1)) * 100)}%`,
-                                    }}
-                                  />
-                                  <span
-                                    className="committed-fill"
-                                    style={{
-                                      width: `${Math.min(Math.max(0, 100 - (s.spent / (c.amount || 1)) * 100), (s.committed / (c.amount || 1)) * 100)}%`,
-                                    }}
-                                  />
-                                </div>
-                                <div className="category-values">
-                                  <span>
-                                    Planned <strong>{money(c.amount)}</strong>
-                                  </span>
-                                  <span>
-                                    Spent <strong>{money(s.spent)}</strong>
-                                  </span>
-                                  <span>
-                                    Still to pay{" "}
-                                    <strong>{money(s.committed)}</strong>
-                                  </span>
-                                </div>
-                              </article>
-                            );
-                          })}
-                          <div className="chart-key">
-                            <span>
-                              <i className="paid-key" />
-                              Paid
-                            </span>
-                            <span>
-                              <i className="committed-key" />
-                              Still to pay
-                            </span>
-                            <span>
-                              <i />
-                              Available
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="money-flow">
-                          <label className="field">
-                            Follow a category
-                            <select
-                              value={followedCategory?.id ?? ""}
-                              onChange={(e) => setFocus(e.target.value)}
-                            >
-                              {budget.categories.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <div className="flow-root">
-                            <Icon name="book" size={22} />
-                            <div>
-                              <small>Budget</small>
-                              <strong>{budget.name}</strong>
-                            </div>
-                            <b>{money(budget.total)}</b>
-                          </div>
-                          <div className="flow-branch">
-                            <span className="edge-label">contains</span>
-                            {budget.categories
-                              .filter(
-                                (c) =>
-                                  c.id === followedCategory?.id,
-                              )
-                              .map((c) => (
-                                <div key={c.id}>
-                                  <div className="flow-category">
-                                    <span>
-                                      <small>Category plan</small>
-                                      <strong>{c.name}</strong>
-                                    </span>
-                                    <b>{money(c.amount)}</b>
-                                  </div>
-                                  <div className="flow-expenses">
-                                    {budget.expenses
-                                      .filter((e) => e.categoryId === c.id)
-                                      .map((e) => (
-                                        <div className="flow-leaf" key={e.id}>
-                                          <span className="edge-label">
-                                            {e.history.length > 1
-                                              ? e.history.join(" → ")
-                                              : "attributed to"}
-                                          </span>
-                                          <div>
-                                            <span>
-                                              <strong>{e.description}</strong>
-                                              <small>
-                                                {e.status === "committed"
-                                                  ? "Invoice · unpaid"
-                                                  : e.status === "paid"
-                                                    ? "Actual · paid"
-                                                    : "Purchase item · planned"}
-                                              </small>
-                                            </span>
-                                            <b>{money(e.amount)}</b>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    {!budget.expenses.some(
-                                      (e) => e.categoryId === c.id,
-                                    ) && (
-                                      <p className="hint">
-                                        No spending here yet. Your plan is
-                                        ready.
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                          <p className="hint">
-                            One connected trail, the same numbers. Paid entries
-                            replace unpaid commitments — they’re never counted
-                            twice.
-                          </p>
-                        </div>
-                      )}
-                    </section>
-                    <aside className="overview-aside">
-                      <section className="notes-panel">
-                        <div className="section-heading">
-                          <h2>A note for later</h2>
-                          <Icon name="leaf" size={22} />
-                        </div>
-                        <p>The why behind the numbers.</p>
-                        {!showNote && (
-                          <>
-                            <label className="sr-only" htmlFor="budget-note">
-                              Budget notes
-                            </label>
-                            <textarea
-                              id="budget-note"
-                              placeholder="A reminder, an intention, a decision…"
-                              value={budget.notes}
-                              onChange={(e) =>
-                                setBudget({ ...budget, notes: e.target.value })
-                              }
-                              rows={7}
-                            />
-                          </>
-                        )}
-                        {showNote && (
-                          <div
-                            className="markdown-preview"
-                            role="region"
-                            aria-label="Budget notes preview"
-                          >
-                            {budget.notes ? (
-                              renderMarkdownDocument(budget.notes, {
-                                onWikilink: (target) => {
-                                  const category = budget.categories.find(
-                                    (c) =>
-                                      c.id === target ||
-                                      c.name.toLowerCase() ===
-                                        target.toLowerCase(),
-                                  );
-                                  const expense = budget.expenses.find(
-                                    (e) =>
-                                      e.id === target ||
-                                      e.description.toLowerCase() ===
-                                        target.toLowerCase(),
-                                  );
-                                  if (category || expense) {
-                                    setFocus(
-                                      category?.id ?? expense!.categoryId,
-                                    );
-                                    setView("flow");
-                                  } else
-                                    notify(
-                                      `No category or spending entry named “${target}” yet.`,
-                                      "info",
-                                    );
-                                },
-                                onTag: (tag) =>
-                                  notify(`This note is tagged #${tag}.`, "info"),
-                              })
-                            ) : (
-                              <p>No note yet.</p>
-                            )}
-                          </div>
-                        )}
-                        <div className="notes-bottom">
-                          <span>
-                            {storageError
-                              ? "Not saved"
-                              : "Saved on this device"}
-                          </span>
-                          <button
-                            className="text-button"
-                            onClick={() => {
-                              setShowNote(!showNote);
-                              if (showNote) {
-                                setTimeout(
-                                  () => document.getElementById("budget-note")?.focus(),
-                                  0,
-                                );
-                              }
-                            }}
-                          >
-                            {showNote ? "Edit note" : "Preview"}
-                          </button>
-                        </div>
-                        <button
-                          className="text-button note-download"
-                          onClick={() =>
-                            download(
-                              `---\nbudget: ${JSON.stringify(budget.name)}\nprofile: ${budget.profile}\n---\n\n${budget.notes}`,
-                              "budget-notes.md",
-                            )
-                          }
-                        >
-                          Save Markdown copy <Icon name="download" size={16} />
-                        </button>
-                      </section>
-                      <section className="quiet-next">
-                        <h3>A good plan is a living thing.</h3>
-                        <p>
-                          Check in, make a change, and keep going. Your budget
-                          is here to help, not to judge.
-                        </p>
-                        <button
-                          className="text-button"
-                          onClick={() => go("report")}
-                        >
-                          Share where you stand
-                          <Icon name="arrow" size={17} />
-                        </button>
-                      </section>
-                      <details className="audit" open={!budget.events.length}>
-                        <summary>Activity & audit trail</summary>
-                        {budget.events.length ? (
-                          [...budget.events].reverse().map((ev, i) => (
-                            <p key={i}>
-                              {ev.text}
-                              <small>{new Date(ev.at).toLocaleString()}</small>
-                            </p>
-                          ))
-                        ) : (
-                          <p>No changes recorded yet.</p>
-                        )}
-                      </details>
-                    </aside>
-                  </div>
+                  <NodeBoard
+                    budget={budget}
+                    setBudget={setBudget}
+                    storageError={storageError}
+                    onPlan={() => go("plan")}
+                    onSpend={(categoryId) => {
+                      if (categoryId) setDraft(d => ({ ...d, categoryId }));
+                      go("spend");
+                    }}
+                    onExpense={(expense) => { go("spend"); openExpense(expense); }}
+                    onReport={() => go("report")}
+                    onBackup={backup}
+                  />
+                  <details className="audit board-audit" open={!budget.events.length}>
+                    <summary>Activity & audit trail</summary>
+                    {budget.events.length ? [...budget.events].reverse().map((ev, i) => (
+                      <p key={i}>{ev.text}<small>{new Date(ev.at).toLocaleString()}</small></p>
+                    )) : <p>No changes recorded yet.</p>}
+                  </details>
                 </>
               )}
               {page === "report" && (

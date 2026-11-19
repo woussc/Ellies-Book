@@ -106,6 +106,16 @@ export function validateBudget(b) {
     throw new Error("Could not read the categories in this backup.");
   }
   const categoryIds = new Set(b.categories.map((c) => c.id));
+  if (b.board !== undefined) {
+    const modules = ["budget", "committed", "paid", "notes"];
+    const ids = (v) => Array.isArray(v) && v.every(text) && new Set(v).size === v.length;
+    if (!object(b.board) || !ids(b.board.order) || b.board.order.length !== 4 ||
+      !b.board.order.every((id) => modules.includes(id)) || !object(b.board.sizes) ||
+      !Object.entries(b.board.sizes).every(([id, size]) => modules.includes(id) && ["compact", "regular", "wide"].includes(size)) ||
+      !ids(b.board.expanded) || !ids(b.board.nodeOrder)) {
+      throw new Error("Could not read the board layout in this backup.");
+    }
+  }
   if (
     !b.expenses.every(
       (e) =>

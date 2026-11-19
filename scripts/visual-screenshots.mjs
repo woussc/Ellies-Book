@@ -80,7 +80,7 @@ async function checkSkipLink(page) {
 // the final amount must not turn its intermediate digits into audit events.
 async function checkCategoryEdit(page) {
   await page.getByRole("button", { name: /Explore an example/ }).click();
-  await navigate(page, "Where I stand", "Overview");
+  await navigate(page, "Where I stand", "Board");
   await page.getByText("No changes recorded yet.", { exact: true }).waitFor();
   await navigate(page, "Plan by category", "Plan");
   const amount = page.getByRole("spinbutton", {
@@ -89,7 +89,7 @@ async function checkCategoryEdit(page) {
   await amount.fill("");
   await amount.pressSequentially("375");
   await amount.press("Enter");
-  await navigate(page, "Where I stand", "Overview");
+  await navigate(page, "Where I stand", "Board");
   await page.locator(".audit summary").click();
   const edits = () => page.locator(".audit p").evaluateAll((rows) =>
       rows.map((row) => row.firstChild.textContent)
@@ -98,7 +98,7 @@ async function checkCategoryEdit(page) {
   const expected = ["Home & bills: amount 2000 → 375"];
   assert.deepEqual(await edits(), expected);
   await page.reload({ waitUntil: "networkidle" });
-  await navigate(page, "Where I stand", "Overview");
+  await navigate(page, "Where I stand", "Board");
   await page.locator(".audit summary").click();
   assert.deepEqual(await edits(), expected, "Saved activity must survive reload");
 
@@ -125,7 +125,7 @@ async function checkCategoryEdit(page) {
   await navigate(page, "Plan by category", "Plan");
   assert.equal(await amount.inputValue(), "375");
   assert.equal(await zeroAmount.inputValue(), "");
-  await navigate(page, "Where I stand", "Overview");
+  await navigate(page, "Where I stand", "Board");
   await page.locator(".audit summary").click();
   assert.deepEqual(await edits(), expected);
   const zeroEdits = await page.locator(".audit p").evaluateAll((rows) =>
@@ -139,8 +139,9 @@ async function checkNoteModes(page) {
   const note = "# Home repairs\nKeep this edit.";
   const editor = page.getByRole("textbox", { name: "Budget notes", exact: true });
   const preview = page.getByRole("region", { name: "Budget notes preview", exact: true });
+  await page.getByRole("button", { name: "Edit note", exact: true }).click();
   await editor.fill(note);
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.getByRole("button", { name: "Read note", exact: true }).click();
   await preview.waitFor();
   assert.equal(await editor.count(), 0);
   assert.equal(await preview.getByRole("heading", { name: "Home repairs", exact: true }).count(), 1);
@@ -150,16 +151,38 @@ async function checkNoteModes(page) {
 }
 
 async function checkRemovedCategory(page) {
-  await page.getByRole("button", { name: "Money flow", exact: true }).click();
   const picker = page.getByRole("combobox", { name: /^Follow a category/ });
   await picker.selectOption({ label: "A little extra" });
   await navigate(page, "Plan by category", "Plan");
   await page.getByRole("button", { name: "Remove A little extra", exact: true }).click();
-  await navigate(page, "Where I stand", "Overview");
-  assert.equal(await picker.locator("option:checked").textContent(), "Home & bills");
-  assert.equal(await page.locator(".flow-category strong").textContent(), "Home & bills");
-  assert.equal(await page.locator(".flow-category b").textContent(), "$375");
-  assert.equal(await page.locator(".flow-leaf strong").allTextContents().then((names) => names.includes("November rent")), true);
+  await navigate(page, "Where I stand", "Board");
+  assert.equal(await picker.locator("option:checked").textContent(), "All connections");
+  assert.equal(await picker.getByRole("option", { name: "A little extra", exact: true }).count(), 0);
+  assert.equal(await page.locator(".module-budget .node-summary").first().textContent(), "Home & bills$375+");
+  assert.equal(await page.locator(".module-paid .node-summary").allTextContents().then(names => names.some(name => name.includes("November rent"))), true);
+}
+
+async function checkBoardLayout(page) {
+  const stored = () => page.evaluate(() => {
+    const raw = localStorage.getItem("ellies-book:example:v1.md");
+    return JSON.parse(raw.split("\ndata: ")[1].split("\n---")[0]);
+  });
+  const before = await stored();
+  await page.getByRole("button", { name: "Arrange board", exact: true }).click();
+  await page.getByRole("button", { name: "Enlarge Committed", exact: true }).click();
+  await page.getByRole("button", { name: "Move Committed earlier", exact: true }).click();
+  await page.getByRole("button", { name: "Done arranging", exact: true }).click();
+  assert.equal(await page.locator("[data-board-module]").first().getAttribute("data-board-module"), "committed");
+  assert.equal(await page.locator(".module-committed.size-wide").count(), 1);
+  const after = await stored();
+  delete after.board;
+  assert.deepEqual(after, before, "Layout edits must not alter financial records, notes, or audit history");
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(await page.locator("[data-board-module]").first().getAttribute("data-board-module"), "committed");
+  assert.equal(await page.locator(".module-committed.size-wide").count(), 1);
+  await page.getByRole("button", { name: "Arrange board", exact: true }).click();
+  await page.getByRole("button", { name: "Reset layout", exact: true }).click();
+  await page.getByRole("button", { name: "Done arranging", exact: true }).click();
 }
 
 async function main() {
@@ -181,6 +204,8 @@ async function main() {
       await page.screenshot({ path: outPath, fullPage: true });
       console.log(`Captured ${vp.label} (${vp.width}px) -> ${outPath}`);
       await checkCategoryEdit(page);
+      await checkBoardLayout(page);
+      await page.screenshot({ path: `${OUT_DIR}/${vp.label}-board.png`, fullPage: true });
       await checkNoteModes(page);
       await checkRemovedCategory(page);
       console.log(`Passed keyboard, category-edit, note-mode and removed-category regressions at ${vp.width}px`);
