@@ -222,6 +222,42 @@ test("storage errors surface and legacy data is downloadable without being rewri
   assert.equal(map.get("function-budget-studio-v1-4-working"), raw);
 });
 
+test("exploring an example cannot replace the only copy of unsaved personal edits", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import { createElement } from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import { useBook } from './app/book/use-book.ts';
+    import { blankBudget, exampleBudget, parseBook, STORAGE_KEY, SAMPLE_STORAGE_KEY } from './app/book/model.mjs';
+    const map = new Map();
+    let failWrites = false;
+    globalThis.localStorage = {
+      getItem: key => map.get(key) ?? null,
+      setItem(key, value) { if (failWrites) throw new Error('QuotaExceededError'); map.set(key, value); },
+      removeItem: key => map.delete(key),
+    };
+    let book;
+    renderToStaticMarkup(createElement(function Probe() { book = useBook(); return null; }));
+    const personal = { ...blankBudget(), created: true, name: 'My book', notes: 'Original note' };
+    assert.equal(book.setBudget(personal), true);
+    failWrites = true;
+    const unsaved = { ...personal, notes: '# Keep the unsaved decision', categories: personal.categories.map((c, i) => i ? c : { ...c, amount: 900 }) };
+    assert.equal(book.setBudget(unsaved), false);
+    assert.equal(book.setBudget(exampleBudget()), false);
+    let retained;
+    book.setBudget(budget => { retained = budget; return budget; });
+    assert.deepEqual(retained, unsaved, 'The downloadable in-memory book must retain every unsaved edit');
+    assert.equal(parseBook(map.get(STORAGE_KEY)).notes, 'Original note');
+    assert.equal(map.has(SAMPLE_STORAGE_KEY), false);
+    failWrites = false;
+    assert.equal(book.setBudget(retained), true);
+    assert.equal(book.setBudget(exampleBudget()), true);
+    book.removeExample();
+    assert.deepEqual(parseBook(map.get(STORAGE_KEY)), unsaved);
+  `], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test("unconfirmed ideas affect forecast but never approved headroom or paid spend", () => {
   const b = blankBudget();
   b.total = 1000;

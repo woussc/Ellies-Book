@@ -464,7 +464,10 @@ export default function BudgetApp() {
                         <button
                           className="text-button"
                           onClick={() => {
-                            setBudget(exampleBudget());
+                            if (!setBudget(exampleBudget())) {
+                              notify("Could not open the example. Keep this page open and download a book backup before leaving.");
+                              return;
+                            }
                             go("home");
                             notify(
                               "Example loaded. You can remove it at the top.",
