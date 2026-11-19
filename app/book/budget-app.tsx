@@ -27,6 +27,9 @@ import {
 } from "./model.mjs";
 import { useBook } from "./use-book";
 import { printReport, saveFile, shareReport, watchNativeKeyboard } from "./platform";
+import { buildAiReadyPack } from "./ai-portal.mjs";
+import AskAiSheet from "./ask-ai-sheet";
+import { registerNativeShare } from "./ai-share";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -119,7 +122,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
   );
 }
 export default function BudgetApp() {
-  useEffect(watchNativeKeyboard, []);
+  useEffect(() => watchNativeKeyboard(registerNativeShare), []);
   const { budget, setBudget, removeExample, status, error, legacy, recovery } =
     useBook();
   const [activePage, setPage] = useState<Page | null>(null);
@@ -136,6 +139,7 @@ export default function BudgetApp() {
       return false;
     }
   }
+  const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
   const [view, setView] = useState("categories");
   const [focus, setFocus] = useState("");
@@ -1432,6 +1436,9 @@ export default function BudgetApp() {
                         Send this check-in to your partner, your team, or your
                         future self.
                       </p>
+                      <button className="secondary full" onClick={() => setAiPack(buildAiReadyPack(budget))}>
+                        Ask AI <Icon name="share" size={18} />
+                      </button>
                       <button
                         className="secondary full"
                         onClick={async () => {
@@ -1515,6 +1522,7 @@ export default function BudgetApp() {
           </button>
         ))}
       </nav>
+      {aiPack !== null && <AskAiSheet pack={aiPack} book={budget} onClose={() => setAiPack(null)} />}
       {toast && (
         <div className="toast" role="status">
           <Icon name="check" size={18} />

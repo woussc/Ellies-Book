@@ -1,5 +1,13 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS4 Ask AI merge
+
+- [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `1d1dd66`; merged `origin/main` at `f4fd345` without rebasing. Only `app/book/budget-app.tsx` conflicted. Kept Ask AI imports/state and the native adapters, async exports and startup effect. Package/lockfile and shared CSS merged without manual dependency edits.
+- [Fact] Native startup registers Ask AI text sharing and clears the hook on effect cleanup. Native cancellation maps to AbortError; the existing Ask AI UI's error handling remains unchanged. Browser and clipboard behavior are unchanged. Ticket: `.scratch/tickets/IOS4-ask-ai-integration.md`.
+- [Fact] Lint, production build, all 63 Node tests (including rendered HTML, Ask AI and platform), Pages/native builds and simulator Xcode build succeeded. Restored the app SPM minimum to 15.4 after sync; Xcode deployment targets remain 15.4.
+- [Fact] Reinstalled and launched on the booted iPhone 17 simulator. Inspected `/Users/devin/ios-shots/askai-sheet.png` and `askai-native-share.png`: Ask AI shows clipboard success; the native share sheet previews the read-only budget pack. Simulator clipboard independently contained the pack.
+- [Unknown] Delivery to third-party AI apps and physical-device behavior are not verified. No additional IOS4 implementation remains.
+
 ## Latest checkpoint — IOS3 minimum version
 
 - [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `fe7735166d25cbc4a483164c38b8037698d826d6`. IOS3 is complete in the commit containing this checkpoint. Ticket: `.scratch/tickets/IOS3-minimum-version.md`.

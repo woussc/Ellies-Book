@@ -46,5 +46,5 @@ Adapter tests (Node 22.13 or newer):
 node --experimental-test-module-mocks --test tests/platform.test.mjs
 ```
 
-When PR #23 (Ask AI) lands, wire its native share at startup with
-`registerNativeShare(pack => Share.share({ text: pack }))`.
+[Fact] Ask AI registers native sharing at startup. “Share to AI app” opens the
+iOS share sheet with the read-only pack text. “Copy for AI” uses the clipboard.

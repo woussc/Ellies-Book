@@ -33,6 +33,7 @@ mock.module("@capacitor/keyboard", { namedExports: { Keyboard: {
   },
 } } });
 const { shareReport, saveFile, printReport, watchNativeKeyboard } = await import("../app/book/platform.ts");
+const { shareAiPack, registerNativeShare } = await import("../app/book/ai-share.ts");
 
 test("web report sharing falls through to the existing browser flow", async () => {
   assert.equal(await shareReport("Book", "Summary"), false);
@@ -125,7 +126,7 @@ test("web print keeps the browser print path and exposes failures", async () => 
 
 test("web startup leaves the keyboard and document alone", () => {
   native = false;
-  watchNativeKeyboard()();
+  watchNativeKeyboard(registerNativeShare)();
   assert.deepEqual(calls, []);
 });
 
@@ -146,8 +147,18 @@ test("native keyboard restores Done and scrolls each focused field after resize"
   };
   globalThis.requestAnimationFrame = (callback) => { callback(); return 1; };
   globalThis.cancelAnimationFrame = () => {};
-  const stop = watchNativeKeyboard();
+  const stop = watchNativeKeyboard(registerNativeShare);
   assert.deepEqual(calls.splice(0), [{ isVisible: true }]);
+  for (const pack of ["# Read-only AI pack", ""]) {
+    assert.deepEqual(await shareAiPack(pack), { method: "native", offerDownload: false });
+    assert.deepEqual(calls.pop(), { text: pack });
+  }
+  failure = new Error("Share canceled");
+  await assert.rejects(shareAiPack("Pack"), { name: "AbortError" });
+  failure = new Error("Unavailable");
+  await assert.rejects(shareAiPack("Pack"), /Unavailable/);
+  failure = undefined;
+  calls.length = 0;
   events.get("focusin")();
   assert.equal(field.scrollIntoView.mock.callCount(), 0);
   keyboardEvents.get("keyboardDidShow")();

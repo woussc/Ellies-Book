@@ -2,6 +2,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Keyboard } from "@capacitor/keyboard";
 import { Share } from "@capacitor/share";
+import type { registerNativeShare } from "./ai-share";
 
 const NativePrint = registerPlugin<{ print(): Promise<void> }>("NativePrint");
 
@@ -50,8 +51,16 @@ export async function printReport() {
   else window.print();
 }
 
-export function watchNativeKeyboard() {
+export function watchNativeKeyboard(registerShare: typeof registerNativeShare) {
   if (!Capacitor.isNativePlatform()) return () => {};
+  registerShare(async (pack) => {
+    try {
+      await Share.share({ text: pack });
+    } catch (error) {
+      if (shareCancelled(error)) throw new DOMException("Sharing cancelled", "AbortError");
+      throw error;
+    }
+  });
   document.documentElement.classList.add("native-app");
   void Keyboard.setAccessoryBarVisible({ isVisible: true }).catch(() => {});
   let keyboardVisible = false;
@@ -79,6 +88,7 @@ export function watchNativeKeyboard() {
     }),
   ];
   return () => {
+    registerShare();
     cancelAnimationFrame(frame);
     document.removeEventListener("focusin", focus);
     document.documentElement.classList.remove("native-keyboard-open");
