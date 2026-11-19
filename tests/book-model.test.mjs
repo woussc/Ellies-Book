@@ -110,6 +110,15 @@ test("exploring and removing an example preserves the personal budget across ref
   persistBudget(storage, readStoredBudget(storage, false));
   assert.deepEqual(readStoredBudget(storage), personal);
 });
+test("finance CSV keeps negative numeric shortfalls numeric but neutralizes authored formulas", () => {
+  const b = blankBudget();
+  b.total = 100;
+  b.categories[0] = { ...b.categories[0], name: "=SUM(A1)", amount: 100, owner: "-2+3", glCode: "001230" };
+  b.expenses = [{ id: "overspend", categoryId: b.categories[0].id, description: "Invoice", amount: 125, status: "paid", history: ["paid"] }];
+  assert.equal(totals(b, b.categories[0].id).left, -25);
+  assert.match(csvText(b), /"'=SUM\(A1\)","100","125","0","-25","'-2\+3","'001230"/);
+  assert.doesNotMatch(csvText(b), /"'-25"/);
+});
 test("category changes preserve before/after values in the audit trail", () => {
   const b = exampleBudget();
   const id = b.categories[0].id;

@@ -350,8 +350,11 @@ export function reportText(budget) {
     )}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;
 }
 export function csvText(budget) {
-  const cell = (v) =>
-    `"${safeSpreadsheetText(String(v)).replaceAll('"', '""')}"`;
+  const cell = (v) => {
+    // Calculated amounts are numbers, not user-authored formula text.
+    const value = typeof v === "number" ? String(v) : safeSpreadsheetText(String(v));
+    return `"${value.replaceAll('"', '""')}"`;
+  };
   return [
     [
       "Category",
