@@ -14,6 +14,7 @@ import {
   csvText,
   editCategory,
   editBudgetDetails,
+  editExpense,
   exampleBudget,
   localDate,
   money,
@@ -21,10 +22,13 @@ import {
   parseBook,
   serializeBook,
   reportText,
+  removeExpense,
   round,
   totals,
 } from "./model.mjs";
 import { useBook } from "./use-book";
+import { buildAiReadyPack } from "./ai-portal.mjs";
+import AskAiSheet from "./ask-ai-sheet";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -172,6 +176,7 @@ export default function BudgetApp() {
   const [activePage, setPage] = useState<Page | null>(null);
   const page = activePage ?? (budget.created ? "home" : "start");
   const [toast, setToast] = useState<{ text: string; kind: ToastKind } | null>(null);
+  const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
   const [view, setView] = useState("categories");
   const [focus, setFocus] = useState("");
@@ -184,6 +189,14 @@ export default function BudgetApp() {
     date: localDate(),
   });
   const [showNote, setShowNote] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
+  const newEntryDraft = useRef(draft);
+  const spendingForm = useRef<HTMLFormElement>(null);
+  const editingTrigger = useRef<HTMLButtonElement | null>(null);
+  const entriesHeading = useRef<HTMLHeadingElement>(null);
+  const removalHeading = useRef<HTMLHeadingElement>(null);
+  const removeTrigger = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const followedCategory =
     budget.categories.find((category) => category.id === focus) ?? budget.categories[0];
@@ -205,9 +218,43 @@ export default function BudgetApp() {
     });
   }
   function go(next: Page) {
+    if (next !== "spend" && editingId) closeExpense(false);
     setPage(next);
     window.scrollTo({ top: 0 });
     setTimeout(() => titleRef.current?.focus(), 0);
+  }
+  function openExpense(expense: Expense, trigger: HTMLButtonElement) {
+    if (editingId === expense.id) {
+      spendingForm.current?.scrollIntoView({ block: "start" });
+      spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
+      return;
+    }
+    if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
+    if (!editingId) newEntryDraft.current = draft;
+    editingTrigger.current = trigger;
+    setEditingId(expense.id);
+    setConfirmRemoval(false);
+    setDraft({ ...expense, amount: String(expense.amount) });
+    requestAnimationFrame(() => {
+      spendingForm.current?.scrollIntoView({ block: "start" });
+      spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
+    });
+  }
+  function closeExpense(returnFocus = true) {
+    setEditingId(null);
+    setConfirmRemoval(false);
+    setDraft(newEntryDraft.current);
+    if (returnFocus) requestAnimationFrame(() => {
+      const target = editingTrigger.current?.isConnected ? editingTrigger.current : entriesHeading.current;
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "nearest" });
+    });
+  }
+  function deleteExpense() {
+    if (!editingId) return;
+    const saved = setBudget((b) => removeExpense(b, editingId));
+    closeExpense();
+    notify(saved ? "Entry removed. Your totals are up to date; its history stays in the audit trail." : "Entry removed on this page only. Download a book backup before leaving.");
   }
   function updateCategory(id: string, patch: Partial<Category>) {
     setBudget((b) => editCategory(b, id, patch));
@@ -257,10 +304,35 @@ export default function BudgetApp() {
     e.preventDefault();
     const amount = round(draft.amount);
     if (!(amount > 0)) return;
+    if (!draft.description.trim()) {
+      notify("Give this entry a description.");
+      return;
+    }
     const categoryId = budget.categories.some((c) => c.id === draft.categoryId)
       ? draft.categoryId
       : budget.categories[0]?.id;
     if (!categoryId) return;
+    if (editingId) {
+      if (!budget.expenses.some((expense) => expense.id === editingId)) {
+        closeExpense();
+        notify("This entry is no longer in your book. Choose another entry to edit.");
+        return;
+      }
+      try {
+        const saved = setBudget((b) => editExpense(b, editingId, {
+          description: draft.description,
+          amount,
+          categoryId,
+          status: draft.status as Expense["status"],
+          date: draft.date,
+        }));
+        closeExpense();
+        notify(saved ? "Changes saved. Your totals and report are up to date." : "Changes are on this page only. Download a book backup before leaving.");
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Could not update this entry.");
+      }
+      return;
+    }
     const expense: Expense = {
       ...draft,
       categoryId,
@@ -800,8 +872,12 @@ export default function BudgetApp() {
                     "An idea, a bill, or a payment. Keep it all in one simple place.",
                   )}
                   <div className="content-grid spend-grid">
-                    <form className="paper spending-form" onSubmit={addExpense}>
-                      <h2>Log spending</h2>
+                    <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
+                      <div className="spending-form-heading">
+                        <h2>{editingId ? "Edit spending" : "Log spending"}</h2>
+                        {editingId && <button type="button" className="text-button" onClick={() => closeExpense()}>Cancel</button>}
+                      </div>
+                      {editingId && <p className="hint editing-hint">Correct this entry below. Your totals update when you save.</p>}
                       <label className="field">
                         What’s it for?
                         <input
@@ -922,12 +998,32 @@ export default function BudgetApp() {
                         disabled={!budget.categories.length}
                         type="submit"
                       >
-                        Save spending <Icon name="check" size={19} />
+                        {editingId ? "Save changes" : "Save spending"} <Icon name="check" size={19} />
                       </button>
+                      {editingId && (
+                        confirmRemoval ? (
+                          <section className="remove-entry-confirmation" aria-labelledby="remove-entry-heading">
+                            <h3 id="remove-entry-heading" ref={removalHeading} tabIndex={-1}>Remove “{budget.expenses.find((e) => e.id === editingId)?.description}”?</h3>
+                            <p>It will no longer count in your totals or report. The original entry stays in your audit trail.</p>
+                            <div className="remove-entry-actions">
+                              <button type="button" className="secondary" onClick={() => {
+                                setConfirmRemoval(false);
+                                requestAnimationFrame(() => removeTrigger.current?.focus());
+                              }}>Keep entry</button>
+                              <button type="button" className="secondary danger-button" onClick={deleteExpense}>Yes, remove entry</button>
+                            </div>
+                          </section>
+                        ) : (
+                          <button ref={removeTrigger} type="button" className="text-button remove-entry" onClick={() => {
+                            setConfirmRemoval(true);
+                            requestAnimationFrame(() => removalHeading.current?.focus());
+                          }}>Remove entry</button>
+                        )
+                      )}
                     </form>
                     <section className="recent-spending">
                       <div className="section-heading">
-                        <h2>In your book</h2>
+                        <h2 ref={entriesHeading} tabIndex={-1}>In your book</h2>
                         <span>
                           {budget.expenses.length}{" "}
                           {budget.expenses.length === 1 ? "entry" : "entries"}
@@ -945,11 +1041,18 @@ export default function BudgetApp() {
                       ) : (
                         [...budget.expenses].reverse().map((e) => (
                           <article className="expense-row" key={e.id}>
-                            <div className="expense-top">
+                            <button
+                              type="button"
+                              className={`expense-edit${editingId === e.id ? " is-editing" : ""}`}
+                              aria-label={`Edit ${e.description}, ${money(e.amount)}, ${e.status}`}
+                              aria-pressed={editingId === e.id}
+                              onClick={(event) => openExpense(e, event.currentTarget)}
+                            >
+                            <span className="expense-top">
                               <strong>{e.description}</strong>
                               <strong>{money(e.amount)}</strong>
-                            </div>
-                            <div className="expense-meta">
+                            </span>
+                            <span className="expense-meta">
                               <span>
                                 {
                                   budget.categories.find(
@@ -961,10 +1064,13 @@ export default function BudgetApp() {
                               <span className={`status-label ${e.status}`}>
                                 {e.status}
                               </span>
-                            </div>
+                            </span>
+                            <span className="expense-edit-label">{editingId === e.id ? "Editing entry" : "Edit entry"}<Icon name="arrow" size={15} /></span>
+                            </button>
                             {e.status !== "paid" && (
                               <button
                                 className="text-button"
+                                disabled={editingId === e.id}
                                 onClick={() => {
                                   const saved = change(
                                     advanceExpense(budget, e.id),
@@ -1431,6 +1537,9 @@ export default function BudgetApp() {
                         Send this check-in to your partner, your team, or your
                         future self.
                       </p>
+                      <button className="secondary full" onClick={() => setAiPack(buildAiReadyPack(budget))}>
+                        Ask AI <Icon name="share" size={18} />
+                      </button>
                       <button
                         className="secondary full"
                         onClick={() => {
@@ -1510,6 +1619,7 @@ export default function BudgetApp() {
           </button>
         ))}
       </nav>
+      {aiPack !== null && <AskAiSheet pack={aiPack} book={budget} onClose={() => setAiPack(null)} />}
       {toast && (
         <div
           className={`toast toast-${toast.kind}`}

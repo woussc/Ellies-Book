@@ -26,7 +26,7 @@ export type Budget = {
   categories: Category[];
   expenses: Expense[];
   notes: string;
-  events: { text: string; at: string }[];
+  events: { text: string; at: string; before?: unknown; after?: unknown }[];
 };
 export const STORAGE_KEY: string;
 export const SAMPLE_STORAGE_KEY: string;
@@ -43,6 +43,12 @@ export function money(value: number): string;
 export function blankBudget(profile?: Profile, initial?: {id?: string; period?: string}): Budget;
 export function exampleBudget(): Budget;
 export function advanceExpense(budget: Budget, id: string): Budget;
+export function editExpense(
+  budget: Budget,
+  id: string,
+  patch: Partial<Pick<Expense, "description" | "amount" | "categoryId" | "status" | "date">>,
+): Budget;
+export function removeExpense(budget: Budget, id: string): Budget;
 export function editBudgetDetails(
   budget: Budget,
   details: Pick<Budget, "name" | "total" | "profile" | "period">,
