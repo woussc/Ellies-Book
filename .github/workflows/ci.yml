@@ -46,7 +46,7 @@ jobs:
         run: pnpm run lint
 
       - name: Domain gate (dependency-free)
-        run: node --test tests/budget-domain.test.mjs
+        run: node --test tests/budget-domain.test.mjs tests/book-model.test.mjs
 
       - name: Build (vinext / Vite production build)
         run: pnpm run build
@@ -55,6 +55,9 @@ jobs:
         # The build already ran above, so call the node test directly instead of
         # `pnpm run test` (which would run `vinext build` a second time).
         run: node --test tests/rendered-html.test.mjs
+
+      - name: Build the same app for GitHub Pages
+        run: pnpm run build:pages
 
   visual-screenshots:
     name: Playwright visual screenshots (1440 / 768 / 390)
