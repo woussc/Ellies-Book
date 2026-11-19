@@ -307,13 +307,24 @@ button:hover {
 .skip-link {
   position: fixed;
   left: 16px;
-  top: -70px;
+  top: 16px;
   z-index: 100;
   background: var(--surface);
-  padding: 12px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  padding: 0;
+  pointer-events: none;
 }
-.skip-link:focus {
-  top: 16px;
+.skip-link:focus-visible {
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  padding: 12px;
+  pointer-events: auto;
 }
 .app-shell {
   display: flex;
@@ -1698,6 +1709,13 @@ tbody th {
 }
 .toast > svg {
   color: var(--green-soft);
+  flex-shrink: 0;
+}
+.toast-error {
+  background: var(--danger);
+}
+.toast-error > svg {
+  color: var(--surface);
 }
 @keyframes toast-in {
   from {
@@ -2671,11 +2689,6 @@ tbody th {
   text-align: left;
   cursor: pointer;
   min-height: 48px;
-}
-/* Keep the skip control available to keyboard users, not persistent pointer focus. */
-.skip-link:not(:focus-visible) {
-  top: -100px;
-  transform: translateY(-100%);
 }
 button {
   min-width: 44px;
