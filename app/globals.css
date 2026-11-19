@@ -136,7 +136,8 @@
 .board-note-editor { display: grid; gap: 8px; margin-top: 12px; font-size: 13px; }
 .board-note-editor textarea { min-height: 180px; width: 100%; font: 400 16px/1.5 var(--font); resize: vertical; }
 .board-note-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.board-note-links button { min-height: 44px; padding: 8px 12px; background: var(--soft); border-radius: 10px; color: var(--accent); font-size: 13px; }
+.board-note-links button { appearance: none; min-height: 44px; padding: 8px 12px; background: var(--soft); border: 1px solid var(--border); border-radius: 10px; color: var(--accent); font-size: 13px; }
+.board-note-preview .eb-wikilink-pill, .board-note-preview .eb-tag-pill { appearance: none; border: 0; border-radius: 6px; }
 .board-note-links button[aria-pressed="true"] { outline: 1px solid var(--accent); }
 .board-note-unresolved, .board-note-save { font-size: 13px; color: var(--muted); margin: 14px 0 0; overflow-wrap: anywhere; }
 .board-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; }
