@@ -4,6 +4,7 @@ export type Expense = { id: string; categoryId: string; description: string; amo
 export type Budget = { id: string; name: string; profile: Profile; total: number; period: string; created: boolean; sample: boolean; categories: Category[]; expenses: Expense[]; notes: string; events: { text: string; at: string }[] };
 export const STORAGE_KEY: string;
 export const SAMPLE_STORAGE_KEY: string;
+export function localDate(date?: Date): string;
 export function readStoredBudget(storage: Storage, example?: boolean): Budget;
 export function persistBudget(storage: Storage, budget: Budget): void;
 export const profiles: Record<Profile, string[]>;

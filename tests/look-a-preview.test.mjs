@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { advanceExpense, blankBudget, csvText, editCategory, exampleBudget, persistBudget, readStoredBudget, reportText, totals } from "../app/look-a-preview/model.mjs";
 
 test("an unpaid invoice is a commitment, not actual spent", () => {
@@ -48,4 +49,8 @@ test("category changes preserve before/after values in the audit trail", () => {
   assert.equal(edited.events.at(-1).before.amount,2000); assert.equal(edited.events.at(-1).after.amount,2100);
   assert.match(edited.events.at(-1).text,/2000 → 2100/); assert.match(edited.events.at(-1).text,/001230/);
   assert.equal(editCategory(edited,id,{amount:2100}),edited);
+});
+test("spending date uses the local day rather than the UTC day", () => {
+  const result = spawnSync(process.execPath,["--input-type=module","-e",`import { localDate } from './app/look-a-preview/model.mjs'; console.log(localDate(new Date('2026-11-19T01:00:00Z')));`],{env:{...process.env,TZ:"America/Los_Angeles"},encoding:"utf8"});
+  assert.equal(result.status,0); assert.equal(result.stdout.trim(),"2026-11-18");
 });

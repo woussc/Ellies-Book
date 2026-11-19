@@ -3,6 +3,9 @@ import { computeLifecycleLineage, safeSpreadsheetText } from "../budget-domain.m
 
 export const STORAGE_KEY = "ellies-book:look-a:v1";
 export const SAMPLE_STORAGE_KEY = "ellies-book:look-a:example:v1";
+export function localDate(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+}
 export function readStoredBudget(storage, example = true) {
   for (const key of example ? [SAMPLE_STORAGE_KEY, STORAGE_KEY] : [STORAGE_KEY]) {
     const raw = storage.getItem(key);

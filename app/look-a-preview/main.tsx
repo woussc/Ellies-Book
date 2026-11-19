@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { advanceExpense, blankBudget, csvText, editCategory, exampleBudget, money, persistBudget, profiles, readStoredBudget, reportText, round, totals } from "./model.mjs";
+import { advanceExpense, blankBudget, csvText, editCategory, exampleBudget, localDate, money, persistBudget, profiles, readStoredBudget, reportText, round, totals } from "./model.mjs";
 import "./style.css";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -41,7 +41,7 @@ function App() {
   const [page, setPage] = useState<Page>(() => loadBudget().created ? "home" : "start");
   const [toast, setToast] = useState(""); const [storageError, setStorageError] = useState(false);
   const [view, setView] = useState("categories"); const [focus, setFocus] = useState(""); const [newCategory, setNewCategory] = useState("");
-  const [draft, setDraft] = useState({ description: "", amount: "", categoryId: "", status: "paid", date: new Date().toISOString().slice(0,10) });
+  const [draft, setDraft] = useState({ description: "", amount: "", categoryId: "", status: "paid", date: localDate() });
   const [showNote, setShowNote] = useState(false); const titleRef = useRef<HTMLHeadingElement>(null);
   const t = totals(budget); const allocated = budget.categories.reduce((s,c) => s+c.amount,0); const unassigned = round(budget.total-allocated);
   const notify = (text: string) => setToast(text);
