@@ -7,6 +7,7 @@ export const businessFunctions = sqliteTable("business_functions", {
   status: text("status").notNull().default("Active"),
   defaultCurrency: text("default_currency").notNull().default("USD"),
   fiscalYearStartMonth: integer("fiscal_year_start_month").notNull().default(6),
+  workspaceId: text("workspace_id").notNull().default("ws-local-default"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -24,6 +25,7 @@ export const projects = sqliteTable("projects", {
   status: text("status").notNull().default("Active"),
   currency: text("currency").notNull().default("USD"),
   approvedAmount: real("approved_amount").notNull().default(0),
+  workspaceId: text("workspace_id").notNull().default("ws-local-default"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -212,6 +214,29 @@ export const projectOutcomes = sqliteTable("project_outcomes", {
   owner: text("owner").notNull().default(""),
   measurementWindow: text("measurement_window").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Wave 13 D1 — multi-tenant workspace identity (ADR 0001 Decision 1).
+// Local-first stays the default: every row belongs to "ws-local-default"
+// unless a workspace is explicitly resolved (W13-D2), so existing
+// single-user calls work unchanged and tenant scoping is opt-in per query.
+export const workspaces = sqliteTable("workspaces", {
+  workspaceId: text("workspace_id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  planTier: text("plan_tier").notNull().default("local-hybrid"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const workspaceMembers = sqliteTable("workspace_members", {
+  memberId: text("member_id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .references(() => workspaces.workspaceId),
+  actorEmail: text("actor_email").notNull(),
+  role: text("role").notNull().default("editor"),
+  tokenHash: text("token_hash").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 

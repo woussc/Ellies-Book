@@ -10,22 +10,23 @@
 
 ---
 
-## W8-candidate-A — Optional 390px plan-table stacked-card layout `[proposed]` `[Decision for SHUAI]`
+## W8-candidate-A — Optional 390px plan-table stacked-card layout `[done]`
 
-- `[Fact]` **Finding**: The Overview "The plan" table has no true 390px stacked-card layout. `data-label` attributes exist on the cells, but there is NO `content: attr(data-label)` card-mode CSS, so on mobile the table falls back to horizontal scroll.
-- **Goal** (if SHUAI wants it): add a mobile breakpoint that turns each plan row into a stacked card, using the existing `data-label` attributes via `content: attr(data-label)`, so the plan reads cleanly at 390px with no horizontal scroll.
+- `[Fact]` **Finding (corrected W13-T1)**: The stacked-card layout is ALREADY in `main` @ `110e2fd` — `@media (max-width: 680px)` `.eb-plan-table td::before { content: attr(data-label) }` in `app/globals.css` (line 2493) plus test #20 in `tests/budget-domain.test.mjs` (lines 909-943). The earlier "not implemented" reading was wrong.
+- **Goal** (decided by SHUAI 10 Nov 2026, Gate 1): KEEP the stacked-card layout and dark-tune it (do not revert to horizontal scroll). Execution is ticket `W13-T2` in `.scratch/tickets/W13-verification-debt-and-w8-followups.md`.
 - **Scope**: `app/ellies-book-workbench.tsx` (`.eb-plan-table` markup already carries `data-label`) + `app/globals.css` (new `@media` card-mode rules). Do NOT touch domain / schema / `/api/sync`.
 - **Gate / verification**: `node --test tests/budget-domain.test.mjs` green; plus CI/visual re-check at 390px in a build-capable env.
-- **Status gate**: `[Decision for SHUAI]` — this is flagged on PR #1. **Do NOT implement until SHUAI decides.** A desktop-first product may not need it.
+- **Status gate**: `[Decision made]` — SHUAI chose keep & dark-tune (Gate 1, 10 Nov 2026). Execution in `W13-T2`.
 
 ---
 
-## W8-candidate-B — Re-anchor the "Hybrid Sync Snapshot" presence guard `[proposed]`
+## W8-candidate-B — Re-anchor the "Hybrid Sync Snapshot" presence guard `[done]`
 
 - `[Fact]` **Finding**: The pre-existing test guard `assert.match(src, /Hybrid Sync Snapshot/)` in `tests/budget-domain.test.mjs` is now satisfied only by a code comment, because W7-T5 replaced the user-visible "Hybrid Sync Snapshot" phrasing with the plain-language affordance. The guard no longer proves anything user-facing.
 - **Goal**: re-anchor that assurance to something meaningful — either a currently-visible sync string (e.g. "Saved here and backed up to the cloud") or the presence of the `/api/sync` call wiring — so the guard regress-fails if the hybrid sync surface is removed.
 - **Scope**: `tests/budget-domain.test.mjs` only (and, if needed, confirm the chosen anchor string exists in `app/ellies-book-workbench.tsx`). Do NOT touch domain / schema / `/api/sync`.
 - **Gate / verification**: `node --test tests/budget-domain.test.mjs` green with the re-anchored guard (test count unchanged or +0; this re-targets an existing assertion).
+- `[Fact]` **Done (W13-T1, 10 Nov 2026)**: re-anchored in test #15 (line 759) and hardened in the hybrid-backup-surface test — all three plain-language sync states asserted, `fetch("/api/sync")` POST wiring asserted via `triggerHybridSync`, and the obsolete phrasing guarded to code comments only. Gate 25/25 green.
 
 ---
 
@@ -37,7 +38,7 @@
 - `[Projection]` **Part 2 — ROADMAP §5 next step (deployment)**: stand up the Cloudflare D1 / multi-tenant auth deployment so Ellie's Book runs as either a local-first vault app or a cloud-hosted SaaS with workspace authentication (realizes ADR 0001 Decision 1 end-to-end; relates to the roadmap `W4-T2` hybrid-persistence objective). Decompose into atomic tracer-bullet slices before any implementation.
 - **Scope**: `db/schema.ts`, `app/api/sync/route.ts`, auth/session wiring, deployment config. `[Reminder]` Any change here breaks Coordinate Invariance only if it touches node geometry or financial totals — keep those pure.
 - **Gate / verification**: `node --test tests/budget-domain.test.mjs` green throughout; full CI gate per Part 1 before merge.
-- **Status gate**: `[placeholder]` — scope and sequencing to be defined with SHUAI before work starts.
+- **Status gate**: `[Fact]` Part 1 is ticket `W13-T3` (CI/visual pass); Part 2 is tickets `W13-D1..D4` (D4 deferred). Decision Gates 2 & 3 approved by SHUAI 10 Nov 2026.
 
 ---
 
