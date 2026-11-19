@@ -320,6 +320,60 @@ export function advanceExpense(budget, id) {
     ),
   };
 }
+// Corrections replace the current financial projection, not the audit record.
+// In particular, correcting Paid back to Committed must not leave an Actual
+// in the active lineage. The complete prior lineage remains in event.before.
+export function editExpense(budget, id, patch) {
+  const before = budget.expenses.find((e) => e.id === id);
+  if (!before) return budget;
+  const labels = { description: "Description", amount: "Amount", categoryId: "Category", status: "Status", date: "Date" };
+  const after = { ...before };
+  for (const key of Object.keys(labels)) {
+    if (Object.hasOwn(patch, key)) after[key] = patch[key];
+  }
+  if (typeof after.description !== "string" || !after.description.trim() || after.description.length > 100)
+    throw new Error("Give this entry a description of up to 100 characters.");
+  after.description = after.description.trim();
+  if (typeof after.amount !== "number" || !Number.isFinite(after.amount) || after.amount <= 0 || after.amount > 1e9)
+    throw new Error("Enter an amount between $0.01 and $1,000,000,000.");
+  after.amount = round(after.amount);
+  const changed = Object.keys(labels).filter((key) => before[key] !== after[key]);
+  if (!changed.length) return budget;
+  const states = ["planned", "committed", "paid"];
+  if (before.status !== after.status) {
+    after.history = [...before.history.filter((s) => states.indexOf(s) < states.indexOf(after.status)), after.status];
+  }
+  const value = (key, entry) => key === "amount" ? money(entry[key])
+    : key === "categoryId" ? budget.categories.find((c) => c.id === entry[key])?.name ?? entry[key]
+    : entry[key];
+  const next = {
+    ...budget,
+    expenses: budget.expenses.map((e) => e.id === id ? after : e),
+    events: [...budget.events, {
+      text: `Corrected ${before.description}: ${changed.map((key) => `${labels[key]}: ${value(key, before)} → ${value(key, after)}`).join("; ")}`,
+      at: new Date().toISOString(),
+      before,
+      after,
+    }],
+  };
+  validateBudget(next);
+  return next;
+}
+export function removeExpense(budget, id) {
+  const before = budget.expenses.find((e) => e.id === id);
+  if (!before) return budget;
+  const category = budget.categories.find((c) => c.id === before.categoryId)?.name;
+  return {
+    ...budget,
+    expenses: budget.expenses.filter((e) => e.id !== id),
+    events: [...budget.events, {
+      text: `Removed ${before.description} · ${money(before.amount)} · ${before.status} · ${category} · ${before.date}. Kept in the audit trail, excluded from totals.`,
+      at: new Date().toISOString(),
+      before,
+      after: null,
+    }],
+  };
+}
 export function editBudgetDetails(budget, details) {
   const labels = { name: "Name", total: "Budget total", profile: "Profile", period: "Period" };
   const before = Object.fromEntries(Object.keys(labels).map((key) => [key, budget[key]]));

@@ -7,15 +7,42 @@ import {
   csvText,
   editCategory,
   editBudgetDetails,
+  editExpense,
   exampleBudget,
   legacyBackup,
   parseBook,
   persistBudget,
   readStoredBudget,
   reportText,
+  removeExpense,
   serializeBook,
   totals,
 } from "../app/book/model.mjs";
+
+test("correcting Coffee updates every money projection and preserves the original in the book", () => {
+  const b = blankBudget("Team");
+  b.total = 2000;
+  b.categories[0].amount = 1500;
+  b.expenses = [
+    { id: "other", categoryId: "category-0", description: "Other payments", amount: 1131.13, status: "paid", history: ["paid"], date: "2026-11-01" },
+    { id: "coffee", categoryId: "category-0", description: "Coffee", amount: 12.34, status: "paid", history: ["planned", "committed", "paid"], date: "2026-11-19" },
+  ];
+  assert.equal(totals(b).spent, 1143.47);
+  const corrected = editExpense(b, "coffee", { amount: 2.34 });
+  assert.equal(totals(corrected).spent, 1133.47);
+  assert.equal(totals(corrected).committed, 0);
+  assert.equal(totals(corrected).left, 866.53);
+  assert.equal(totals(corrected, "category-0").spent, 1133.47);
+  assert.match(reportText(corrected), /We've paid \$1,133\.47/);
+  assert.match(csvText(corrected), /"People","1500","1133.47","0","366.53"/);
+  const restored = parseBook(serializeBook(corrected));
+  assert.deepEqual(restored, corrected);
+  assert.deepEqual(restored.events.at(-1).before, b.expenses[1]);
+  assert.deepEqual(restored.events.at(-1).after, corrected.expenses[1]);
+  assert.match(restored.events.at(-1).text, /Coffee.*\$12\.34 → \$2\.34/);
+  assert.equal(b.expenses[1].amount, 12.34);
+  assert.equal(editExpense(corrected, "coffee", { amount: 2.34 }), corrected);
+});
 
 test("an unpaid invoice is a commitment, not actual spent", () => {
   const b = blankBudget();
@@ -46,6 +73,63 @@ test("an unpaid invoice is a commitment, not actual spent", () => {
   });
   assert.equal(totals(paid, b.categories[0].id).left, 415);
   assert.equal(advanceExpense(paid, "invoice").expenses[0].history.length, 2);
+});
+
+test("status and category corrections replace exposure without double counting previous payments", () => {
+  const b = exampleBudget();
+  let edited = editExpense(b, "shop", { description: "Office groceries", categoryId: "category-4", date: "2026-11-18", status: "committed" });
+  assert.equal(totals(edited).spent, 1600);
+  assert.equal(totals(edited).committed, 191.5);
+  assert.equal(totals(edited).left, 3208.5);
+  assert.equal(totals(edited, "category-1").spent, 0);
+  assert.equal(totals(edited, "category-4").committed, 126.5);
+  assert.match(edited.events.at(-1).text, /Food & groceries → A little extra/);
+  assert.match(edited.events.at(-1).text, /paid → committed/);
+  assert.deepEqual(edited.expenses.find((e) => e.id === "shop").history, ["committed"]);
+  edited = advanceExpense(edited, "shop");
+  assert.equal(totals(edited).spent, 1726.5);
+  assert.equal(totals(edited).committed, 65);
+  edited = editExpense(edited, "shop", { status: "planned" });
+  assert.equal(totals(edited).spent, 1600);
+  assert.equal(totals(edited).committed, 65);
+  assert.equal(totals(edited).left, 3335);
+  assert.equal(parseBook(serializeBook(edited)).events[0].before.status, "paid");
+});
+
+test("removal excludes spending from projections but keeps a complete, persistent audit record", () => {
+  const b = exampleBudget();
+  for (const [id, spent, committed, left] of [
+    ["shop", 1600, 65, 3335],
+    ["internet", 1726.5, 0, 3273.5],
+    ["weekend", 1726.5, 65, 3208.5],
+  ]) {
+    const removed = removeExpense(b, id);
+    assert.equal(removed.expenses.some((e) => e.id === id), false);
+    assert.equal(b.expenses.length, 4);
+    assert.equal(totals(removed).spent, spent);
+    assert.equal(totals(removed).committed, committed);
+    assert.equal(totals(removed).left, left);
+    const restored = parseBook(serializeBook(removed));
+    assert.deepEqual(restored.events.at(-1).before, b.expenses.find((e) => e.id === id));
+    assert.equal(restored.events.at(-1).after, null);
+    assert.match(restored.events.at(-1).text, /Removed.*Kept in the audit trail/);
+    assert.equal(removeExpense(removed, id), removed);
+  }
+  const removed = removeExpense(b, "shop");
+  assert.match(reportText(removed), /We've paid \$1,600/);
+  assert.match(csvText(removed), /"Food & groceries","900","0","0","900"/);
+});
+
+test("invalid corrections cannot replace a valid book or rewrite immutable entry identity", () => {
+  const b = exampleBudget();
+  for (const patch of [
+    { amount: -1 }, { amount: 0 }, { amount: NaN }, { amount: 1e10 },
+    { amount: 0.001 }, { categoryId: "missing" }, { status: "unknown" },
+    { description: "   " }, { date: "not-a-date" },
+  ]) assert.throws(() => editExpense(b, "shop", patch));
+  assert.equal(editExpense(b, "shop", { id: "rewritten", history: ["planned"] }), b);
+  assert.equal(editExpense(b, "missing", { amount: 1 }), b);
+  assert.equal(b.events.length, 0);
 });
 test("planned -> committed -> paid keeps one exposure and an auditable trail", () => {
   const b = blankBudget();
