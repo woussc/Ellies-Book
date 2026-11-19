@@ -285,6 +285,25 @@ export function computeLifecycleLineage(arg1 = {}, arg2 = [], arg3 = []) {
   };
 }
 
+// Shared headroom/forecast calculation for the canonical graph and the v1 book.
+// Proposed ideas do not increase approved budget or count as paid spending.
+export function computeBudgetSummary({
+  plannedTotal = 0,
+  approvedBudget = 0,
+  uncommittedProposedCost = 0,
+  lifecycleLines = [],
+  transitions = [],
+}) {
+  const lineage = computeLifecycleLineage({ lifecycleLines, transitions, approvedBudget });
+  const uncommittedPlannedCost = Math.max(
+    0,
+    plannedTotal - lineage.actualTotal - lineage.openCommitmentTotal,
+    uncommittedProposedCost,
+  );
+  const forecastSpend = lineage.actualTotal + lineage.openCommitmentTotal + uncommittedPlannedCost;
+  return { ...lineage, plannedTotal, approvedBudget, uncommittedPlannedCost, forecastSpend, projectedHeadroom: approvedBudget - forecastSpend };
+}
+
 export function extractWikilinks(markdownText = "") {
   const rawText = String(markdownText ?? "");
   const frontmatter = {};
@@ -1619,7 +1638,6 @@ export function buildHybridSyncReceipt(projectData = {}, options = {}) {
     vaultPaths,
   };
 }
-
 
 
 
