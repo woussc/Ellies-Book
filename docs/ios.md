@@ -3,6 +3,11 @@
 Use a Mac with Xcode 26 or newer, Node 22.13 or newer and pnpm 9.15.9.
 The project uses Swift Package Manager. CocoaPods is not needed.
 
+[Fact] The app requires iOS 15.4 or newer for WebKit's `crypto.randomUUID()` support.
+[Fact] Capacitor sync regenerates the app SPM manifest with iOS 15.0. Restore
+`platforms: [.iOS("15.4")]` in `ios/App/CapApp-SPM/Package.swift` after sync.
+The Xcode app deployment target stays at 15.4.
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm run build:ios

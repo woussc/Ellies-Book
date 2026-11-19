@@ -1,5 +1,11 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS3 minimum version
+
+- [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `fe7735166d25cbc4a483164c38b8037698d826d6`. IOS3 is complete in the commit containing this checkpoint. Ticket: `.scratch/tickets/IOS3-minimum-version.md`.
+- [Fact] App/project deployment targets and app SPM platform are iOS 15.4. Plugin packages and domain/model code are unchanged. `build:ios` exits 0; simulator Xcode build prints `** BUILD SUCCEEDED **` after the final manifest edit.
+- [Fact] Capacitor sync rewrites the app SPM platform to iOS 15.0, but preserves Xcode deployment targets at 15.4. Restored the app SPM minimum after sync and documented this manual step in `docs/ios.md`.
+
 ## Latest checkpoint — IOS2 simulator fixes
 
 - [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `bb942c3`. IOS2 is complete in the commit containing this checkpoint. Ticket: `.scratch/tickets/IOS2-simulator-fixes.md`.
