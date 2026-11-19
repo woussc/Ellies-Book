@@ -8,6 +8,9 @@
   },
   "scripts": {
     "dev": "vinext dev",
+    "dev:look-a": "vite --config vite.config.look-a.ts",
+    "build:look-a": "vite build --config vite.config.look-a.ts",
+    "preview:look-a": "vite preview --config vite.config.look-a.ts",
     "build": "vinext build",
     "build:pages": "vite build --config vite.config.pages.ts",
     "start": "vinext start",
