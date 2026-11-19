@@ -8,8 +8,8 @@ name: CI — Lint, Build, Test & Visual Screenshots
 #   uploaded as a PR artifact so breakpoints can be reviewed from the PR.
 
 on:
-  pull_request:
-    branches: [main]
+  # Also verify upper layers whose base is another feature branch.
+  pull_request: {}
   push:
     branches: [main]
 
