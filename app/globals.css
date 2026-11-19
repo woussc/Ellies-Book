@@ -85,6 +85,13 @@ body {
 .ai-sheet-heading { justify-content: space-between; }
 .ai-sheet h2 { margin: 0; font: 500 30px var(--serif); }
 .ai-sheet button { min-height: 44px; }
+.ai-sheet h3 { margin: 0 0 8px; font: 600 16px var(--font); }
+.ai-share-contents, .ai-questions { margin: 20px 0; }
+.ai-share-contents ul { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+.ai-sheet ul { margin: 0; padding-left: 20px; }
+.ai-questions li + li { margin-top: 6px; }
+.ai-exact-copy { margin-top: 16px; border-top: 1px solid var(--border); }
+.ai-exact-copy summary { min-height: 44px; padding: 12px 0; cursor: pointer; }
 .ai-sheet .ai-pack-preview { min-height: 180px; height: 26dvh; resize: vertical; font: 14px/1.5 var(--font); }
 .ai-sheet [role="status"]:empty { display: none; }
 @media (max-width: 600px) {

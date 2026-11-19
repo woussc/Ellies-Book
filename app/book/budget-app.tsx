@@ -1509,7 +1509,7 @@ export default function BudgetApp() {
           </button>
         ))}
       </nav>
-      {aiPack !== null && <AskAiSheet pack={aiPack} onClose={() => setAiPack(null)} />}
+      {aiPack !== null && <AskAiSheet pack={aiPack} book={budget} onClose={() => setAiPack(null)} />}
       {toast && (
         <div className="toast" role="status">
           <Icon name="check" size={18} />
