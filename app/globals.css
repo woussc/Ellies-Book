@@ -1570,7 +1570,9 @@ tbody th {
 }
 .toast > .icon-button {
   color: var(--surface);
-  min-width: 34px;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 .toast > svg {
   color: var(--green-soft);
