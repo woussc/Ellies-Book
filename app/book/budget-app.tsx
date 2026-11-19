@@ -1313,7 +1313,9 @@ export default function BudgetApp() {
                       </p>
                       <h3>What we want to remember</h3>
                       <div className="report-notes">
-                        {budget.notes || "No notes added yet."}
+                        {budget.notes
+                          ? renderMarkdownDocument(budget.notes)
+                          : <p>No notes added yet.</p>}
                       </div>
                       <footer>
                         Left = budget − paid − still to pay.

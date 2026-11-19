@@ -1497,6 +1497,32 @@ tbody th {
   font-size: 13px;
   color: var(--muted);
   line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+.report-notes :is(h1, h2, h3) {
+  font-family: var(--serif);
+  color: var(--text);
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 1em 0 0.5em;
+}
+.report-notes h1 {
+  font-size: 20px;
+}
+.report-notes h2 {
+  font-size: 18px;
+}
+.report-notes h3 {
+  font-size: 16px;
+}
+.report-notes :is(ul, ol) {
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+.report-notes p {
+  margin: 0.75em 0;
+}
+.report-notes pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
