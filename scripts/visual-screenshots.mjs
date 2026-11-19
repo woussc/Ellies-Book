@@ -175,6 +175,7 @@ async function checkBoardLayout(page) {
   assert.equal(await page.locator("[data-board-module]").first().getAttribute("data-board-module"), "committed");
   assert.equal(await page.locator(".module-committed.size-wide").count(), 1);
   const after = await stored();
+  delete before.board;
   delete after.board;
   assert.deepEqual(after, before, "Layout edits must not alter financial records, notes, or audit history");
   await page.reload({ waitUntil: "networkidle" });

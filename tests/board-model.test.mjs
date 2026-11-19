@@ -50,3 +50,20 @@ test("duplicate descriptions resolve consistently regardless of earlier id links
   assert.equal(resolveNoteLink(b, "second").categoryId, "category-1");
   assert.equal(resolveNoteLink(b, "missing"), undefined);
 });
+
+test("following a hidden record opens its containing card and record without changing the book", () => {
+  const original = exampleBudget();
+  original.expenses.push({ ...original.expenses[0], id: "idea", status: "planned", history: ["planned"] });
+  let b = original;
+  for (const [id, module] of [[original.categories[2].id, "budget"], ["rent", "paid"], ["internet", "committed"], ["idea", "budget"]]) {
+    b = changeBoard(b, { type: "size", id: module, size: "compact" });
+    b = changeBoard(b, { type: "reveal", id });
+    assert.equal(boardLayout(b).sizes[module], "wide");
+    assert.ok(boardLayout(b).expanded.includes(id));
+    const again = changeBoard(b, { type: "reveal", id });
+    assert.equal(boardLayout(again).expanded.filter(value => value === id).length, 1);
+  }
+  assert.deepEqual({ ...b, board: undefined }, { ...original, board: undefined });
+  assert.deepEqual(parseBook(serializeBook(b)), b);
+  assert.equal(changeBoard(b, { type: "reveal", id: "unknown" }), b);
+});

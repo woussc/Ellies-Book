@@ -30,6 +30,13 @@ export function changeBoard(budget, action) {
     if (![...budget.categories, ...budget.expenses].some(r => r.id === action.id)) return budget;
     board.expanded = layout.expanded.includes(action.id)
       ? layout.expanded.filter(id => id !== action.id) : [...layout.expanded, action.id];
+  } else if (action.type === "reveal") {
+    const category = budget.categories.find(c => c.id === action.id);
+    const expense = budget.expenses.find(e => e.id === action.id);
+    if (!category && !expense) return budget;
+    const card = category || expense.status === "planned" ? "budget" : expense.status;
+    board.sizes = { ...layout.sizes, [card]: "wide" };
+    board.expanded = [...new Set([...layout.expanded, action.id])];
   } else if (action.type === "node") {
     const ids = [...budget.categories, ...budget.expenses].map(r => r.id);
     if (!ids.includes(action.id) || !ids.includes(action.before) || action.id === action.before) return budget;

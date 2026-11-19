@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type PointerEvent, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type SetStateAction } from "react";
 import type { BoardModule, BoardSize, Budget, Expense } from "./model.mjs";
 import { money, totals } from "./model.mjs";
 import { boardLayout, changeBoard, noteConnections, orderedNodes, resolveNoteLink, type BoardAction } from "./board-model.mjs";
@@ -33,21 +33,46 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
   const [writing, setWriting] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [dragging, setDragging] = useState<BoardModule | null>(null);
-  const drag = useRef<{ id: BoardModule; x: number; y: number; before?: BoardModule | null } | null>(null);
+  const [dropBefore, setDropBefore] = useState<BoardModule | null | undefined>(undefined);
+  const drag = useRef<{ id: BoardModule; startX: number; startY: number; x: number; y: number; active: boolean; before?: BoardModule | null } | null>(null);
+  const dragFrame = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  const [destination, setDestination] = useState<{ id: string; module?: boolean } | null>(null);
+  useEffect(() => () => { if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current); }, []);
+  useEffect(() => {
+    if (dragging) boardRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+  }, [dragging]);
+  useEffect(() => {
+    if (!destination) return;
+    const frame = requestAnimationFrame(() => {
+      const node = Array.from(boardRef.current?.querySelectorAll<HTMLElement>(destination.module ? "[data-board-module]" : "[data-board-node]") ?? []).find(el => (destination.module ? el.dataset.boardModule : el.dataset.boardNode) === destination.id);
+      if (!node) return;
+      node.focus({ preventScroll: true });
+      node.scrollIntoView({ block: destination.module ? "start" : "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [destination]);
   const selected = budget.categories.find(c => c.id === category);
   const update = (action: BoardAction, text: string) => {
     const saved = setBudget(b => changeBoard(b, action));
     setAnnouncement(saved ? `${text} Layout saved.` : `${text} Not saved. Download a book backup before leaving.`);
   };
   function follow(id: string) {
-    setCategory(id);
     setNoteTag("");
-    setAnnouncement(id ? `Following ${budget.categories.find(c => c.id === id)?.name}. Related nodes are highlighted.` : "Showing all connections.");
+    if (!id) {
+      setCategory("");
+      setAnnouncement("Showing all connections.");
+      return;
+    }
+    const record = resolveNoteLink(budget, id);
+    if (!record) return;
+    setCategory(record.categoryId);
+    update({ type: "reveal", id: record.id }, `Opened ${record.label}. Related nodes are highlighted.`);
+    setDestination({ id: record.id });
   }
   function followLink(target: string) {
     const link = resolveNoteLink(budget, target);
-    if (link) follow(link.categoryId);
+    if (link) follow(link.id);
     else setAnnouncement(`No record named “${target}” yet. The note is kept as written.`);
   }
   const matched = (id: string) => category ? id === category : noteTag ? connections.resolved.some(r => r.categoryId === id) : true;
@@ -58,24 +83,45 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
     update(direction === -1 ? { type: "move", id, before: other } : { type: "move", id: other, before: id }, `${titles[id]} moved ${direction === -1 ? "earlier" : "later"}.`);
   }
   function pointerMove(event: PointerEvent<HTMLButtonElement>) {
-    if (!drag.current || Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) < 8) return;
-    const target = document.elementsFromPoint(event.clientX, event.clientY).map(el => el.closest<HTMLElement>("[data-board-module]")).find(el => el && el.dataset.boardModule !== drag.current?.id);
-    if (target) {
-      const id = target.dataset.boardModule as BoardModule;
-      const rect = target.getBoundingClientRect();
-      const after = event.clientY > rect.top + rect.height / 2;
-      const others = layout.order.filter(id => id !== drag.current!.id);
-      drag.current.before = after ? others[others.indexOf(id) + 1] ?? null : id;
-    } else drag.current.before = undefined;
-    setDragging(drag.current.id);
-    // Only the handle captures the gesture; the rest of the board scrolls normally.
-    if (event.clientY > window.innerHeight - 100) window.scrollBy(0, 14);
-    if (event.clientY < 100) window.scrollBy(0, -14);
+    const current = drag.current;
+    if (!current) return;
+    current.x = event.clientX;
+    current.y = event.clientY;
+    if (current.active || Math.hypot(current.x - current.startX, current.y - current.startY) < 8) return;
+    current.active = true;
+    setDragging(current.id);
+    dragFrame.current = requestAnimationFrame(dragTick);
   }
-  function pointerEnd() {
-    if (drag.current && drag.current.before !== undefined) update({ type: "move", id: drag.current.id, before: drag.current.before }, `${titles[drag.current.id]} moved.`);
+  function dragTick() {
+    const current = drag.current;
+    if (!current?.active) return;
+    const cards = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-board-module]") ?? []);
+    const others = cards.filter(el => el.dataset.boardModule !== current.id);
+    const boardRect = boardRef.current?.getBoundingClientRect();
+    const target = others.reduce<HTMLElement | undefined>((nearest, card) => {
+      const distance = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return Math.abs(current.y - (r.top + r.height / 2)); };
+      return !nearest || distance(card) < distance(nearest) ? card : nearest;
+    }, undefined);
+    if (target && boardRect && current.x >= boardRect.left - 44 && current.x <= boardRect.right + 44) {
+      const rect = target.getBoundingClientRect();
+      const index = others.indexOf(target);
+      current.before = current.y > rect.top + rect.height / 2 ? others[index + 1]?.dataset.boardModule as BoardModule ?? null : target.dataset.boardModule as BoardModule;
+    } else current.before = undefined;
+    setDropBefore(current.before);
+    if (current.y > window.innerHeight - 140) window.scrollBy(0, 12);
+    else if (current.y < 90) window.scrollBy(0, -12);
+    dragFrame.current = requestAnimationFrame(dragTick);
+  }
+  function pointerEnd(cancelled = false) {
+    if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
+    dragFrame.current = null;
+    if (!cancelled && drag.current && drag.current.before !== undefined) {
+      update({ type: "move", id: drag.current.id, before: drag.current.before }, `${titles[drag.current.id]} moved.`);
+      setDestination({ id: drag.current.id, module: true });
+    }
     drag.current = null;
     setDragging(null);
+    setDropBefore(undefined);
   }
   function nodeTools(id: string, name: string, rows: { id: string }[]) {
     const index = rows.findIndex(r => r.id === id);
@@ -87,7 +133,7 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
   function expenseNode(e: Expense, rows: Expense[]) {
     const c = budget.categories.find(c => c.id === e.categoryId)!;
     const expanded = layout.expanded.includes(e.id);
-    return <article className={`board-node expense-node ${matched(c.id) ? "" : "unrelated"} ${category === c.id ? "connected" : ""}`} key={e.id}>
+    return <article data-board-node={e.id} tabIndex={-1} aria-label={`${e.description} record`} className={`board-node expense-node ${matched(c.id) ? "" : "unrelated"} ${category === c.id ? "connected" : ""}`} key={e.id}>
       <button className="node-summary" aria-expanded={expanded} onClick={() => update({ type: "expand", id: e.id }, `${e.description} ${expanded ? "collapsed" : "expanded"}.`)}>
         <span>{e.description}</span><strong>{money(e.amount)}</strong><span className="node-disclosure" aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>
@@ -108,17 +154,19 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
       <button className={editing ? "primary" : "secondary"} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? "Done arranging" : "Arrange board"}</button>
       {editing && <button className="text-button" onClick={() => update({ type: "reset" }, "Original layout restored.")}>Reset layout</button>}
     </div>
-    {editing ? <p className="board-guidance">Drag a card’s handle, or use the move and size buttons. This changes the layout, never your money or links.</p> : <p className="board-guidance">Tap a node to open it. Follow a category link to trace the same money across your board.</p>}
+    {editing ? <p className="board-guidance">Drag a handle to see a short-card overview. Release at the green line, or use the move buttons. Small shows a summary, Medium a preview, Large the full card on your phone.</p> : <p className="board-guidance">Tap a node to open it. Follow a link to open and find its record.</p>}
     {(category || noteTag) && <div className="board-connection-trail"><span>{noteTag ? `Notes tagged #${noteTag}` : `${selected?.name ?? "Category"}: budget → committed → paid`}</span><button className="text-button" onClick={() => { follow(""); setNoteTag(""); }}>Clear focus</button></div>}
-    <div className="money-board" ref={boardRef}>
+    <div className={`money-board ${dragging ? "board-dragging" : ""}`} ref={boardRef}>
       {layout.order.map((id, index) => {
         const size = layout.sizes[id] ?? (id === "notes" ? "wide" : "regular");
         const expenses = orderedNodes(budget.expenses.filter(e => e.status === id), layout);
         const amount = id === "budget" ? budget.total : id === "committed" ? summary.committed : summary.spent;
-        return <section key={id} data-board-module={id} className={`board-module module-${id} size-${size} ${dragging === id ? "is-dragging" : ""}`} aria-labelledby={`module-${id}`}>
+        const count = id === "budget" ? categoryRows.length : expenses.length;
+        const contents = id === "notes" ? "note & connections" : id === "budget" ? `${count} categories${planned.length ? ` + ${planned.length} ideas` : ""}` : `${count} entries`;
+        return <section key={id} tabIndex={-1} data-board-module={id} className={`board-module module-${id} size-${size} ${dragging === id ? "is-dragging" : ""} ${dropBefore === id ? "drop-before" : ""} ${dropBefore === null && id === layout.order.filter(value => value !== dragging).at(-1) ? "drop-after" : ""}`} aria-labelledby={`module-${id}`}>
           <header className="board-module-heading"><h2 id={`module-${id}`}>{titles[id]}</h2>{id !== "notes" && <span className="board-module-count">{id === "budget" ? budget.categories.length : expenses.length}</span>}</header>
           {editing && <div className="board-module-tools" aria-label={`Arrange ${titles[id]}`}>
-            <button className="board-drag-handle" aria-label={`Drag ${titles[id]}`} onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id, x: e.clientX, y: e.clientY }; }} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={() => { drag.current = null; setDragging(null); }}><BoardIcon type="move" /></button>
+            <button className="board-drag-handle" aria-label={`Drag ${titles[id]}`} onPointerDown={e => { if (!e.isPrimary || e.button !== 0) return; e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, active: false }; }} onPointerMove={pointerMove} onPointerUp={() => pointerEnd()} onPointerCancel={() => pointerEnd(true)} onLostPointerCapture={() => pointerEnd(true)}><BoardIcon type="move" /></button>
             <button disabled={index === 0} aria-label={`Move ${titles[id]} earlier`} onClick={() => moveModule(id, -1)}><BoardIcon type="up" /></button>
             <button disabled={index === layout.order.length - 1} aria-label={`Move ${titles[id]} later`} onClick={() => moveModule(id, 1)}><BoardIcon type="down" /></button>
             <span className="board-size-label">{size === "regular" ? "Medium" : size === "wide" ? "Large" : "Small"}</span>
@@ -126,13 +174,14 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
             <button disabled={size === "wide"} aria-label={`Enlarge ${titles[id]}`} onClick={() => update({ type: "size", id, size: sizes[sizes.indexOf(size) + 1] }, `${titles[id]} made larger.`)}><BoardIcon type="grow" /></button>
           </div>}
           {id !== "notes" && <div className="module-total"><strong>{money(amount)}</strong><span>{id === "budget" ? "Confirmed to work with" : id === "committed" ? "Still to pay · not paid twice" : "Already spent"}</span></div>}
+          <p className="module-phone-summary">{id === "notes" ? (budget.notes ? `${connections.resolved.length} linked records · saved note` : "No notes yet") : contents}</p>
           {id === "budget" ? <>
             <p className={`board-plan-balance ${summary.plan > budget.total ? "negative" : ""}`}>{money(Math.abs(budget.total - summary.plan))} {summary.plan > budget.total ? "over-assigned in your plan" : "still to assign to categories"}</p>
             <div className="board-node-list">{categoryRows.map(c => {
               const s = totals(budget, c.id);
               const expanded = layout.expanded.includes(c.id);
               const linked = budget.expenses.filter(e => e.categoryId === c.id);
-              return <article key={c.id} className={`board-node category-node ${matched(c.id) ? "" : "unrelated"} ${category === c.id ? "connected" : ""}`}>
+              return <article key={c.id} data-board-node={c.id} tabIndex={-1} aria-label={`${c.name} category`} className={`board-node category-node ${matched(c.id) ? "" : "unrelated"} ${category === c.id ? "connected" : ""}`}>
                 <button className="node-summary" aria-expanded={expanded} onClick={() => update({ type: "expand", id: c.id }, `${c.name} ${expanded ? "collapsed" : "expanded"}.`)}><span>{c.name}</span><strong>{money(c.amount)}</strong><span className="node-disclosure" aria-hidden="true">{expanded ? "−" : "+"}</span></button>
                 <div className="board-node-meter" aria-hidden="true"><span style={{ width: `${Math.min(100, (s.spent + s.committed) / (c.amount || 1) * 100)}%` }} /></div>
                 <button className="node-relationship" onClick={() => follow(c.id)}>{linked.length} linked {linked.length === 1 ? "entry" : "entries"} <span aria-hidden="true">→</span></button>
@@ -145,14 +194,14 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
           </> : id === "notes" ? <>
             <div className="board-notes-heading"><p>The why behind the numbers.</p><button className="text-button" onClick={() => setWriting(!writing)}>{writing ? "Read note" : "Edit note"}</button></div>
             {writing ? <label className="board-note-editor">Budget notes<textarea value={budget.notes} placeholder="A decision about [[Home & bills]]… Add #tags or YAML tags." onChange={e => setBudget(b => ({ ...b, notes: e.target.value }))} rows={7} /></label> : <div className="markdown-preview board-note-preview" role="region" aria-label="Budget notes preview">{budget.notes ? renderMarkdownDocument(budget.notes, { onWikilink: followLink, onTag: tag => { setCategory(""); setNoteTag(tag); setAnnouncement(`Showing note connections tagged #${tag}.`); } }) : <p>No note yet. Add the story behind a decision, then link it to a category with [[double brackets]].</p>}</div>}
-            {(connections.tags.length > 0 || connections.resolved.length > 0) && <div className="board-note-links" aria-label="Markdown relationships">{connections.tags.map(tag => <button aria-pressed={noteTag === tag} key={tag} onClick={() => { setCategory(""); setNoteTag(noteTag === tag ? "" : tag); }}>#{tag}</button>)}{connections.resolved.map(link => <button key={link.id} onClick={() => follow(link.categoryId)}>↗ {link.label}</button>)}</div>}
+            {(connections.tags.length > 0 || connections.resolved.length > 0) && <div className="board-note-links" aria-label="Markdown relationships">{connections.tags.map(tag => <button aria-pressed={noteTag === tag} key={tag} onClick={() => { setCategory(""); setNoteTag(noteTag === tag ? "" : tag); }}>#{tag}</button>)}{connections.resolved.map(link => <button key={link.id} onClick={() => follow(link.id)}>↗ {link.label}</button>)}</div>}
             {connections.unresolved.length > 0 && <p className="board-note-unresolved">Not linked yet: {connections.unresolved.join(", ")}. Your note is kept as written.</p>}
             <p className="board-note-save">{storageError ? "Not saved · download a book backup" : "Markdown + YAML · saved on this device"}</p>
           </> : <>
             <div className="board-node-list">{expenses.length ? expenses.map(e => expenseNode(e, expenses)) : <div className="board-empty"><p>{id === "paid" ? "Nothing paid yet." : "No commitments yet."}</p><span>{id === "paid" ? "Paid entries will connect back to their category here." : "Add a bill or promise before you pay it."}</span></div>}</div>
             <button className="text-button module-action" onClick={() => onSpend()}>Log spending <span aria-hidden="true">→</span></button>
           </>}
-          {size === "compact" && <button className="text-button module-expand" onClick={() => update({ type: "size", id, size: "regular" }, `${titles[id]} expanded.`)}>Open full card →</button>}
+          {(size === "compact" || (size === "regular" && (count > 2 || id === "notes" || (id === "budget" && planned.length > 0)))) && <button className={`text-button module-expand ${size === "regular" ? "module-expand-medium" : ""}`} onClick={() => update({ type: "size", id, size: "wide" }, `${titles[id]} opened in full.`)}>{id === "notes" ? "Open full note & connections" : `Show all ${contents}`} →</button>}
         </section>;
       })}
     </div>
