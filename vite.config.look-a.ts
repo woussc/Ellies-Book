@@ -7,7 +7,7 @@ export default defineConfig({
   root: fileURLToPath(new URL("./app/look-a-preview", import.meta.url)),
   publicDir: fileURLToPath(new URL("./public", import.meta.url)),
   plugins: [react()],
-  server: { host: "0.0.0.0", port: 5180, allowedHosts: true },
-  preview: { host: "0.0.0.0", port: 5180, allowedHosts: true },
+  server: { host: "0.0.0.0", port: 5180 },
+  preview: { host: "0.0.0.0", port: 5180 },
   build: { outDir: fileURLToPath(new URL("./dist-look-a", import.meta.url)), emptyOutDir: true },
 });
