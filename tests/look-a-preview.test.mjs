@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { advanceExpense, blankBudget, csvText, editCategory, exampleBudget, persistBudget, readStoredBudget, reportText, totals } from "../app/look-a-preview/model.mjs";
+import { advanceExpense, blankBudget, csvText, editCategory, exampleBudget, persistBudget, readStoredBudget, reportText, STORAGE_KEY, totals } from "../app/look-a-preview/model.mjs";
 
 test("an unpaid invoice is a commitment, not actual spent", () => {
   const b = blankBudget(); b.total = 1000; b.categories[0].amount = 500;
@@ -49,6 +49,16 @@ test("category changes preserve before/after values in the audit trail", () => {
   assert.equal(edited.events.at(-1).before.amount,2000); assert.equal(edited.events.at(-1).after.amount,2100);
   assert.match(edited.events.at(-1).text,/2000 → 2100/); assert.match(edited.events.at(-1).text,/001230/);
   assert.equal(editCategory(edited,id,{amount:2100}),edited);
+});
+test("an example saved by the earlier preview never becomes a personal budget", () => {
+  const map = new Map([[STORAGE_KEY, JSON.stringify(exampleBudget())]]);
+  const storage = { getItem:key => map.get(key), setItem:(key,value) => map.set(key,value), removeItem:key => map.delete(key) };
+  // The old single-key preview could store an example in the personal slot.
+  const personal = readStoredBudget(storage,false);
+  assert.equal(personal.sample,false); assert.equal(personal.created,false);
+  assert.equal(personal.expenses.length,0); assert.equal(personal.notes,"");
+  persistBudget(storage,personal);
+  assert.equal(readStoredBudget(storage).sample,false);
 });
 test("spending date uses the local day rather than the UTC day", () => {
   const result = spawnSync(process.execPath,["--input-type=module","-e",`import { localDate } from './app/look-a-preview/model.mjs'; console.log(localDate(new Date('2026-11-19T01:00:00Z')));`],{env:{...process.env,TZ:"America/Los_Angeles"},encoding:"utf8"});

@@ -11,6 +11,9 @@ export function readStoredBudget(storage, example = true) {
     const raw = storage.getItem(key);
     if (!raw) continue;
     const b = JSON.parse(raw);
+    // Earlier preview revisions used one key for both modes. Never restore
+    // an old example as the user's own budget, including on Remove example.
+    if (key === STORAGE_KEY && b.sample) continue;
     if (Array.isArray(b.categories) && Array.isArray(b.expenses) && typeof b.notes === "string") return b;
   }
   return blankBudget();
