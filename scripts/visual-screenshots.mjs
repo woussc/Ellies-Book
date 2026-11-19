@@ -49,6 +49,10 @@ async function navigate(page, desktop, mobile) {
     ? button
     : page.getByRole("button", { name: mobile, exact: true })
   ).click();
+  // Navigation deliberately moves focus to the new heading on the next task.
+  // Wait for that handoff before editing; otherwise it can blur a just-cleared
+  // amount and turn one simulated edit into two commits on a fast CI runner.
+  await page.waitForFunction(() => document.activeElement?.tagName === "H1");
 }
 
 async function checkSkipLink(page) {
