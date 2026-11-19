@@ -61,8 +61,9 @@ test("paid, committed and planned remain separate in the overview and report", (
   assert.equal(t.committed, 8500);
   assert.equal(t.planned, 14000);
   assert.equal(t.left, 278850);
-  assert.equal(t.forecast, 215150);
-  assert.equal(t.headroom, 264850);
+  assert.equal(t.uncommittedPlanned, 278850);
+  assert.equal(t.forecast, 480000);
+  assert.equal(t.headroom, 0);
   assert.match(reportText(budget), /\$1,926.50 has been paid/);
   assert.match(reportText(budget), /\$85 is committed but not paid/);
   assert.match(financeCsv(budget), /"Home","2200","1800","85","315"/);
@@ -76,6 +77,8 @@ test("paying a committed bill changes the same record without double counting", 
   assert.equal(totals(next).paid, 201150);
   assert.equal(totals(next).committed, 0);
   assert.equal(totals(next).left, totals(budget).left);
+  assert.equal(totals(next).forecast, totals(budget).forecast);
+  assert.equal(totals(next).uncommittedPlanned, totals(budget).uncommittedPlanned);
   assert.equal(next.spending.find(s => s.id === bill.id).id, bill.id);
   assert.equal(budget.spending.find(s => s.id === bill.id).status, "committed");
   assert.match(next.audit.at(-1).action, /committed → paid/);
@@ -85,7 +88,7 @@ test("paying a committed bill changes the same record without double counting", 
 test("all category totals sum to the same whole-budget figures", () => {
   const budget = exampleBudget();
   const rows = budget.categories.map(c => totals(budget, c.id));
-  for (const field of ["approved", "paid", "committed", "planned", "forecast", "headroom", "left"]) {
+  for (const field of ["approved", "paid", "committed", "planned", "uncommittedPlanned", "forecast", "headroom", "left"]) {
     assert.equal(rows.reduce((sum, row) => sum + row[field], 0), totals(budget)[field]);
   }
 });
@@ -94,7 +97,8 @@ test("over-budget spending stays visible as negative headroom, never silently cl
   const budget = exampleBudget();
   budget.spending[0].amount = 600000;
   assert.equal(totals(budget).left, -141150);
-  assert.equal(totals(budget).headroom, -155150);
+  assert.equal(totals(budget).headroom, -388500);
+  assert.equal(totals(budget).forecast, 868500);
 });
 
 test("Markdown round-trips records, notes, links, leading-zero GL codes and audit events", () => {
@@ -127,8 +131,41 @@ test("CSV keeps negative financial values numeric while protecting text", () => 
   const csv = financeCsv(budget);
   assert.match(csv, /"'-unsafe text","2200","6000","85","-3885"/);
   assert.match(csv, /"'\+formula"/);
-  assert.match(csv, /"TOTAL","4800","6126.5","85","-1411.5","140","6351.5","-1551.5"/);
+  assert.match(csv, /"TOTAL","4800","6126.5","85","-1411.5","2473.5","8685","-3885"/);
   assert.doesNotMatch(csv, /"'-\d/);
+});
+
+test("forecast retains unspent category plans before any spending is logged", () => {
+  const budget = exampleBudget();
+  budget.spending = [];
+  assert.equal(totals(budget).forecast, 480000);
+  assert.equal(totals(budget).uncommittedPlanned, 480000);
+  assert.equal(totals(budget).headroom, 0);
+});
+
+test("remaining plan is replaced by paid and committed costs, not added twice", () => {
+  const budget = exampleBudget();
+  const category = budget.categories[0];
+  const row = totals(budget, category.id);
+  assert.equal(row.uncommittedPlanned, 31500);
+  assert.equal(row.forecast, 220000);
+  budget.spending.push({ id: "planned-home", categoryId: category.id, description: "Remaining heating", amount: 20000, status: "planned", date: "2026-11-19" });
+  assert.equal(totals(budget, category.id).forecast, 220000);
+  budget.spending.at(-1).amount = 40000;
+  assert.equal(totals(budget, category.id).uncommittedPlanned, 40000);
+  assert.equal(totals(budget, category.id).forecast, 228500);
+  assert.equal(totals(budget, category.id).headroom, -8500);
+});
+
+test("unassigned reserve is available but not an invented planned cost", () => {
+  const budget = exampleBudget();
+  budget.total += 50000;
+  assert.equal(totals(budget).unassigned, 50000);
+  assert.equal(totals(budget).forecast, 480000);
+  assert.equal(totals(budget).headroom, 50000);
+  assert.equal(totals(budget).left, 328850);
+  assert.match(reportText(budget), /Forecast spend: \$4,800/);
+  assert.match(financeCsv(budget), /"TOTAL","5300","1926.5","85","3288.5","2788.5","4800","500"/);
 });
 
 test("currency rounds once into integer cents and rejects invalid values", () => {

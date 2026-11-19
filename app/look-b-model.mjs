@@ -76,8 +76,16 @@ export function totals(budget, categoryId = "") {
   const committed = items.filter(s => s.status === "committed").reduce((sum, s) => sum + s.amount, 0);
   const paid = items.filter(s => s.status === "paid").reduce((sum, s) => sum + s.amount, 0);
   const allocated = categories.reduce((sum, c) => sum + c.amount, 0);
-  return { approved, allocated, unassigned: approved - allocated, planned, committed, paid, left: approved - paid - committed,
-    forecast: paid + committed + planned, headroom: approved - paid - committed - planned };
+  const uncommittedPlanned = categories.reduce((sum, category) => {
+    const records = items.filter(s => s.categoryId === category.id);
+    const settled = records.filter(s => s.status !== "planned").reduce((total, s) => total + s.amount, 0);
+    const estimates = records.filter(s => s.status === "planned").reduce((total, s) => total + s.amount, 0);
+    // Planned entries refine the unspent category plan; they do not add the same cost twice.
+    return sum + Math.max(0, category.amount - settled, estimates);
+  }, 0);
+  const forecast = paid + committed + uncommittedPlanned;
+  return { approved, allocated, unassigned: approved - allocated, planned, uncommittedPlanned, committed, paid, left: approved - paid - committed,
+    forecast, headroom: approved - forecast };
 }
 
 /** @param {Budget} budget @param {string} id @param {SpendStatus} status */
@@ -125,7 +133,7 @@ export function reportText(budget) {
   return `${budget.name}\n${budget.profile} budget · ${budget.start} to ${budget.end} · USD\n\nWe set aside ${money(t.approved)}. So far, ${money(t.paid)} has been paid and ${money(t.committed)} is committed but not paid. That leaves ${money(t.left)} available to commit.\n\n${budget.categories.map(c => {
     const row = totals(budget, c.id);
     return `${c.name}: planned ${money(c.amount)} · spent ${money(row.paid)} · committed ${money(row.committed)} · left ${money(row.left)}`;
-  }).join("\n")}\n\nUncommitted planned spending: ${money(t.planned)}. Forecast spend: ${money(t.forecast)}. Projected headroom: ${money(t.headroom)}.\n\nNotes\n${budget.notes.map(n => n.text).join("\n\n") || "No notes added."}\n\nLeft = budget − paid − open commitments. Planned spending is not yet paid or committed.\nPrepared with Ellie's Book.`;
+  }).join("\n")}\n\nStill planned: ${money(t.uncommittedPlanned)}, including ${money(t.planned)} in entries marked Planned. Forecast spend: ${money(t.forecast)}. Projected headroom: ${money(t.headroom)}.\n\nNotes\n${budget.notes.map(n => n.text).join("\n\n") || "No notes added."}\n\nLeft = budget − paid − open commitments. Forecast includes the remaining category plan; planned entries are included, not added twice.\nPrepared with Ellie's Book.`;
 }
 
 /** @param {Budget} budget */
@@ -133,9 +141,9 @@ export function financeCsv(budget) {
   const cell = value => `"${(typeof value === "number" ? String(value) : safeSpreadsheetText(String(value))).replaceAll('"', '""')}"`;
   const t = totals(budget);
   const rows = [["category", "approved_budget", "actuals", "open_commitments", "available_to_commit", "uncommitted_planned", "forecast_spend", "projected_headroom", "gl_code", "currency"],
-    ...budget.categories.map(c => { const t = totals(budget, c.id); return [c.name, c.amount / 100, t.paid / 100, t.committed / 100, t.left / 100, t.planned / 100, t.forecast / 100, t.headroom / 100, c.glCode, "USD"]; }),
+    ...budget.categories.map(c => { const t = totals(budget, c.id); return [c.name, c.amount / 100, t.paid / 100, t.committed / 100, t.left / 100, t.uncommittedPlanned / 100, t.forecast / 100, t.headroom / 100, c.glCode, "USD"]; }),
     ...(t.unassigned > 0 ? [["Unassigned", t.unassigned / 100, 0, 0, t.unassigned / 100, 0, 0, t.unassigned / 100, "", "USD"]] : []),
-    ["TOTAL", t.approved / 100, t.paid / 100, t.committed / 100, t.left / 100, t.planned / 100, t.forecast / 100, t.headroom / 100, "", "USD"]];
+    ["TOTAL", t.approved / 100, t.paid / 100, t.committed / 100, t.left / 100, t.uncommittedPlanned / 100, t.forecast / 100, t.headroom / 100, "", "USD"]];
   return rows.map(row => row.map(cell).join(",")).join("\r\n");
 }
 
