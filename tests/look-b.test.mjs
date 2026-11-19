@@ -91,6 +91,18 @@ test("CSV protects category formulas and quotes", () => {
   assert.match(financeCsv(budget), /"'=HYPERLINK\(""bad""\)"/);
 });
 
+test("CSV keeps negative financial values numeric while protecting text", () => {
+  const budget = exampleBudget();
+  budget.categories[0].name = "-unsafe text";
+  budget.categories[0].glCode = "+formula";
+  budget.spending[0].amount = 600000;
+  const csv = financeCsv(budget);
+  assert.match(csv, /"'-unsafe text","2200","6000","85","-3885"/);
+  assert.match(csv, /"'\+formula"/);
+  assert.match(csv, /"TOTAL","4800","6126.5","85","-1411.5","140","6351.5","-1551.5"/);
+  assert.doesNotMatch(csv, /"'-\d/);
+});
+
 test("currency rounds once into integer cents and rejects invalid values", () => {
   assert.equal(cents("0.29"), 29);
   assert.equal(cents("126.50"), 12650);

@@ -127,7 +127,7 @@ export function reportText(budget) {
 
 /** @param {Budget} budget */
 export function financeCsv(budget) {
-  const cell = value => `"${safeSpreadsheetText(String(value)).replaceAll('"', '""')}"`;
+  const cell = value => `"${(typeof value === "number" ? String(value) : safeSpreadsheetText(String(value))).replaceAll('"', '""')}"`;
   const t = totals(budget);
   const rows = [["category", "approved_budget", "actuals", "open_commitments", "available_to_commit", "uncommitted_planned", "forecast_spend", "projected_headroom", "gl_code", "currency"],
     ...budget.categories.map(c => { const t = totals(budget, c.id); return [c.name, c.amount / 100, t.paid / 100, t.committed / 100, t.left / 100, t.planned / 100, t.forecast / 100, t.headroom / 100, c.glCode, "USD"]; }),
