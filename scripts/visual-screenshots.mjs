@@ -11,6 +11,7 @@
 //   SCREENSHOT_OUT   output directory for PNGs (default artifacts/screenshots)
 
 import { chromium } from "playwright";
+import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -42,6 +43,89 @@ async function waitForServer(url, { attempts = 60, delayMs = 1000 } = {}) {
   throw new Error(`Server did not become ready at ${url} within ${attempts}s`);
 }
 
+async function navigate(page, desktop, mobile) {
+  const button = page.getByRole("button", { name: desktop, exact: true });
+  await (await button.isVisible()
+    ? button
+    : page.getByRole("button", { name: mobile, exact: true })
+  ).click();
+}
+
+async function checkSkipLink(page) {
+  const skip = page.getByRole("link", { name: "Skip to content", exact: true });
+  const layout = () => page.locator(".sidebar, .main-column").evaluateAll((elements) =>
+    elements.map((element) => {
+      const { top, left, width, height } = element.getBoundingClientRect();
+      return { top, left, width, height };
+    }),
+  );
+  const before = await layout();
+  assert.equal(await skip.evaluate((element) => getComputedStyle(element).position), "fixed");
+  assert.equal(await skip.evaluate((element) => getComputedStyle(element).clipPath), "inset(50%)");
+  await page.keyboard.press("Tab");
+  assert.equal(await skip.evaluate((element) => element.matches(":focus-visible")), true);
+  assert.equal(await skip.evaluate((element) => getComputedStyle(element).clipPath), "none");
+  assert.deepEqual(await layout(), before);
+  await page.keyboard.press("Enter");
+  assert.equal(await page.evaluate(() => document.activeElement.id), "main");
+  await page.getByRole("heading", { level: 1 }).first().click();
+  assert.equal(await skip.evaluate((element) => getComputedStyle(element).clipPath), "inset(50%)");
+}
+
+// Exercise the public editing/activity seam in each reviewed viewport. Typing
+// the final amount must not turn its intermediate digits into audit events.
+async function checkCategoryEdit(page) {
+  await page.getByRole("button", { name: /Explore an example/ }).click();
+  await navigate(page, "Where I stand", "Overview");
+  await page.getByText("No changes recorded yet.", { exact: true }).waitFor();
+  await navigate(page, "Plan by category", "Plan");
+  const amount = page.getByRole("spinbutton", {
+    name: "Home & bills planned amount", exact: true,
+  });
+  await amount.fill("");
+  await amount.pressSequentially("375");
+  await amount.press("Enter");
+  await navigate(page, "Where I stand", "Overview");
+  await page.locator(".audit summary").click();
+  const edits = () => page.locator(".audit p").evaluateAll((rows) =>
+      rows.map((row) => row.firstChild.textContent)
+        .filter((text) => text.startsWith("Home & bills: amount ")),
+  );
+  const expected = ["Home & bills: amount 2000 → 375"];
+  assert.deepEqual(await edits(), expected);
+  await page.reload({ waitUntil: "networkidle" });
+  await navigate(page, "Where I stand", "Overview");
+  await page.locator(".audit summary").click();
+  assert.deepEqual(await edits(), expected, "Saved activity must survive reload");
+}
+
+async function checkNoteModes(page) {
+  const note = "# Home repairs\nKeep this edit.";
+  const editor = page.getByRole("textbox", { name: "Budget notes", exact: true });
+  const preview = page.getByRole("region", { name: "Budget notes preview", exact: true });
+  await editor.fill(note);
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await preview.waitFor();
+  assert.equal(await editor.count(), 0);
+  assert.equal(await preview.getByRole("heading", { name: "Home repairs", exact: true }).count(), 1);
+  await page.getByRole("button", { name: "Edit note", exact: true }).click();
+  assert.equal(await editor.inputValue(), note);
+  assert.equal(await preview.count(), 0);
+}
+
+async function checkRemovedCategory(page) {
+  await page.getByRole("button", { name: "Money flow", exact: true }).click();
+  const picker = page.getByRole("combobox", { name: /^Follow a category/ });
+  await picker.selectOption({ label: "A little extra" });
+  await navigate(page, "Plan by category", "Plan");
+  await page.getByRole("button", { name: "Remove A little extra", exact: true }).click();
+  await navigate(page, "Where I stand", "Overview");
+  assert.equal(await picker.locator("option:checked").textContent(), "Home & bills");
+  assert.equal(await page.locator(".flow-category strong").textContent(), "Home & bills");
+  assert.equal(await page.locator(".flow-category b").textContent(), "$375");
+  assert.equal(await page.locator(".flow-leaf strong").allTextContents().then((names) => names.includes("November rent")), true);
+}
+
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   await waitForServer(BASE_URL);
@@ -55,9 +139,15 @@ async function main() {
       });
       const page = await context.newPage();
       await page.goto(BASE_URL, { waitUntil: "networkidle" });
+      await checkSkipLink(page);
+      await page.evaluate(() => window.scrollTo(0, 0));
       const outPath = `${OUT_DIR}/${vp.label}.png`;
       await page.screenshot({ path: outPath, fullPage: true });
       console.log(`Captured ${vp.label} (${vp.width}px) -> ${outPath}`);
+      await checkCategoryEdit(page);
+      await checkNoteModes(page);
+      await checkRemovedCategory(page);
+      console.log(`Passed keyboard, category-edit, note-mode and removed-category regressions at ${vp.width}px`);
       await context.close();
     }
   } finally {

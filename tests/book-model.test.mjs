@@ -111,6 +111,15 @@ test("exploring and removing an example preserves the personal budget across ref
   persistBudget(storage, readStoredBudget(storage, false));
   assert.deepEqual(readStoredBudget(storage), personal);
 });
+test("Markdown preserves real newlines without interpreting literal backslash-n input", () => {
+  const book = blankBudget();
+  for (const notes of ["# Home repairs\nKeep this edit.", "# Home repairs\\nKeep this edit."]) {
+    book.notes = notes;
+    const markdown = serializeBook(book);
+    assert.ok(markdown.endsWith(notes));
+    assert.equal(parseBook(markdown).notes, notes);
+  }
+});
 test("finance CSV keeps negative numeric shortfalls numeric but neutralizes authored formulas", () => {
   const b = blankBudget();
   b.total = 100;
@@ -131,6 +140,31 @@ test("category changes preserve before/after values in the audit trail", () => {
   assert.match(edited.events.at(-1).text, /2000 → 2100/);
   assert.match(edited.events.at(-1).text, /001230/);
   assert.equal(editCategory(edited, id, { amount: 2100 }), edited);
+});
+test("saved activity survives a storage reload, further edits and Markdown restore", () => {
+  const map = new Map();
+  const storage = {
+    getItem: (key) => map.get(key),
+    setItem: (key, value) => map.set(key, value),
+    removeItem: (key) => map.delete(key),
+  };
+  const created = editBudgetDetails(blankBudget(), {
+    name: "Family cents", total: 1000.55, profile: "Household", period: "November 2026",
+  });
+  const id = created.categories[0].id;
+  const edited = editCategory(created, id, { amount: 600.25 });
+  persistBudget(storage, edited);
+  const refreshed = readStoredBudget(storage);
+  assert.equal(refreshed.events.length, 2);
+  assert.deepEqual(refreshed.events, edited.events);
+  assert.equal(refreshed.events[1].before.amount, 0);
+  assert.equal(refreshed.events[1].after.amount, 600.25);
+  const next = editCategory(refreshed, id, { amount: 700 });
+  persistBudget(storage, next);
+  const restored = parseBook(serializeBook(readStoredBudget(storage)));
+  assert.equal(restored.events.length, 3);
+  assert.deepEqual(restored.events.slice(0, 2), edited.events);
+  assert.deepEqual(restored.events[2], next.events[2]);
 });
 test("budget detail edits retain prior funding and descriptive values after a Markdown round trip", () => {
   const original = { ...blankBudget(), created: true, name: "December", total: 1200, period: "December 2026" };

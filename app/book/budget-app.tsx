@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type InputHTMLAttributes,
   type ReactNode,
 } from "react";
 import {
@@ -27,6 +28,7 @@ import { useBook } from "./use-book";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
+type ToastKind = "success" | "error" | "info";
 const pages: { id: Page; label: string; short: string; icon: string }[] = [
   { id: "start", label: "My budget", short: "Budget", icon: "book" },
   { id: "plan", label: "Plan by category", short: "Plan", icon: "plan" },
@@ -66,6 +68,18 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     ),
     arrow: <path d="M4 12h15m-6-6 6 6-6 6" />,
     check: <path d="m5 12 4 4L19 6" />,
+    error: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v6m0 3h.01" />
+      </>
+    ),
+    info: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7h.01M12 11v6" />
+      </>
+    ),
     leaf: (
       <>
         <path d="M19 3C8 2 2 9 6 16s15 3 13-13Z" />
@@ -123,12 +137,34 @@ function download(content: string, name: string, type = "text/markdown") {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+function CategoryInput({
+  onCommit,
+  ...props
+}: Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "value" | "onChange" | "onBlur" | "onKeyDown"
+> & { onCommit: (value: string) => void }) {
+  // Keep the in-progress text in the field; only a finished edit reaches the
+  // saved book and audit trail. The caller keys by saved value for restores.
+  return (
+    <input
+      {...props}
+      onBlur={(event) => onCommit(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 export default function BudgetApp() {
   const { budget, setBudget, removeExample, status, error, legacy, recovery } =
     useBook();
   const [activePage, setPage] = useState<Page | null>(null);
   const page = activePage ?? (budget.created ? "home" : "start");
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState<{ text: string; kind: ToastKind } | null>(null);
   const storageError = status === "error";
   const [view, setView] = useState("categories");
   const [focus, setFocus] = useState("");
@@ -142,13 +178,17 @@ export default function BudgetApp() {
   });
   const [showNote, setShowNote] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const followedCategory =
+    budget.categories.find((category) => category.id === focus) ?? budget.categories[0];
   const t = totals(budget);
   const allocated = budget.categories.reduce((s, c) => s + c.amount, 0);
   const unassigned = round(budget.total - allocated);
-  const notify = (text: string) => setToast(text);
+  const notify = (text: string, kind: ToastKind = "success") =>
+    setToast({ text, kind });
   useEffect(() => {
     if (!toast) return;
-    const id = setTimeout(() => setToast(""), 4500);
+    if (toast.kind === "error") return;
+    const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
   }, [toast]);
   function change(next: Budget, action: string) {
@@ -169,7 +209,12 @@ export default function BudgetApp() {
     details: Pick<Budget, "name" | "total" | "profile" | "period">,
   ) {
     const saved = setBudget(editBudgetDetails(budget, details));
-    notify(saved ? "Budget details saved. Let’s give it a plan." : "Budget details are not saved. Download a book backup before leaving.");
+    notify(
+      saved
+        ? "Budget details saved. Let’s give it a plan."
+        : "Budget details are not saved. Download a book backup before leaving.",
+      saved ? "success" : "error",
+    );
     go("plan");
   }
   async function restore(file: File | undefined) {
@@ -185,12 +230,18 @@ export default function BudgetApp() {
         )
       )
         return;
-      setBudget(restored, true);
+      const saved = setBudget(restored, true);
       go(restored.created ? "home" : "start");
-      notify("Book opened. Check the save status before leaving.");
+      notify(
+        saved
+          ? "Book opened. Check the save status before leaving."
+          : "Book opened on this page only. Download a book backup before leaving.",
+        saved ? "success" : "error",
+      );
     } catch (error) {
       notify(
         error instanceof Error ? error.message : "Could not open this backup.",
+        "error",
       );
     }
   }
@@ -216,7 +267,12 @@ export default function BudgetApp() {
       `Added ${expense.description} · ${expense.status} · ${money(amount)}`,
     );
     setDraft({ ...draft, description: "", amount: "" });
-    notify(saved ? `${expense.description} saved as ${expense.status}.` : `${expense.description} added on this page only. Download a book backup before leaving.`);
+    notify(
+      saved
+        ? `${expense.description} saved as ${expense.status}.`
+        : `${expense.description} added on this page only. Download a book backup before leaving.`,
+      saved ? "success" : "error",
+    );
   }
   async function share() {
     try {
@@ -322,7 +378,7 @@ export default function BudgetApp() {
                 : "Saved on this device"}
           </span>
         </div>
-        <main id="main">
+        <main id="main" tabIndex={-1}>
           {budget.sample && (
             <div className="sample-banner">
               <span>
@@ -339,6 +395,7 @@ export default function BudgetApp() {
                   } catch {
                     notify(
                       "Could not open your own book. Keep the saved copy before restoring a backup.",
+                      "error",
                     );
                   }
                 }}
@@ -453,7 +510,10 @@ export default function BudgetApp() {
                           className="text-button"
                           onClick={() => {
                             if (!setBudget(exampleBudget())) {
-                              notify("Could not open the example. Keep this page open and download a book backup before leaving.");
+                              notify(
+                                "Could not open the example. Keep this page open and download a book backup before leaving.",
+                                "error",
+                              );
                               return;
                             }
                             go("home");
@@ -518,34 +578,44 @@ export default function BudgetApp() {
                                 size={22}
                               />
                             </span>
-                            <label className="category-name">
+                            <label
+                              className="category-name"
+                              htmlFor={`category-name-${c.id}`}
+                            >
                               <span className="sr-only">
                                 Category name {i + 1}
                               </span>
-                              <input
+                              <CategoryInput
+                                id={`category-name-${c.id}`}
+                                key={c.name}
                                 required
                                 maxLength={50}
                                 aria-label={`Category name ${i + 1}`}
-                                value={c.name}
-                                onChange={(e) =>
-                                  updateCategory(c.id, { name: e.target.value })
+                                defaultValue={c.name}
+                                onCommit={(name) =>
+                                  updateCategory(c.id, { name })
                                 }
                               />
                             </label>
-                            <label className="amount-field">
+                            <label
+                              className="amount-field"
+                              htmlFor={`category-amount-${c.id}`}
+                            >
                               <span>$</span>
-                              <input
+                              <CategoryInput
+                                id={`category-amount-${c.id}`}
+                                key={c.amount}
                                 type="number"
                                 inputMode="decimal"
                                 min="0"
                                 max="1000000000"
                                 step="0.01"
                                 aria-label={`${c.name} planned amount`}
-                                value={c.amount || ""}
+                                defaultValue={c.amount || ""}
                                 placeholder="0"
-                                onChange={(e) =>
+                                onCommit={(value) =>
                                   updateCategory(c.id, {
-                                    amount: Math.max(0, round(e.target.value)),
+                                    amount: Math.max(0, round(value)),
                                   })
                                 }
                               />
@@ -578,25 +648,35 @@ export default function BudgetApp() {
                           <details className="advanced">
                             <summary>Advanced</summary>
                             <div className="form-pair">
-                              <label className="field">
+                              <label
+                                className="field"
+                                htmlFor={`category-owner-${c.id}`}
+                              >
                                 Owner / vendor
-                                <input
-                                  value={c.owner}
-                                  onChange={(e) =>
+                                <CategoryInput
+                                  id={`category-owner-${c.id}`}
+                                  key={c.owner}
+                                  defaultValue={c.owner}
+                                  onCommit={(owner) =>
                                     updateCategory(c.id, {
-                                      owner: e.target.value,
+                                      owner,
                                     })
                                   }
                                   placeholder="Optional"
                                 />
                               </label>
-                              <label className="field">
+                              <label
+                                className="field"
+                                htmlFor={`category-code-${c.id}`}
+                              >
                                 Finance code
-                                <input
-                                  value={c.glCode}
-                                  onChange={(e) =>
+                                <CategoryInput
+                                  id={`category-code-${c.id}`}
+                                  key={c.glCode}
+                                  defaultValue={c.glCode}
+                                  onCommit={(glCode) =>
                                     updateCategory(c.id, {
-                                      glCode: e.target.value,
+                                      glCode,
                                     })
                                   }
                                   placeholder="e.g. 001230"
@@ -651,7 +731,12 @@ export default function BudgetApp() {
                         className="primary"
                         onClick={() => {
                           const saved = change(budget, "Confirmed category plan");
-                          notify(saved ? "Your category plan is saved." : "Your plan is not saved. Download a book backup before leaving.");
+                          notify(
+                            saved
+                              ? "Your category plan is saved."
+                              : "Your plan is not saved. Download a book backup before leaving.",
+                            saved ? "success" : "error",
+                          );
                           go("home");
                         }}
                       >
@@ -874,12 +959,15 @@ export default function BudgetApp() {
                               <button
                                 className="text-button"
                                 onClick={() => {
-                                  change(
+                                  const saved = change(
                                     advanceExpense(budget, e.id),
                                     `${e.description} marked ${e.status === "planned" ? "committed" : "paid"}`,
                                   );
                                   notify(
-                                    "Updated. Your totals now reflect the new status.",
+                                    saved
+                                      ? "Updated. Your totals now reflect the new status."
+                                      : "Updated on this page only. Download a book backup before leaving.",
+                                    saved ? "success" : "error",
                                   );
                                 }}
                               >
@@ -1037,7 +1125,7 @@ export default function BudgetApp() {
                           <label className="field">
                             Follow a category
                             <select
-                              value={focus || budget.categories[0]?.id || ""}
+                              value={followedCategory?.id ?? ""}
                               onChange={(e) => setFocus(e.target.value)}
                             >
                               {budget.categories.map((c) => (
@@ -1060,7 +1148,7 @@ export default function BudgetApp() {
                             {budget.categories
                               .filter(
                                 (c) =>
-                                  c.id === (focus || budget.categories[0]?.id),
+                                  c.id === followedCategory?.id,
                               )
                               .map((c) => (
                                 <div key={c.id}>
@@ -1123,35 +1211,28 @@ export default function BudgetApp() {
                           <Icon name="leaf" size={22} />
                         </div>
                         <p>The why behind the numbers.</p>
-                        <label className="sr-only" htmlFor="budget-note">
-                          Budget notes
-                        </label>
-                        <textarea
-                          id="budget-note"
-                          placeholder="A reminder, an intention, a decision…"
-                          value={budget.notes}
-                          onChange={(e) =>
-                            setBudget({ ...budget, notes: e.target.value })
-                          }
-                          rows={7}
-                        />
-                        <div className="notes-bottom">
-                          <span>
-                            {storageError
-                              ? "Not saved"
-                              : "Saved on this device"}
-                          </span>
-                          <button
-                            className="text-button"
-                            onClick={() => {
-                              setShowNote(!showNote);
-                            }}
-                          >
-                            {showNote ? "Edit note" : "Preview"}
-                          </button>
-                        </div>
+                        {!showNote && (
+                          <>
+                            <label className="sr-only" htmlFor="budget-note">
+                              Budget notes
+                            </label>
+                            <textarea
+                              id="budget-note"
+                              placeholder="A reminder, an intention, a decision…"
+                              value={budget.notes}
+                              onChange={(e) =>
+                                setBudget({ ...budget, notes: e.target.value })
+                              }
+                              rows={7}
+                            />
+                          </>
+                        )}
                         {showNote && (
-                          <div className="markdown-preview">
+                          <div
+                            className="markdown-preview"
+                            role="region"
+                            aria-label="Budget notes preview"
+                          >
                             {budget.notes ? (
                               renderMarkdownDocument(budget.notes, {
                                 onWikilink: (target) => {
@@ -1175,16 +1256,38 @@ export default function BudgetApp() {
                                   } else
                                     notify(
                                       `No category or spending entry named “${target}” yet.`,
+                                      "info",
                                     );
                                 },
                                 onTag: (tag) =>
-                                  notify(`This note is tagged #${tag}.`),
+                                  notify(`This note is tagged #${tag}.`, "info"),
                               })
                             ) : (
                               <p>No note yet.</p>
                             )}
                           </div>
                         )}
+                        <div className="notes-bottom">
+                          <span>
+                            {storageError
+                              ? "Not saved"
+                              : "Saved on this device"}
+                          </span>
+                          <button
+                            className="text-button"
+                            onClick={() => {
+                              setShowNote(!showNote);
+                              if (showNote) {
+                                setTimeout(
+                                  () => document.getElementById("budget-note")?.focus(),
+                                  0,
+                                );
+                              }
+                            }}
+                          >
+                            {showNote ? "Edit note" : "Preview"}
+                          </button>
+                        </div>
                         <button
                           className="text-button note-download"
                           onClick={() =>
@@ -1211,7 +1314,7 @@ export default function BudgetApp() {
                           <Icon name="arrow" size={17} />
                         </button>
                       </section>
-                      <details className="audit">
+                      <details className="audit" open={!budget.events.length}>
                         <summary>Activity & audit trail</summary>
                         {budget.events.length ? (
                           [...budget.events].reverse().map((ev, i) => (
@@ -1221,7 +1324,7 @@ export default function BudgetApp() {
                             </p>
                           ))
                         ) : (
-                          <p>New changes will appear here.</p>
+                          <p>No changes recorded yet.</p>
                         )}
                       </details>
                     </aside>
@@ -1401,13 +1504,16 @@ export default function BudgetApp() {
         ))}
       </nav>
       {toast && (
-        <div className="toast" role="status">
-          <Icon name="check" size={18} />
-          {toast}
+        <div
+          className={`toast toast-${toast.kind}`}
+          role={toast.kind === "error" ? "alert" : "status"}
+        >
+          <Icon name={toast.kind === "success" ? "check" : toast.kind} size={18} />
+          {toast.text}
           <button
             className="icon-button"
             aria-label="Dismiss notification"
-            onClick={() => setToast("")}
+            onClick={() => setToast(null)}
           >
             <Icon name="close" size={16} />
           </button>
