@@ -106,11 +106,15 @@ async function checkCategoryEdit(page) {
   await zeroAmount.press("Tab");
   assert.equal(await zeroAmount.inputValue(), "");
   for (const [value, key] of [["-5", "Tab"], ["", "Enter"], ["0.001", "Tab"]]) {
-    await zeroAmount.fill(value);
+    await zeroAmount.fill("");
+    await zeroAmount.pressSequentially(value);
+    assert.equal(await zeroAmount.inputValue(), value, "Precondition: the actual draft is present before commit");
     await zeroAmount.press(key);
     assert.equal(await zeroAmount.inputValue(), "", "Normalized zero must replace the finished draft");
   }
-  await amount.fill("375.001");
+  await amount.fill("");
+  await amount.pressSequentially("375.001");
+  assert.equal(await amount.inputValue(), "375.001");
   await amount.press("Enter");
   assert.equal(await amount.inputValue(), "375", "Unchanged rounded amounts must replace the draft");
   await page.reload({ waitUntil: "networkidle" });
