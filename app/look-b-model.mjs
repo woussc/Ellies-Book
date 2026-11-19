@@ -51,6 +51,11 @@ export function newCategories(profile) {
   }));
 }
 
+/** @param {Budget} budget @param {string} id */
+export function canRemoveCategory(budget, id) {
+  return !budget.spending.some(s => s.categoryId === id) && !budget.notes.some(n => n.target === id);
+}
+
 export function periodDates(period, date = new Date()) {
   const year = date.getFullYear();
   const month = date.getMonth();

@@ -1,7 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { blankBudget, cents, exampleBudget, financeCsv, fromMarkdown, persistSnapshot, reportText, STORAGE_KEY, toMarkdown, totals, transitionSpending } from "../app/look-b-model.mjs";
+import { blankBudget, canRemoveCategory, cents, exampleBudget, financeCsv, fromMarkdown, persistSnapshot, reportText, STORAGE_KEY, toMarkdown, totals, transitionSpending } from "../app/look-b-model.mjs";
+
+test("category removal protects both saved spending and connected notes", () => {
+  const budget = exampleBudget();
+  const id = budget.categories[3].id;
+  assert.equal(canRemoveCategory(budget, id), true);
+  budget.notes.push({ id: "context", target: id, date: "2026-11-19", text: "Keep this category's decision" });
+  assert.equal(canRemoveCategory(budget, id), false);
+  const reloaded = fromMarkdown(toMarkdown(budget));
+  assert.equal(canRemoveCategory(reloaded, id), false);
+  assert.equal(canRemoveCategory(budget, budget.categories[0].id), false);
+});
 
 test("a stale tab cannot replace or remove another tab's saved notes", () => {
   const data = new Map();
