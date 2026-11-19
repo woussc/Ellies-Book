@@ -2,7 +2,7 @@ import { cloneElement, isValidElement, useEffect, useRef, useState, type FormEve
 import { renderMarkdownDocument, type MarkdownHandlers } from "./markdown-render";
 import {
   blankBudget, cents, exampleBudget, financeCsv, fromMarkdown, money, newCategories,
-  periodDates, reportText, STORAGE_KEY, today, toMarkdown, totals, transitionSpending, uid,
+  periodDates, persistSnapshot, reportText, STORAGE_KEY, today, toMarkdown, totals, transitionSpending, uid,
 } from "./look-b-model.mjs";
 
 type Budget = ReturnType<typeof blankBudget>;
@@ -64,15 +64,16 @@ function download(content: string, name: string, type = "text/plain") {
 function initialSnapshot() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return { model: raw ? fromMarkdown(raw) : blankBudget(), error: "" };
+    return { model: raw ? fromMarkdown(raw) : blankBudget(), raw, error: "" };
   } catch {
-    return { model: blankBudget(), error: "Your saved budget could not be read. The original is still on this device. Download a backup before starting over." };
+    return { model: blankBudget(), raw: null, error: "Your saved budget could not be read. The original is still on this device. Download a backup before starting over." };
   }
 }
 
 export default function LookBPreview() {
   const [initial] = useState(initialSnapshot);
   const [model, setModel] = useState<Budget>(initial.model);
+  const savedSnapshot = useRef(initial.raw);
   const [error, setError] = useState(initial.error);
   const [toast, setToast] = useState("");
   const [screen, setScreen] = useState<Screen>(() => {
@@ -100,19 +101,28 @@ export default function LookBPreview() {
     const timer = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if ((event.key === STORAGE_KEY || event.key === null) && localStorage.getItem(STORAGE_KEY) !== savedSnapshot.current) {
+        setError("This budget changed in another tab. Refresh before editing again. Unsaved changes in this tab will not overwrite the saved budget.");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const update: Update = (next, message = "Saved on this device") => {
     try {
-      localStorage.setItem(STORAGE_KEY, toMarkdown(next));
+      savedSnapshot.current = persistSnapshot(localStorage, savedSnapshot.current, toMarkdown(next));
       setModel(next); setError(""); setToast(message); return true;
-    } catch {
-      setError("Not saved. Your browser storage may be full or unavailable. Download a Markdown backup before leaving this page.");
+    } catch (e) {
+      setError(e instanceof Error && e.message.startsWith("This budget changed") ? e.message : "Not saved. Your browser storage may be full or unavailable. Download a Markdown backup before leaving this page.");
       return false;
     }
   };
   function reset() {
-    try { localStorage.removeItem(STORAGE_KEY); setModel(blankBudget()); setRemove(false); setError(""); navigate("start"); setToast("Budget removed. A clean start."); }
-    catch { setError("Your browser could not remove the saved budget."); }
+    try { savedSnapshot.current = persistSnapshot(localStorage, savedSnapshot.current, null); setModel(blankBudget()); setRemove(false); setError(""); navigate("start"); setToast("Budget removed. A clean start."); }
+    catch (e) { setError(e instanceof Error && e.message.startsWith("This budget changed") ? e.message : "Your browser could not remove the saved budget."); }
   }
   const summary = totals(model);
   return <div className="look-b-app">

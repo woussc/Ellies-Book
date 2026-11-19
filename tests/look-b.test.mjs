@@ -1,6 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { blankBudget, cents, exampleBudget, financeCsv, fromMarkdown, reportText, toMarkdown, totals, transitionSpending } from "../app/look-b-model.mjs";
+import { blankBudget, cents, exampleBudget, financeCsv, fromMarkdown, persistSnapshot, reportText, STORAGE_KEY, toMarkdown, totals, transitionSpending } from "../app/look-b-model.mjs";
+
+test("a stale tab cannot replace or remove another tab's saved notes", () => {
+  const data = new Map();
+  const storage = { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), removeItem: key => data.delete(key) };
+  const original = toMarkdown(exampleBudget());
+  persistSnapshot(storage, null, original);
+  const changed = fromMarkdown(original);
+  changed.notes.push({ id: "new-note", target: "budget", date: "2026-11-19", text: "Save this context" });
+  const latest = persistSnapshot(storage, original, toMarkdown(changed));
+  assert.throws(() => persistSnapshot(storage, original, original), /changed in another tab/);
+  assert.throws(() => persistSnapshot(storage, original, null), /changed in another tab/);
+  assert.equal(storage.getItem(STORAGE_KEY), latest);
+  persistSnapshot(storage, latest, null);
+  assert.equal(storage.getItem(STORAGE_KEY), null);
+});
 
 test("a fresh budget is empty and never falls back to example data", () => {
   const budget = blankBudget();

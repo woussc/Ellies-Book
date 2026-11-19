@@ -8,6 +8,16 @@ import { safeSpreadsheetText } from "./budget-domain.mjs";
 /** @typedef {{version:number, name:string, profile:string, total:number, period:string, start:string, end:string, created:boolean, example:boolean, categories:Category[], spending:Spending[], notes:Note[], audit:Audit[]}} Budget */
 
 export const STORAGE_KEY = "ellies-book-look-b-markdown-v1";
+
+export function persistSnapshot(storage, expected, next) {
+  if (storage.getItem(STORAGE_KEY) !== expected) {
+    throw new Error("This budget changed in another tab. Your changes were not saved. Refresh before editing again.");
+  }
+  if (next === null) storage.removeItem(STORAGE_KEY);
+  else storage.setItem(STORAGE_KEY, next);
+  return next;
+}
+
 export const uid = () => globalThis.crypto.randomUUID();
 export const today = () => new Date().toISOString().slice(0, 10);
 export const money = (cents = 0) => new Intl.NumberFormat("en-US", {
