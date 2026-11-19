@@ -26,6 +26,8 @@ import {
   totals,
 } from "./model.mjs";
 import { useBook } from "./use-book";
+import { buildAiReadyPack } from "./ai-portal.mjs";
+import AskAiSheet from "./ask-ai-sheet";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -131,6 +133,7 @@ export default function BudgetApp() {
   const [activePage, setPage] = useState<Page | null>(null);
   const page = activePage ?? (budget.created ? "home" : "start");
   const [toast, setToast] = useState("");
+  const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
   const [view, setView] = useState("categories");
   const [focus, setFocus] = useState("");
@@ -1424,6 +1427,9 @@ export default function BudgetApp() {
                         Send this check-in to your partner, your team, or your
                         future self.
                       </p>
+                      <button className="secondary full" onClick={() => setAiPack(buildAiReadyPack(budget))}>
+                        Ask AI <Icon name="share" size={18} />
+                      </button>
                       <button
                         className="secondary full"
                         onClick={() => {
@@ -1503,6 +1509,7 @@ export default function BudgetApp() {
           </button>
         ))}
       </nav>
+      {aiPack !== null && <AskAiSheet pack={aiPack} book={budget} onClose={() => setAiPack(null)} />}
       {toast && (
         <div className="toast" role="status">
           <Icon name="check" size={18} />
