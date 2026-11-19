@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { blankBudget, canRemoveCategory, cents, exampleBudget, financeCsv, fromMarkdown, persistSnapshot, reportText, STORAGE_KEY, toMarkdown, totals, transitionSpending } from "../app/look-b-model.mjs";
+import { blankBudget, canRemoveCategory, cents, exampleBudget, financeCsv, fromMarkdown, outlookText, persistSnapshot, reportText, STORAGE_KEY, toMarkdown, totals, transitionSpending } from "../app/look-b-model.mjs";
 
 test("category removal protects both saved spending and connected notes", () => {
   const budget = exampleBudget();
@@ -164,8 +164,20 @@ test("unassigned reserve is available but not an invented planned cost", () => {
   assert.equal(totals(budget).forecast, 480000);
   assert.equal(totals(budget).headroom, 50000);
   assert.equal(totals(budget).left, 328850);
-  assert.match(reportText(budget), /Forecast spend: \$4,800/);
+  assert.match(reportText(budget), /expect to use \$4,800/);
   assert.match(financeCsv(budget), /"TOTAL","5300","1926.5","85","3288.5","2788.5","4800","500"/);
+});
+
+test("plain-language outlook distinguishes assigned plans from money already spent", () => {
+  const budget = exampleBudget();
+  const original = totals(budget);
+  assert.match(outlookText(budget), /already assigned: \$2,788.50/);
+  assert.match(outlookText(budget), /not money already spent/);
+  assert.match(outlookText(budget), /use the whole \$4,800 budget/);
+  assert.doesNotMatch(reportText(budget), /leaving \$0|headroom: \$0/i);
+  assert.deepEqual(totals(budget), original);
+  budget.spending[0].amount = 600000;
+  assert.match(outlookText(budget), /\$3,885 more than your total budget/);
 });
 
 test("currency rounds once into integer cents and rejects invalid values", () => {

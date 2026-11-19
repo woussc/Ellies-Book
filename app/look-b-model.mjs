@@ -128,12 +128,26 @@ export function fromMarkdown(markdown) {
 }
 
 /** @param {Budget} budget */
+export function outlookText(budget) {
+  const t = totals(budget);
+  const plan = t.uncommittedPlanned > 0
+    ? `The rest of your category plan is already assigned: ${money(t.uncommittedPlanned)} for spending still to come. This is not money already spent.`
+    : "There is no remaining planned spending.";
+  const result = t.headroom === 0
+    ? `If it is all spent as planned, you will use the whole ${money(t.approved)} budget.`
+    : t.headroom > 0
+      ? `If everything goes as planned, you expect to use ${money(t.forecast)}, with ${money(t.headroom)} of your budget not needed by the plan.`
+      : `Your current plans would use ${money(t.forecast)} — ${money(-t.headroom)} more than your total budget. Review the plan before committing more.`;
+  return `${plan}\n\n${result}`;
+}
+
+/** @param {Budget} budget */
 export function reportText(budget) {
   const t = totals(budget);
   return `${budget.name}\n${budget.profile} budget · ${budget.start} to ${budget.end} · USD\n\nWe set aside ${money(t.approved)}. So far, ${money(t.paid)} has been paid and ${money(t.committed)} is committed but not paid. That leaves ${money(t.left)} available to commit.\n\n${budget.categories.map(c => {
     const row = totals(budget, c.id);
     return `${c.name}: planned ${money(c.amount)} · spent ${money(row.paid)} · committed ${money(row.committed)} · left ${money(row.left)}`;
-  }).join("\n")}\n\nStill planned: ${money(t.uncommittedPlanned)}, including ${money(t.planned)} in entries marked Planned. Forecast spend: ${money(t.forecast)}. Projected headroom: ${money(t.headroom)}.\n\nNotes\n${budget.notes.map(n => n.text).join("\n\n") || "No notes added."}\n\nLeft = budget − paid − open commitments. Forecast includes the remaining category plan; planned entries are included, not added twice.\nPrepared with Ellie's Book.`;
+  }).join("\n")}\n\nLooking ahead\n${outlookText(budget)}\n\nNotes\n${budget.notes.map(n => n.text).join("\n\n") || "No notes added."}\n\nLeft = budget − paid − open commitments. Expected spending includes the remaining category plan; planned entries are included, not added twice.\nPrepared with Ellie's Book.`;
 }
 
 /** @param {Budget} budget */
