@@ -26,6 +26,7 @@ import {
   totals,
 } from "./model.mjs";
 import { useBook } from "./use-book";
+import { printReport, saveFile, shareReport, watchNativeKeyboard } from "./platform";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -117,20 +118,24 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     </svg>
   );
 }
-function download(content: string, name: string, type = "text/markdown") {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 export default function BudgetApp() {
+  useEffect(watchNativeKeyboard, []);
   const { budget, setBudget, removeExample, status, error, legacy, recovery } =
     useBook();
   const [activePage, setPage] = useState<Page | null>(null);
   const page = activePage ?? (budget.created ? "home" : "start");
   const [toast, setToast] = useState("");
+  async function download(content: string, name: string, type = "text/markdown") {
+    try {
+      await saveFile(content, name, type);
+      return true;
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError")) {
+        notify("Could not export this file. Please try again.");
+      }
+      return false;
+    }
+  }
   const storageError = status === "error";
   const [view, setView] = useState("categories");
   const [focus, setFocus] = useState("");
@@ -289,7 +294,9 @@ export default function BudgetApp() {
   }
   async function share() {
     try {
-      if (navigator.share) {
+      if (await shareReport(budget.name, reportText(budget))) {
+        notify("Report shared.");
+      } else if (navigator.share) {
         await navigator.share({ title: budget.name, text: reportText(budget) });
         notify("Report shared.");
       } else {
@@ -298,8 +305,9 @@ export default function BudgetApp() {
       }
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
-        download(reportText(budget), "budget-report.md");
-        notify("Your report was downloaded instead.");
+        if (await download(reportText(budget), "budget-report.md")) {
+          notify("Your report export is ready instead.");
+        }
       }
     }
   }
@@ -1426,8 +1434,12 @@ export default function BudgetApp() {
                       </p>
                       <button
                         className="secondary full"
-                        onClick={() => {
-                          window.print();
+                        onClick={async () => {
+                          try {
+                            await printReport();
+                          } catch {
+                            notify("Could not open printing. Please try again.");
+                          }
                         }}
                       >
                         Print / save as PDF
@@ -1435,9 +1447,10 @@ export default function BudgetApp() {
                       </button>
                       <button
                         className="secondary full"
-                        onClick={() => {
-                          download(reportText(budget), "budget-report.md");
-                          notify("Report downloaded.");
+                        onClick={async () => {
+                          if (await download(reportText(budget), "budget-report.md")) {
+                            notify("Report export ready.");
+                          }
                         }}
                       >
                         Download report
@@ -1451,13 +1464,12 @@ export default function BudgetApp() {
                         </p>
                         <button
                           className="text-button"
-                          onClick={() => {
-                            download(
+                          onClick={async () => {
+                            if (await download(
                               csvText(budget),
                               "budget-finance.csv",
                               "text/csv;charset=utf-8",
-                            );
-                            notify("Finance CSV exported.");
+                            )) notify("Finance CSV exported.");
                           }}
                         >
                           Export for finance <Icon name="download" size={17} />

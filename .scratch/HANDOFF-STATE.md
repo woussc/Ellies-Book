@@ -1,5 +1,14 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS1 native wrapper
+
+- [Fact] Branch `devin/1795084058-ios-capacitor`, based on `main` at `69468480b8b847426b86ea4da317cf126b799a34`. Current commit is the commit containing this checkpoint. Ticket: `.scratch/tickets/IOS1-capacitor.md`.
+- [Fact] Capacitor 8.6.2 uses Swift Package Manager. The existing Pages client builds separately into `dist-ios`; Pages/Worker configuration and domain/schema/sync are unchanged. Build instructions: `docs/ios.md`.
+- [Fact] Gates: domain/model/Markdown 39 passed; native adapter 9 passed; rendered HTML 2 passed; lint, Worker build, Pages build, native build/sync and simulator Xcode build exit 0.
+- [Fact] Typecheck retains only three pre-existing Cloudflare errors (missing `cloudflare:workers`, `Fetcher`, `D1Database`). A clean `git archive main` with the same installed dependencies produces the same three errors.
+- [Fact] Installed and launched `com.woussc.elliesbook` on iOS 26.5 iPhone 17. Inspected `/Users/devin/ios-shots/launch.png`: onboarding renders with safe-area spacing and dark status text.
+- [Unknown] Native share destinations, print preview, keyboard interaction and physical-device behavior still need interactive verification. Adapter tests cover routing, empty exports, errors, cancellation and cache cleanup; they do not verify system sheets.
+
 ## Latest checkpoint — QA1 baseline money findings
 
 - [Fact] Branch from `main` @ `5505b30`. Ticket: `.scratch/tickets/QA1-baseline-money-fixes.md`, completed in this change.

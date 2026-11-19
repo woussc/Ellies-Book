@@ -2729,6 +2729,22 @@ button {
     font-size: 12px;
   }
 }
+.native-app .topbar {
+  height: calc(68px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: max(22px, env(safe-area-inset-left));
+  padding-right: max(22px, env(safe-area-inset-right));
+}
+.native-app button {
+  -webkit-touch-callout: none;
+}
+.native-app input,
+.native-app select,
+.native-app textarea {
+  font-size: max(16px, 1em);
+  scroll-margin-block: 90px;
+}
+
 @media print {
   body {
     background: var(--white);
