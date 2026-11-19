@@ -19,7 +19,7 @@ export function persistSnapshot(storage, expected, next) {
 }
 
 export const uid = () => globalThis.crypto.randomUUID();
-export const today = () => new Date().toISOString().slice(0, 10);
+export const today = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 export const money = (cents = 0) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", maximumFractionDigits: cents % 100 ? 2 : 0,
 }).format(cents / 100);
@@ -33,10 +33,8 @@ export function cents(value) {
 }
 
 /** @returns {Budget} */
-export function blankBudget(profile = "Household") {
-  const start = today().slice(0, 7) + "-01";
-  const now = new Date();
-  const end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0)).toISOString().slice(0, 10);
+export function blankBudget(profile = "Household", date = new Date()) {
+  const { start, end } = periodDates("Monthly", date);
   return { version: 1, profile, name: "", total: 0, period: "Monthly", start, end,
     created: false, example: false, categories: [], spending: [], notes: [], audit: [] };
 }

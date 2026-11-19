@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { blankBudget, cents, exampleBudget, financeCsv, fromMarkdown, persistSnapshot, reportText, STORAGE_KEY, toMarkdown, totals, transitionSpending } from "../app/look-b-model.mjs";
 
 test("a stale tab cannot replace or remove another tab's saved notes", () => {
@@ -24,6 +25,22 @@ test("a fresh budget is empty and never falls back to example data", () => {
   assert.deepEqual(budget.categories, []);
   assert.deepEqual(budget.spending, []);
   assert.equal(totals(budget).paid, 0);
+});
+
+test("local dates and budget boundaries agree in timezones on either side of UTC", () => {
+  const moduleUrl = new URL("../app/look-b-model.mjs", import.meta.url).href;
+  for (const [zone, instant, expected] of [
+    ["America/Los_Angeles", "2026-05-01T01:30:00Z", ["2026-04-30", "2026-04-01", "2026-04-30"]],
+    ["Asia/Shanghai", "2026-04-30T17:30:00Z", ["2026-05-01", "2026-05-01", "2026-05-31"]],
+  ]) {
+    const result = execFileSync(process.execPath, ["--input-type=module", "-e", `
+      import { today, blankBudget } from ${JSON.stringify(moduleUrl)};
+      const date = new Date(${JSON.stringify(instant)});
+      const b = blankBudget("Household", date);
+      console.log(JSON.stringify([today(date), b.start, b.end]));
+    `], { env: { ...process.env, TZ: zone }, encoding: "utf8" });
+    assert.deepEqual(JSON.parse(result), expected);
+  }
 });
 
 test("paid, committed and planned remain separate in the overview and report", () => {
