@@ -402,7 +402,7 @@ button:hover {
 .sidebar-bottom > small {
   display: block;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   margin-top: 10px;
 }
@@ -616,7 +616,7 @@ main {
 }
 .input-wrap > small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .hint {
   font-size: 12px;
@@ -698,7 +698,7 @@ main {
   padding-top: 20px;
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .sample-banner {
@@ -752,7 +752,7 @@ main {
 .plan-col-head {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 30px;
   padding: 0 44px 11px 0;
@@ -805,7 +805,7 @@ main {
   padding: 0 0 12px 38px;
 }
 .advanced summary {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   cursor: pointer;
   min-height: 26px;
@@ -954,7 +954,7 @@ main {
   display: block;
 }
 .status-option small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   display: block;
   margin-top: 2px;
@@ -989,13 +989,13 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 9px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 8px;
 }
 .status-label {
   text-transform: capitalize;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .status-label.paid {
@@ -1005,7 +1005,7 @@ main {
   color: var(--text);
 }
 .expense-row .text-button {
-  font-size: 11px;
+  font-size: 12px;
   padding: 10px 0 0;
   min-height: 37px;
 }
@@ -1082,7 +1082,7 @@ main {
   font-weight: 500;
 }
 .overview-numbers small {
-  font-size: 11px;
+  font-size: 12px;
 }
 .overview-grid {
   display: grid;
@@ -1153,7 +1153,7 @@ main {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 .category-values strong {
@@ -1167,7 +1167,7 @@ main {
   align-items: center;
   margin-top: 19px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .chart-key > span {
   display: flex;
@@ -1217,14 +1217,14 @@ main {
   justify-content: space-between;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 .notes-bottom .text-button {
-  font-size: 11px;
+  font-size: 12px;
 }
 .note-download {
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 2px;
   min-height: 34px;
 }
@@ -1261,7 +1261,7 @@ main {
 .audit {
   border-top: 1px solid var(--border);
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .audit summary {
@@ -1276,7 +1276,7 @@ main {
 }
 .audit small {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 5px;
 }
 .money-flow {
@@ -1319,7 +1319,7 @@ main {
 }
 .flow-root small,
 .flow-category small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 .flow-branch {
@@ -1330,7 +1330,7 @@ main {
 .edge-label {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   padding: 9px 0;
 }
 .flow-category {
@@ -1368,7 +1368,7 @@ main {
   overflow-wrap: anywhere;
 }
 .flow-leaf small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   display: block;
   margin-top: 4px;
@@ -1408,7 +1408,7 @@ main {
 .report-brand > span {
   margin-left: auto;
   font-family: var(--font);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 .report-paper > h2 {
@@ -1480,15 +1480,15 @@ th:last-child {
 }
 thead th {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 400;
 }
 tbody th {
   font-weight: 500;
-  font-size: 11px;
+  font-size: 12px;
 }
 .report-footnote {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.7;
   margin-top: 13px;
@@ -1502,7 +1502,7 @@ tbody th {
 }
 .report-paper > footer {
   border-top: 1px solid var(--border);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 27px;
   padding-top: 17px;
@@ -1543,7 +1543,7 @@ tbody th {
   margin: 10px 0;
 }
 .report-actions > .hint {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   margin-top: 28px;
 }
@@ -1673,7 +1673,7 @@ tbody th {
     gap: 24px;
   }
   .category-values {
-    font-size: 9px;
+    font-size: 12px;
   }
   .category-values strong {
     margin-left: 2px;
@@ -1686,7 +1686,7 @@ tbody th {
     padding: 26px;
   }
   .report-paper table {
-    font-size: 11px;
+    font-size: 12px;
   }
   .page-heading h1 {
     font-size: 30px;
@@ -1713,7 +1713,7 @@ tbody th {
     gap: 7px;
   }
   .brand > span > span {
-    font-size: 10px;
+    font-size: 12px;
   }
   .workspace {
     padding: 0 3px;
@@ -1721,7 +1721,7 @@ tbody th {
   }
   .workspace strong {
     max-width: 105px;
-    font-size: 11px;
+    font-size: 12px;
   }
   .nav-item {
     font-size: 12px;
@@ -1735,11 +1735,11 @@ tbody th {
     font-size: 20px;
   }
   .desktop-crumb {
-    font-size: 10px;
+    font-size: 12px;
     gap: 9px;
   }
   .save-status {
-    font-size: 10px;
+    font-size: 12px;
   }
   .start-grid {
     grid-template-columns: 1fr;
@@ -1762,7 +1762,7 @@ tbody th {
     font-size: 20px;
   }
   .intro-note p {
-    font-size: 11px;
+    font-size: 12px;
     margin-top: 12px;
   }
   .example-choice {
@@ -1795,7 +1795,7 @@ tbody th {
     font-size: 17px;
   }
   .overview-numbers span {
-    font-size: 10px;
+    font-size: 12px;
   }
   .overview-numbers small {
     display: none;
@@ -1870,7 +1870,7 @@ tbody th {
     letter-spacing: -0.5px;
   }
   .save-status {
-    font-size: 9px;
+    font-size: 12px;
     gap: 5px;
   }
   .save-status > span {
@@ -1963,7 +1963,7 @@ tbody th {
     padding-right: 4px;
   }
   .input-wrap > small {
-    font-size: 9px;
+    font-size: 12px;
   }
   .start-form .form-pair {
     grid-template-columns: 0.9fr 1.1fr;
@@ -1973,7 +1973,7 @@ tbody th {
     font-size: 13px;
   }
   .start-form > .hint {
-    font-size: 11px;
+    font-size: 12px;
     margin-top: -3px;
     line-height: 1.8;
   }
@@ -2013,7 +2013,7 @@ tbody th {
     width: 22px;
   }
   .intro-note > p {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.85;
     margin-top: 0;
   }
@@ -2029,7 +2029,7 @@ tbody th {
     font-size: 13px;
   }
   .example-choice p {
-    font-size: 11px;
+    font-size: 12px;
   }
   .example-choice .text-button {
     min-height: 45px;
@@ -2057,7 +2057,7 @@ tbody th {
     border: 0;
     color: var(--muted);
     min-height: 52px;
-    font-size: 9px;
+    font-size: 12px;
   }
   .mobile-nav button.active {
     color: var(--accent);
@@ -2075,11 +2075,11 @@ tbody th {
   .app-footer {
     margin-top: 31px;
     padding-top: 19px;
-    font-size: 9px;
+    font-size: 12px;
   }
   .sample-banner {
     align-items: flex-start;
-    font-size: 10px;
+    font-size: 12px;
     padding: 10px 12px;
     gap: 8px;
     margin-bottom: 22px;
@@ -2089,7 +2089,7 @@ tbody th {
     max-width: 180px;
   }
   .sample-banner button {
-    font-size: 10px;
+    font-size: 12px;
     padding: 0;
     gap: 5px;
     min-height: 36px;
@@ -2114,10 +2114,10 @@ tbody th {
     font-size: 18px;
   }
   .section-heading > span {
-    font-size: 10px;
+    font-size: 12px;
   }
   .plan-col-head {
-    font-size: 10px;
+    font-size: 12px;
     margin-top: 25px;
     padding-right: 35px;
   }
@@ -2162,7 +2162,7 @@ tbody th {
     grid-template-columns: 1fr 1fr;
   }
   .advanced .field {
-    font-size: 11px;
+    font-size: 12px;
   }
   .advanced .field input {
     font-size: 14px;
@@ -2172,7 +2172,7 @@ tbody th {
     font-size: 12px;
   }
   .add-category button {
-    font-size: 10px;
+    font-size: 12px;
     gap: 5px;
   }
   .add-category button svg {
@@ -2223,7 +2223,7 @@ tbody th {
     font-size: 13px;
   }
   .status-option small {
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1.6;
   }
   .date-field {
@@ -2242,10 +2242,10 @@ tbody th {
     font-size: 13px;
   }
   .expense-meta {
-    font-size: 10px;
+    font-size: 12px;
   }
   .recent-hint {
-    font-size: 11px;
+    font-size: 12px;
   }
   .overview-summary {
     grid-template-columns: 1fr;
@@ -2262,10 +2262,10 @@ tbody th {
     line-height: 1.45;
   }
   .left-amount > strong > span {
-    font-size: 10px;
+    font-size: 12px;
   }
   .left-amount > p {
-    font-size: 10px;
+    font-size: 12px;
     margin-top: 2px;
   }
   .overview-numbers {
@@ -2273,7 +2273,7 @@ tbody th {
     gap: 8px;
   }
   .overview-numbers span {
-    font-size: 9px;
+    font-size: 12px;
     white-space: nowrap;
   }
   .overview-numbers small {
@@ -2294,7 +2294,7 @@ tbody th {
     letter-spacing: -0.4px;
   }
   .category-overview .section-heading .text-button {
-    font-size: 10px;
+    font-size: 12px;
     gap: 5px;
     white-space: nowrap;
   }
@@ -2303,7 +2303,7 @@ tbody th {
     width: 100%;
   }
   .segmented button {
-    font-size: 11px;
+    font-size: 12px;
     flex: 1;
     justify-content: center;
     gap: 7px;
@@ -2317,7 +2317,7 @@ tbody th {
     gap: 8px;
   }
   .category-budget-head > span {
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
   }
   .category-track {
@@ -2325,7 +2325,7 @@ tbody th {
     height: 6px;
   }
   .category-values {
-    font-size: 9px;
+    font-size: 12px;
     gap: 6px;
   }
   .category-values span {
@@ -2340,12 +2340,12 @@ tbody th {
     text-align: right;
   }
   .category-values strong {
-    font-size: 11px;
+    font-size: 12px;
     margin: 0;
     font-variant-numeric: tabular-nums;
   }
   .chart-key {
-    font-size: 9px;
+    font-size: 12px;
     margin-top: 17px;
   }
   .notes-panel {
@@ -2356,21 +2356,21 @@ tbody th {
     line-height: 1.7;
   }
   .notes-panel > p {
-    font-size: 11px;
+    font-size: 12px;
   }
   .notes-bottom {
-    font-size: 10px;
+    font-size: 12px;
   }
   .quiet-next {
     padding: 26px 8px 15px;
   }
   .audit {
-    font-size: 11px;
+    font-size: 12px;
   }
   .flow-root,
   .flow-category {
     padding: 12px 10px;
-    font-size: 11px;
+    font-size: 12px;
   }
   .flow-root strong,
   .flow-category strong {
@@ -2378,7 +2378,7 @@ tbody th {
   }
   .flow-root small,
   .flow-category small {
-    font-size: 9px;
+    font-size: 12px;
   }
   .flow-branch {
     margin-left: 14px;
@@ -2394,23 +2394,23 @@ tbody th {
   }
   .flow-leaf > div {
     padding: 12px 9px;
-    font-size: 11px;
+    font-size: 12px;
   }
   .flow-leaf strong {
-    font-size: 11px;
+    font-size: 12px;
   }
   .flow-leaf small {
-    font-size: 9px;
+    font-size: 12px;
   }
   .flow-leaf > div:before {
     width: 14px;
     left: -14px;
   }
   .money-flow > .hint {
-    font-size: 10px;
+    font-size: 12px;
   }
   .money-flow .field {
-    font-size: 11px;
+    font-size: 12px;
   }
   .report-paper {
     padding: 24px 19px;
@@ -2420,14 +2420,14 @@ tbody th {
     padding-bottom: 21px;
   }
   .report-brand > span {
-    font-size: 9px;
+    font-size: 12px;
   }
   .report-paper > h2 {
     font-size: 28px;
     margin-top: 23px;
   }
   .report-period {
-    font-size: 11px;
+    font-size: 12px;
   }
   .report-story {
     font-size: 16px;
@@ -2442,34 +2442,34 @@ tbody th {
     font-size: 33px;
   }
   .report-left > span {
-    font-size: 11px;
+    font-size: 12px;
   }
   .report-paper h3 {
     font-size: 13px;
     margin: 23px 0 13px;
   }
   .report-paper table {
-    font-size: 11px;
+    font-size: 12px;
   }
   .report-paper th,
   .report-paper td {
     padding: 12px 4px;
   }
   .report-paper thead th {
-    font-size: 9px;
+    font-size: 12px;
   }
   .report-paper tbody th {
-    font-size: 10px;
+    font-size: 12px;
     max-width: 92px;
   }
   .report-footnote {
-    font-size: 9px;
+    font-size: 12px;
   }
   .report-notes {
     font-size: 12px;
   }
   .report-paper > footer {
-    font-size: 9px;
+    font-size: 12px;
   }
   .report-actions {
     padding: 0 5px;
@@ -2485,7 +2485,7 @@ tbody th {
     padding: 13px 17px;
   }
   .report-actions > .hint {
-    font-size: 11px;
+    font-size: 12px;
   }
   .finance-export {
     padding-top: 24px;
@@ -2506,7 +2506,7 @@ tbody th {
     font-size: 18px;
   }
   .save-status {
-    font-size: 8px;
+    font-size: 12px;
   }
   .start-form {
     padding: 22px 17px;
@@ -2527,7 +2527,7 @@ tbody th {
     padding-left: 0;
   }
   .category-name input {
-    font-size: 11px;
+    font-size: 12px;
   }
   .report-paper {
     padding: 22px 15px;
@@ -2618,16 +2618,16 @@ button {
     min-width: 44px;
   }
   .overview-numbers span {
-    font-size: 10px;
+    font-size: 12px;
   }
   .category-values {
-    font-size: 10px;
+    font-size: 12px;
   }
   .category-values strong {
     font-size: 12px;
   }
   .mobile-nav button {
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 @media print {

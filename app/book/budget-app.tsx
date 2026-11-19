@@ -439,8 +439,8 @@ export default function BudgetApp() {
                           </span>
                         </div>
                         <h2>
-                          Not every penny needs
-                          <br />a spreadsheet.
+                          Life beyond
+                          <br />spreadsheets.
                         </h2>
                         <p>
                           Set a little aside for the everyday.
