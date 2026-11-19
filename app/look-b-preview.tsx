@@ -83,6 +83,7 @@ export default function LookBPreview() {
   });
   const [remove, setRemove] = useState(false);
   const main = useRef<HTMLElement>(null);
+  const confirmation = useRef<HTMLDivElement>(null);
 
   function navigate(next: Screen) {
     setScreen(next); location.hash = next;
@@ -102,6 +103,12 @@ export default function LookBPreview() {
     const timer = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    if (remove) {
+      confirmation.current?.focus({ preventScroll: true });
+      confirmation.current?.scrollIntoView({ block: "center", behavior: "instant" });
+    }
+  }, [remove]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if ((event.key === STORAGE_KEY || event.key === null) && localStorage.getItem(STORAGE_KEY) !== savedSnapshot.current) {
@@ -140,7 +147,7 @@ export default function LookBPreview() {
       <main id="main" ref={main}>
         {error && <div className="error-banner" role="alert">{error}<button className="text-button" onClick={() => download(localStorage.getItem(STORAGE_KEY) || toMarkdown(model), "ellies-book-backup.md", "text/markdown")}>Download backup <Icon name="download" size={16} /></button></div>}
         {model.example && <div className="example-banner"><span><strong>Example budget</strong><span className="example-description"> · Try things out. This is not your data.</span></span><button onClick={() => setRemove(true)}>Remove example <Icon name="close" size={16} /></button></div>}
-        {remove && <div className="confirm-panel" role="alert"><div><strong>Remove {model.example ? "the example" : "this budget"}?</strong><p>This removes this preview’s budget, spending and notes from this browser.</p></div><div className="button-row"><button onClick={() => setRemove(false)} className="button secondary">Keep it</button><button onClick={reset} className="button danger">Remove budget</button></div></div>}
+        {remove && <div className="confirm-panel" role="alert" ref={confirmation} tabIndex={-1}><div><strong>Remove {model.example ? "the example" : "this budget"}?</strong><p>This removes this preview’s budget, spending and notes from this browser.</p></div><div className="button-row"><button onClick={() => setRemove(false)} className="button secondary">Keep it</button><button onClick={reset} className="button danger">Remove budget</button></div></div>}
         {screen === "start" && <StartBudget key={`${model.created}-${model.example}`} model={model} update={update} onNext={() => navigate("plan")} onExample={() => { if (update(exampleBudget(), "Example opened. Remove it whenever you like.")) navigate("stand"); }} onRemove={() => setRemove(true)} />}
         {screen === "plan" && <PlanBudget key={model.name + model.profile} model={model} update={update} onNext={() => navigate("log")} />}
         {screen === "log" && <LogSpending model={model} update={update} onNext={() => navigate("stand")} />}
