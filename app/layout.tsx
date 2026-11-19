@@ -1,28 +1,35 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Function Budget Studio",
-  description: "A private synthetic prototype for traceable function budgeting and outcome rehearsal.",
+  title: "Ellie's Book — a little clarity for your money",
+  description:
+    "Plan your budget, log spending and share a clear check-in. A little more clarity for your household, yourself or your team.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/book.svg",
+    shortcut: "/book.svg",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Ellie's Book",
+    statusBarStyle: "default",
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export const viewport: Viewport = {
+  // vinext's viewport shim does not emit viewportFit. Suppress its default
+  // tag and use the complete, shared phone viewport below (one tag only).
+  width: undefined,
+  initialScale: undefined,
+  themeColor: "#f6f3ec",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* App Router root layout applies to every route; the pages/_document rule is a false positive here. */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+      <head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /></head>
       <body>{children}</body>
     </html>
   );

@@ -51,7 +51,7 @@ const INLINE_EMPHASIS_REGEX =
  */
 function renderInline(
   text: string,
-  handlers: MarkdownHandlers,
+  handlers: MarkdownHandlers | undefined,
   keyPrefix: string,
 ): ReactNode[] {
   const out: ReactNode[] = [];
@@ -72,7 +72,7 @@ function renderInline(
     if (match[0].startsWith("[[")) {
       const target = match[1].trim();
       const label = (match[2] ? match[2] : match[1]).trim();
-      out.push(
+      out.push(handlers ? (
         <button
           key={`${keyPrefix}-w${i}`}
           type="button"
@@ -80,11 +80,11 @@ function renderInline(
           onClick={() => handlers.onWikilink(target)}
         >
           [[{label}]]
-        </button>,
-      );
+        </button>
+      ) : <Fragment key={`${keyPrefix}-w${i}`}>{label}</Fragment>);
     } else {
       const tag = match[0].slice(1).toLowerCase();
-      out.push(
+      out.push(handlers ? (
         <button
           key={`${keyPrefix}-g${i}`}
           type="button"
@@ -92,8 +92,8 @@ function renderInline(
           onClick={() => handlers.onTag(tag)}
         >
           {match[0]}
-        </button>,
-      );
+        </button>
+      ) : <Fragment key={`${keyPrefix}-g${i}`}>{match[0]}</Fragment>);
     }
     lastIndex = INLINE_LINK_REGEX.lastIndex;
     i += 1;
@@ -162,7 +162,8 @@ const FENCE_REGEX = /^\s*```/;
  */
 export function renderMarkdownDocument(
   markdown: string,
-  handlers: MarkdownHandlers,
+  // Shared/printed documents use plain labels, not graph navigation controls.
+  handlers?: MarkdownHandlers,
 ): ReactNode[] {
   const body = stripFrontmatter(markdown);
   const lines = body.split(/\r?\n/);

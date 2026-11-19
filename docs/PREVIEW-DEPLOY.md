@@ -2,7 +2,7 @@
 
 > Owner: SHUAI (`Chen Shuaizhou`). Repository: `woussc/Ellies-Book`.
 
-This repo ships a GitHub Pages static preview of the client workbench. It lets
+This repo ships a GitHub Pages static build of the same five-flow budget app as the Worker. It lets
 SHUAI review the UI from a live URL without a Cloudflare account. The Cloudflare
 Worker (SSR + D1) build is untouched and stays the production target.
 
@@ -68,21 +68,13 @@ deploy succeeds.
 ## Notes and known behavior
 
 - [Fact] The preview is client-only. There is no `/api/sync` server route on
-  Pages. The cloud sync button already fails safe: it catches the failed fetch
-  and shows the local-only message, so the preview degrades gracefully with no
-  code change.
+  Pages. The book is explicitly saved only in this browser; Markdown backup and
+  restore work without a server. No cloud-sync control or promise is shown.
 - [Unknown -> adjust-after-first-CI-run] The build command `pnpm run build:pages`
   and the upload `path: dist-pages` must match `outDir` in
   `vite.config.pages.ts`. If the first CI run shows the static build emits to a
   different directory, update those lines together. They are flagged in
   `pages.yml` with the same tag.
-- [Inference] The preview stylesheet uses a Pages-local entry
-  (`pages-preview/pages.css`) that re-imports `app/globals.css` and adds
-  explicit Tailwind v4 `@source` directives for the app component tree. This is
-  a low-risk preventive fix: Tailwind v4 auto-detection runs from the Vite root
-  `pages-preview/` and may not scan `../app/*`, so the explicit `@source`
-  guarantees the workbench utility classes ship in the preview CSS. It is
-  additive and does NOT touch `app/globals.css` or the Worker build.
-  [Unknown] Still needs first-CI-run visual confirmation that the preview
-  renders fully styled. If auto-detection already reached the app tree, the
-  directives are a harmless no-op.
+- [Fact] The static client entry imports `app/globals.css` directly. Vite rewrites
+  its self-hosted font paths to `/Ellies-Book/fonts/`; there is no second Pages
+  stylesheet or separate app component tree.

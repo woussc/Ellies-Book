@@ -6,6 +6,7 @@ import {
   blankBudget,
   csvText,
   editCategory,
+  editBudgetDetails,
   exampleBudget,
   legacyBackup,
   parseBook,
@@ -131,6 +132,25 @@ test("category changes preserve before/after values in the audit trail", () => {
   assert.match(edited.events.at(-1).text, /001230/);
   assert.equal(editCategory(edited, id, { amount: 2100 }), edited);
 });
+test("budget detail edits retain prior funding and descriptive values after a Markdown round trip", () => {
+  const original = { ...blankBudget(), created: true, name: "December", total: 1200, period: "December 2026" };
+  const updated = editBudgetDetails(original, { name: "Holiday", total: 1500, profile: "Team", period: "January 2027" });
+  assert.equal(original.total, 1200);
+  assert.equal(updated.total, 1500);
+  const event = parseBook(serializeBook(updated)).events.at(-1);
+  assert.deepEqual(event.before, { name: "December", total: 1200, profile: "Household", period: "December 2026" });
+  assert.deepEqual(event.after, { name: "Holiday", total: 1500, profile: "Team", period: "January 2027" });
+  assert.match(event.text, /Budget total: \$1,200 → \$1,500/);
+  assert.match(event.text, /Name: December → Holiday/);
+  assert.match(event.text, /Period: December 2026 → January 2027/);
+  assert.match(event.text, /Profile: Household → Team/);
+  assert.equal(editBudgetDetails(updated, event.after), updated);
+  const fresh = blankBudget();
+  const created = editBudgetDetails(fresh, { name: "Team book", total: 100, profile: "Team", period: "May 2027" });
+  assert.equal(created.created, true);
+  assert.equal(created.categories[0].name, "People");
+  assert.match(created.events.at(-1).text, /Created and confirmed budget/);
+});
 test("an example saved by the earlier preview never becomes a personal budget", () => {
   const map = new Map([
     ["ellies-book:look-a:v1", JSON.stringify(exampleBudget())],
@@ -220,6 +240,42 @@ test("storage errors surface and legacy data is downloadable without being rewri
   assert.equal(backup["function-budget-studio-v1-4-working"], raw);
   assert.throws(() => persistBudget(storage, exampleBudget()), /QuotaExceededError/);
   assert.equal(map.get("function-budget-studio-v1-4-working"), raw);
+});
+
+test("exploring an example cannot replace the only copy of unsaved personal edits", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import { createElement } from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import { useBook } from './app/book/use-book.ts';
+    import { blankBudget, exampleBudget, parseBook, STORAGE_KEY, SAMPLE_STORAGE_KEY } from './app/book/model.mjs';
+    const map = new Map();
+    let failWrites = false;
+    globalThis.localStorage = {
+      getItem: key => map.get(key) ?? null,
+      setItem(key, value) { if (failWrites) throw new Error('QuotaExceededError'); map.set(key, value); },
+      removeItem: key => map.delete(key),
+    };
+    let book;
+    renderToStaticMarkup(createElement(function Probe() { book = useBook(); return null; }));
+    const personal = { ...blankBudget(), created: true, name: 'My book', notes: 'Original note' };
+    assert.equal(book.setBudget(personal), true);
+    failWrites = true;
+    const unsaved = { ...personal, notes: '# Keep the unsaved decision', categories: personal.categories.map((c, i) => i ? c : { ...c, amount: 900 }) };
+    assert.equal(book.setBudget(unsaved), false);
+    assert.equal(book.setBudget(exampleBudget()), false);
+    let retained;
+    book.setBudget(budget => { retained = budget; return budget; });
+    assert.deepEqual(retained, unsaved, 'The downloadable in-memory book must retain every unsaved edit');
+    assert.equal(parseBook(map.get(STORAGE_KEY)).notes, 'Original note');
+    assert.equal(map.has(SAMPLE_STORAGE_KEY), false);
+    failWrites = false;
+    assert.equal(book.setBudget(retained), true);
+    assert.equal(book.setBudget(exampleBudget()), true);
+    book.removeExample();
+    assert.deepEqual(parseBook(map.get(STORAGE_KEY)), unsaved);
+  `], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test("unconfirmed ideas affect forecast but never approved headroom or paid spend", () => {

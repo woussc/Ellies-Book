@@ -96,6 +96,16 @@ function subscribe(listener: () => void) {
 function setBudget(next: SetStateAction<Budget>, restore = false) {
   const prev = getSnapshot();
   const budget = typeof next === "function" ? next(prev.budget) : next;
+  if (prev.status === "error" && !prev.budget.sample && budget.sample) {
+    // The personal snapshot may be the only copy of failed writes. Never
+    // exchange it for disposable example data, even if storage recovers.
+    current = {
+      ...prev,
+      error: "Your personal changes are not saved. Download a book backup and save your changes before opening the example.",
+    };
+    emit();
+    return false;
+  }
   try {
     if (prev.blocked && !restore)
       throw new Error(

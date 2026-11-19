@@ -320,6 +320,29 @@ export function advanceExpense(budget, id) {
     ),
   };
 }
+export function editBudgetDetails(budget, details) {
+  const labels = { name: "Name", total: "Budget total", profile: "Profile", period: "Period" };
+  const before = Object.fromEntries(Object.keys(labels).map((key) => [key, budget[key]]));
+  const after = Object.fromEntries(Object.keys(labels).map((key) => [key, details[key]]));
+  const changed = Object.keys(labels).filter((key) => before[key] !== after[key]);
+  if (budget.created && !changed.length) return budget;
+  const value = (key, data) => key === "total" ? money(data[key]) : data[key];
+  return {
+    ...budget,
+    ...after,
+    categories: !budget.created && budget.profile !== details.profile
+      ? blankBudget(details.profile).categories : budget.categories,
+    created: true,
+    events: [...budget.events, {
+      text: budget.created
+        ? `Updated budget details: ${changed.map((key) => `${labels[key]}: ${value(key, before)} → ${value(key, after)}`).join("; ")}`
+        : "Created and confirmed budget",
+      at: new Date().toISOString(),
+      before,
+      after,
+    }],
+  };
+}
 export function editCategory(budget, id, patch) {
   const before = budget.categories.find((c) => c.id === id);
   if (!before) return budget;
