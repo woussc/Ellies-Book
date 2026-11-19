@@ -23,7 +23,9 @@ type Snapshot = {
 // The server never reads or writes a browser's book. React uses this same blank
 // snapshot while hydrating, then subscribes to the browser-only stored snapshot.
 const serverSnapshot: Snapshot = {
-  budget: blankBudget(),
+  // Worker modules load outside request scope: no randomness or clock reads.
+  // Browser hydration replaces this inert placeholder with a real book.
+  budget: blankBudget("Household", { id: "opening-book", period: "" }),
   status: "loading",
   error: "",
   legacy: "",

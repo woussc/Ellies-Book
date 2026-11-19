@@ -177,13 +177,13 @@ export const money = (v) =>
     currency: "USD",
     maximumFractionDigits: Number.isInteger(v) ? 0 : 2,
   }).format(v);
-export function blankBudget(profile = "Household") {
+export function blankBudget(profile = "Household", initial = {}) {
   return {
-    id: crypto.randomUUID(),
+    id: initial.id ?? crypto.randomUUID(),
     name: "",
     profile,
     total: 0,
-    period: new Intl.DateTimeFormat("en-US", {
+    period: initial.period ?? new Intl.DateTimeFormat("en-US", {
       month: "long",
       year: "numeric",
     }).format(new Date()),

@@ -40,7 +40,7 @@ export function persistBudget(storage: Storage, budget: Budget): void;
 export const profiles: Record<Profile, string[]>;
 export function round(value: string | number): number;
 export function money(value: number): string;
-export function blankBudget(profile?: Profile): Budget;
+export function blankBudget(profile?: Profile, initial?: {id?: string; period?: string}): Budget;
 export function exampleBudget(): Budget;
 export function advanceExpense(budget: Budget, id: string): Budget;
 export function editCategory(

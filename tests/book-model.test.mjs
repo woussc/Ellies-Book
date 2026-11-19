@@ -179,6 +179,14 @@ test("malformed personal storage is never silently replaced with a fresh book", 
   assert.throws(() => readStoredBudget(storage), /backup|read|format/i);
 });
 
+test("the server storage adapter imports without request-scoped randomness", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+    Object.defineProperty(globalThis, 'crypto', { value: { randomUUID() { throw new Error('randomness outside request'); } } });
+    await import('./app/book/use-book.ts');
+  `], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test("restore rejects duplicate records, orphan spending and invalid lifecycle history", () => {
   const b = exampleBudget();
   for (const corrupt of [
