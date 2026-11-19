@@ -62,11 +62,12 @@ function download(content: string, name: string, type = "text/plain") {
 }
 
 function initialSnapshot() {
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    raw = localStorage.getItem(STORAGE_KEY);
     return { model: raw ? fromMarkdown(raw) : blankBudget(), raw, error: "" };
   } catch {
-    return { model: blankBudget(), raw: null, error: "Your saved budget could not be read. The original is still on this device. Download a backup before starting over." };
+    return { model: blankBudget(), raw, error: "Your saved budget could not be read. The original is still on this device. Download a backup before starting over." };
   }
 }
 
