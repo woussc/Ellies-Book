@@ -22,17 +22,18 @@ export async function shareReport(title: string, text: string) {
 
 export async function saveFile(content: string, name: string, type: string) {
   if (Capacitor.isNativePlatform()) {
-    const path = `${crypto.randomUUID()}-${name}`;
-    const file = await Filesystem.writeFile({
-      path, data: content, directory: Directory.Cache, encoding: Encoding.UTF8,
-    });
+    const folder = crypto.randomUUID();
     try {
+      const file = await Filesystem.writeFile({
+        path: `${folder}/${name}`, data: content, directory: Directory.Cache,
+        encoding: Encoding.UTF8, recursive: true,
+      });
       await Share.share({ title: name, files: [file.uri] });
     } catch (error) {
       if (shareCancelled(error)) throw new DOMException("Sharing cancelled", "AbortError");
       throw error;
     } finally {
-      await Filesystem.deleteFile({ path, directory: Directory.Cache }).catch(() => {});
+      await Filesystem.rmdir({ path: folder, directory: Directory.Cache, recursive: true }).catch(() => {});
     }
     return;
   }
@@ -52,11 +53,35 @@ export async function printReport() {
 export function watchNativeKeyboard() {
   if (!Capacitor.isNativePlatform()) return () => {};
   document.documentElement.classList.add("native-app");
-  const listener = Keyboard.addListener("keyboardDidShow", () => {
-    const field = document.activeElement;
-    if (field instanceof HTMLElement) {
-      field.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  });
-  return () => { void listener.then((handle) => handle.remove()); };
+  void Keyboard.setAccessoryBarVisible({ isVisible: true }).catch(() => {});
+  let keyboardVisible = false;
+  let frame = 0;
+  const scrollField = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      const field = document.activeElement;
+      if (field instanceof HTMLElement) {
+        field.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    });
+  };
+  const focus = () => { if (keyboardVisible) scrollField(); };
+  document.addEventListener("focusin", focus);
+  const listeners = [
+    Keyboard.addListener("keyboardDidShow", () => {
+      keyboardVisible = true;
+      document.documentElement.classList.add("native-keyboard-open");
+      scrollField();
+    }),
+    Keyboard.addListener("keyboardDidHide", () => {
+      keyboardVisible = false;
+      document.documentElement.classList.remove("native-keyboard-open");
+    }),
+  ];
+  return () => {
+    cancelAnimationFrame(frame);
+    document.removeEventListener("focusin", focus);
+    document.documentElement.classList.remove("native-keyboard-open");
+    for (const listener of listeners) void listener.then((handle) => handle.remove());
+  };
 }

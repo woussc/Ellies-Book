@@ -2729,6 +2729,20 @@ button {
     font-size: 12px;
   }
 }
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--bg);
+  z-index: 101;
+  pointer-events: none;
+}
+.native-keyboard-open .mobile-nav {
+  display: none;
+}
 .native-app .topbar {
   height: calc(68px + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
@@ -2746,6 +2760,9 @@ button {
 }
 
 @media print {
+  body::before {
+    display: none;
+  }
   body {
     background: var(--white);
   }

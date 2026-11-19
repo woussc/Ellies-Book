@@ -1,5 +1,13 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS2 simulator fixes
+
+- [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `bb942c3`. IOS2 is complete in the commit containing this checkpoint. Ticket: `.scratch/tickets/IOS2-simulator-fixes.md`.
+- [Fact] Native startup restores Previous/Next/Done. Focus changes scroll the active field after native keyboard resize. Mobile navigation hides while the native keyboard is open. Exports use unique cache folders with clean filenames and recursive cleanup. A fixed opaque top safe-area strip covers scrolled content; print hides the strip. Ask AI remains unchanged; its future share hookup is documented only.
+- [Fact] Gates: platform 11 passed; domain/model/Markdown 39 passed; rendered HTML 2 passed; lint, production build, Pages build, native build/sync and simulator Xcode build exit 0. Typecheck retains the same three pre-existing Cloudflare errors documented under IOS1.
+- [Fact] Reinstalled and launched the iOS simulator app. Inspected screenshots in `/Users/devin/ios-shots/`: `fix-keyboard.png` (numeric keypad and toolbar), `fix-scrolled-save.png` (opaque status area and reachable Save), `fix-report-share.png` and `fix-csv-share.png` (clean share-sheet names). iOS hides the extensions in these sheet titles; the cache file was named `budget-finance.csv` inside a UUID folder and disappeared after dismissal.
+- [Unknown] Safari standalone and physical-device behavior were not visually verified. The safe-area rule is shared CSS, not native-only. No further IOS2 work is blocked; real-device acceptance and PR #23 integration are separate follow-ups.
+
 ## Latest checkpoint — IOS1 native wrapper
 
 - [Fact] Branch `devin/1795084058-ios-capacitor`, based on `main` at `69468480b8b847426b86ea4da317cf126b799a34`. Current commit is the commit containing this checkpoint. Ticket: `.scratch/tickets/IOS1-capacitor.md`.

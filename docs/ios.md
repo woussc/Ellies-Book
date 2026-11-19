@@ -26,6 +26,8 @@ opens the iOS print preview using the existing report print styles. Expand the
 preview to save or share a PDF. No cloud service is needed.
 
 The keyboard resizes the native web view; the focused field scrolls into view.
+The native Previous/Next/Done bar stays available, including on numeric keypads.
+File exports keep their original names inside unique temporary cache folders.
 The app keeps its light appearance and uses safe-area spacing around the chrome.
 Saved books stay in this app's local storage, separate from Safari's storage.
 
@@ -38,3 +40,6 @@ Adapter tests (Node 22.13 or newer):
 ```sh
 node --experimental-test-module-mocks --test tests/platform.test.mjs
 ```
+
+When PR #23 (Ask AI) lands, wire its native share at startup with
+`registerNativeShare(pack => Share.share({ text: pack }))`.
