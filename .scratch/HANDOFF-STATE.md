@@ -1,5 +1,16 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — PR13 intent regression
+
+- [Fact] Branch `feat/wave-13-14`, starting commit `2cc9a02`. Ticket: `.scratch/tickets/PR13-intent-toggle.md`, completed in this change. Current commit: the commit containing this checkpoint (`git rev-parse HEAD`).
+- [Fact] `main` at `ccc11e5` already merges PR13. `git diff main...feat/wave-13-14 -- app/page.tsx` was empty before this fix. The pre-merge comparison `main^1...feat/wave-13-14` shows W14-5 relaxed the required-intent guard without changing Single-mode family-wide removal.
+- [Fact] The component regression test failed before the fix (Efficiency removed) and passes after it. Single-mode family replacement now applies only when selecting, not deselecting. V2 editor renders all Save blockers in an alert beside Save.
+- [Fact] `node --test tests/*.test.mjs`: 34 passed, 0 failed. `pnpm run lint`: exit 0. `pnpm run build`: exit 0.
+- [Fact] Extra `pnpm exec tsc --noEmit --incremental false`: exit 2, 15 errors. An untouched worktree at `2cc9a02` produces identical diagnostics after line/column normalization. Typecheck is not a CI step. No unrelated type fixes were made.
+- [Fact] Local dev command: `pnpm run dev --host 0.0.0.0 --port 3000`, URL `http://localhost:3000/`, HTTP 200. Sidebar Setup -> Function Library -> Metadata tags. Projects: Setup -> Plan & Budgeting.
+- [Unknown] Browser appearance and end-to-end Save interaction remain visually unverified. No Playwright screenshot or taste inspection was run. Next step: UI-test the QA sequence and validation alert.
+- Suggested skills for UI verification: `.agent/skills/uiux-congress/SKILL.md`, `.agent/skills/design-taste-frontend/SKILL.md`.
+
 > Address the user as **SHUAI**. Tag consequential claims with `[Fact]` / `[Inference]` / `[Assumption]` / `[Projection]` / `[Unknown]` (per AGENTS.md + ADR 0003).
 > This file is written so a brand-new session with zero memory can resume confidently.
 > **Checkpoint**: **Wave 12 COMPLETE (`110e2fd`, gate `25/25`), Wave 13 IMPLEMENTED in the local clone (gate `28/28`) & Wave 14 CLOSED (gate `30/30`, uncommitted, nothing pushed)** - latest. Prior waves (7-11) below remain for history.

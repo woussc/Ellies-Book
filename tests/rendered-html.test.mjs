@@ -1,6 +1,72 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { createRequire } from "node:module";
+import ts from "typescript";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
+
+async function pageComponents(names) {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declarations = ast.statements.filter((node) => ts.isFunctionDeclaration(node) && names.includes(node.name?.text));
+  assert.equal(declarations.length, names.length);
+  const code = declarations.map((node) => node.getText(ast)).join("\n");
+  const { outputText } = ts.transpileModule(`${code}\nexport { ${names.join(", ")} };`, {
+    compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS },
+  });
+  const exports = {};
+  new Function("require", "exports", outputText)(createRequire(import.meta.url), exports);
+  return exports;
+}
+
+function inputs(element) {
+  if (!element || typeof element !== "object") return [];
+  if (element.type === "input") return [element];
+  return [element.props?.children].flat(Infinity).flatMap(inputs);
+}
+
+test("project Save errors explain every blocker and stay absent for valid drafts", async () => {
+  const { ProjectSaveErrors } = await pageComponents(["ProjectSaveErrors"]);
+  assert.equal(renderToStaticMarkup(createElement(ProjectSaveErrors, { errors: [] })), "");
+  const errors = [
+    { key: "project.businessIntent", message: "Choose one Business intent tag before saving the project." },
+    { key: "line.test.comment", message: "Add an adjustment comment for this changed spending line." },
+  ];
+  const html = renderToStaticMarkup(createElement(ProjectSaveErrors, { errors }));
+  assert.match(html, /role="alert"/);
+  assert.match(html, /Project not saved/);
+  for (const error of errors) assert.ok(html.includes(error.message));
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /Save Original \/ Proposed<\/AppButton><\/div><\/div><ProjectSaveErrors errors=\{errors\}/);
+});
+
+test("TagPicker preserves Efficiency after Multiple -> Single then untick Growth", async () => {
+  const { TagPicker } = await pageComponents(["TagPicker", "tagValueFor"]);
+  const intent = { id: "tag-business-intent", name: "Business intent", selection: "multi", values: [
+    { id: "growth", name: "Growth" }, { id: "efficiency", name: "Efficiency" },
+  ] };
+  const data = { library: { tagFamilies: [intent, { id: "type", name: "Type", selection: "single", values: [{ id: "campaign", name: "Campaign" }] }] } };
+  let selected = ["campaign"];
+  const render = (label = "Project metadata tags") => TagPicker({ data, selected, label, idPrefix: "test", onChange: (ids) => { selected = ids; } });
+  const click = (id, label) => inputs(render(label)).find((input) => input.props.id === `test-${id}`).props.onChange();
+  click("growth");
+  click("efficiency");
+  assert.deepEqual(selected, ["campaign", "growth", "efficiency"]);
+  intent.selection = "single";
+  click("growth");
+  assert.deepEqual(selected, ["campaign", "efficiency"]);
+  assert.equal(inputs(render()).find((input) => input.props.id === "test-efficiency").props.checked, true);
+  click("efficiency");
+  assert.deepEqual(selected, ["campaign", "efficiency"], "last required intent stays selected");
+  click("growth");
+  assert.deepEqual(selected, ["campaign", "growth"], "selecting a new intent replaces the old in Single mode");
+  click("growth", "Optional tags");
+  assert.deepEqual(selected, ["campaign"], "optional selections can be cleared");
+  selected = [];
+  click("growth");
+  assert.deepEqual(selected, ["growth"], "empty intent can be repaired");
+});
 
 const root = new URL("../", import.meta.url);
 
