@@ -30,3 +30,10 @@ test("Markdown backlinks resolve names and immutable ids; YAML and inline tags r
   assert.deepEqual(links.unresolved, ["not here"]);
   assert.deepEqual(links.tags.sort(), ["home", "review", "weekend"]);
 });
+
+test("a card can move after the last card without changing money", () => {
+  const b = exampleBudget();
+  const moved = changeBoard(b, { type: "move", id: "budget", before: null });
+  assert.deepEqual(boardLayout(moved).order, ["committed", "paid", "notes", "budget"]);
+  assert.deepEqual(totals(moved), totals(b));
+});

@@ -20,9 +20,9 @@ export function changeBoard(budget, action) {
     return rest;
   }
   if (action.type === "move") {
-    if (!modules.includes(action.id) || !modules.includes(action.before) || action.id === action.before) return budget;
+    if (!modules.includes(action.id) || (action.before !== null && !modules.includes(action.before)) || action.id === action.before) return budget;
     board.order = layout.order.filter(id => id !== action.id);
-    board.order.splice(board.order.indexOf(action.before), 0, action.id);
+    board.order.splice(action.before === null ? board.order.length : board.order.indexOf(action.before), 0, action.id);
   } else if (action.type === "size") {
     if (!modules.includes(action.id) || !["compact", "regular", "wide"].includes(action.size)) return budget;
     board.sizes = { ...layout.sizes, [action.id]: action.size };

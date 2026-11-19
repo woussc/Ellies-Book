@@ -33,7 +33,7 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
   const [writing, setWriting] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [dragging, setDragging] = useState<BoardModule | null>(null);
-  const drag = useRef<{ id: BoardModule; x: number; y: number; before?: BoardModule } | null>(null);
+  const drag = useRef<{ id: BoardModule; x: number; y: number; before?: BoardModule | null } | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const selected = budget.categories.find(c => c.id === category);
   const update = (action: BoardAction, text: string) => {
@@ -60,14 +60,20 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
   function pointerMove(event: PointerEvent<HTMLButtonElement>) {
     if (!drag.current || Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) < 8) return;
     const target = document.elementsFromPoint(event.clientX, event.clientY).map(el => el.closest<HTMLElement>("[data-board-module]")).find(el => el && el.dataset.boardModule !== drag.current?.id);
-    drag.current.before = target?.dataset.boardModule as BoardModule | undefined;
+    if (target) {
+      const id = target.dataset.boardModule as BoardModule;
+      const rect = target.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      const others = layout.order.filter(id => id !== drag.current!.id);
+      drag.current.before = after ? others[others.indexOf(id) + 1] ?? null : id;
+    } else drag.current.before = undefined;
     setDragging(drag.current.id);
     // Only the handle captures the gesture; the rest of the board scrolls normally.
     if (event.clientY > window.innerHeight - 100) window.scrollBy(0, 14);
     if (event.clientY < 100) window.scrollBy(0, -14);
   }
   function pointerEnd() {
-    if (drag.current?.before) update({ type: "move", id: drag.current.id, before: drag.current.before }, `${titles[drag.current.id]} moved.`);
+    if (drag.current && drag.current.before !== undefined) update({ type: "move", id: drag.current.id, before: drag.current.before }, `${titles[drag.current.id]} moved.`);
     drag.current = null;
     setDragging(null);
   }
