@@ -2,6 +2,20 @@
 import { computeLifecycleLineage, safeSpreadsheetText } from "../budget-domain.mjs";
 
 export const STORAGE_KEY = "ellies-book:look-a:v1";
+export const SAMPLE_STORAGE_KEY = "ellies-book:look-a:example:v1";
+export function readStoredBudget(storage, example = true) {
+  for (const key of example ? [SAMPLE_STORAGE_KEY, STORAGE_KEY] : [STORAGE_KEY]) {
+    const raw = storage.getItem(key);
+    if (!raw) continue;
+    const b = JSON.parse(raw);
+    if (Array.isArray(b.categories) && Array.isArray(b.expenses) && typeof b.notes === "string") return b;
+  }
+  return blankBudget();
+}
+export function persistBudget(storage, budget) {
+  storage.setItem(budget.sample ? SAMPLE_STORAGE_KEY : STORAGE_KEY, JSON.stringify(budget));
+  if (!budget.sample) storage.removeItem(SAMPLE_STORAGE_KEY);
+}
 export const profiles = {
   Household: ["Home & bills", "Food & groceries", "Getting around", "Family & fun", "A little extra"],
   "Just me": ["Home & bills", "Food & groceries", "Getting around", "Life & leisure", "A little extra"],

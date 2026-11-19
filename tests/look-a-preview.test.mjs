@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { advanceExpense, blankBudget, csvText, exampleBudget, reportText, totals } from "../app/look-a-preview/model.mjs";
+import { advanceExpense, blankBudget, csvText, exampleBudget, persistBudget, readStoredBudget, reportText, totals } from "../app/look-a-preview/model.mjs";
 
 test("an unpaid invoice is a commitment, not actual spent", () => {
   const b = blankBudget(); b.total = 1000; b.categories[0].amount = 500;
@@ -30,4 +30,14 @@ test("saved Markdown, notes, report and finance export preserve the same numbers
   assert.match(reportText(restored),/\$1,726\.50/); assert.match(reportText(restored),/\$65/); assert.match(reportText(restored),/Keep this/);
   assert.match(csvText(restored),/"Home & bills","2000","1600","65","335"/);
   b.categories[0].name = "=danger"; assert.match(csvText(b),/"'=danger"/);
+});
+test("exploring and removing an example preserves the personal budget across refresh", () => {
+  const map = new Map();
+  const storage = { getItem:key => map.get(key), setItem:(key,value) => map.set(key,value), removeItem:key => map.delete(key) };
+  const personal = blankBudget(); personal.name = "My real budget"; personal.notes = "Keep my real note"; personal.total = 750;
+  persistBudget(storage, personal); persistBudget(storage, exampleBudget());
+  assert.equal(readStoredBudget(storage).sample,true);
+  assert.deepEqual(readStoredBudget(storage,false),personal);
+  persistBudget(storage,readStoredBudget(storage,false));
+  assert.deepEqual(readStoredBudget(storage),personal);
 });

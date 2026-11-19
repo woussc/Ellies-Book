@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { STORAGE_KEY, advanceExpense, blankBudget, csvText, exampleBudget, money, profiles, reportText, round, totals } from "./model.mjs";
+import { advanceExpense, blankBudget, csvText, exampleBudget, money, persistBudget, profiles, readStoredBudget, reportText, round, totals } from "./model.mjs";
 import "./style.css";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -29,8 +29,8 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name] || paths.plan}</svg>;
 }
-function loadBudget(): Budget {
-  try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { const b = JSON.parse(raw); if (Array.isArray(b.categories) && Array.isArray(b.expenses) && typeof b.notes === "string") return b; } } catch { /* Keep initial screen usable if storage is unavailable. */ }
+function loadBudget(example = true): Budget {
+  try { return readStoredBudget(localStorage, example); } catch { /* Keep initial screen usable if storage is unavailable. */ }
   return blankBudget();
 }
 function download(content: string, name: string, type = "text/markdown") {
@@ -45,7 +45,7 @@ function App() {
   const [showNote, setShowNote] = useState(false); const titleRef = useRef<HTMLHeadingElement>(null);
   const t = totals(budget); const allocated = budget.categories.reduce((s,c) => s+c.amount,0); const unassigned = round(budget.total-allocated);
   const notify = (text: string) => setToast(text);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(budget)); } catch { setStorageError(true); } }, [budget]);
+  useEffect(() => { try { persistBudget(localStorage, budget); } catch { setStorageError(true); } }, [budget]);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(""), 4500); return () => clearTimeout(id); }, [toast]);
   function change(next: Budget, action: string) { setBudget({ ...next, events: [...next.events, { text: action, at: new Date().toISOString() }] }); }
   function go(next: Page) { setPage(next); window.scrollTo({ top: 0 }); setTimeout(() => titleRef.current?.focus(), 0); }
@@ -75,7 +75,7 @@ function App() {
     </aside>
     <div className="main-column"><div className="topbar"><span className="mobile-brand"><Icon name="book" size={25}/>ellie’s book</span><span className="desktop-crumb">Your money, a little clearer <span>/</span> {pages.find(p => p.id === page)?.label}</span><span className="save-status"><span/>{storageError ? "Not saved" : "Saved on this device"}</span></div>
     <main id="main">
-      {budget.sample && <div className="sample-banner"><span>You’re exploring an example. It’s not your real budget.</span><button onClick={() => { setBudget(blankBudget()); go("start"); notify("Example removed. Start fresh whenever you’re ready."); }}>Remove example <Icon name="close" size={16}/></button></div>}
+      {budget.sample && <div className="sample-banner"><span>You’re exploring an example. It’s not your real budget.</span><button onClick={() => { const personal = loadBudget(false); setBudget(personal); go(personal.created ? "home" : "start"); notify("Example removed. Your own budget is right where you left it."); }}>Remove example <Icon name="close" size={16}/></button></div>}
       {storageError && <div className="error" role="alert">This browser couldn’t save your changes. Download a report before leaving this page.</div>}
       {needsBudget ? <>{header("A fresh start, just for you.", "Create your budget first. Everything else follows from there.")}<button className="primary" onClick={() => go("start")}>Start my budget <Icon name="arrow"/></button></> : <>
       {page === "start" && <>

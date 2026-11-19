@@ -3,6 +3,9 @@ export type Category = { id: string; name: string; amount: number; owner: string
 export type Expense = { id: string; categoryId: string; description: string; amount: number; status: "planned" | "committed" | "paid"; date: string; history: string[] };
 export type Budget = { id: string; name: string; profile: Profile; total: number; period: string; created: boolean; sample: boolean; categories: Category[]; expenses: Expense[]; notes: string; events: { text: string; at: string }[] };
 export const STORAGE_KEY: string;
+export const SAMPLE_STORAGE_KEY: string;
+export function readStoredBudget(storage: Storage, example?: boolean): Budget;
+export function persistBudget(storage: Storage, budget: Budget): void;
 export const profiles: Record<Profile, string[]>;
 export function round(value: string | number): number;
 export function money(value: number): string;
