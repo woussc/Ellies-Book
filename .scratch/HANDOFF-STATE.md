@@ -1,5 +1,11 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS5 Ask AI cancellation
+
+- [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `e9bf063`; IOS5 completes in the commit containing this checkpoint. Retained SHUAI's native AbortError handling and added cancellation/error coverage in `tests/ai-share.test.mjs`; updated the platform integration expectation.
+- [Fact] Lint, production build, all 64 Node tests (including rendered HTML), native build/sync and Xcode simulator build passed. Plain `node --test tests/platform.test.mjs` fails with `TypeError: mock.module is not a function`; the existing module-mock tests require `--experimental-test-module-mocks`.
+- [Fact] Restored the app SPM platform to 15.4 after sync, rebuilt, reinstalled and launched. Dismissing the native Ask AI share sheet shows `Sharing cancelled. Your book has not changed.` with no download offer. Inspected `/Users/devin/ios-shots/askai-cancel.png`.
+
 ## Latest checkpoint — IOS4 Ask AI merge
 
 - [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `1d1dd66`; merged `origin/main` at `f4fd345` without rebasing. Only `app/book/budget-app.tsx` conflicted. Kept Ask AI imports/state and the native adapters, async exports and startup effect. Package/lockfile and shared CSS merged without manual dependency edits.

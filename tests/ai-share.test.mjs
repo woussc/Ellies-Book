@@ -42,3 +42,14 @@ test("share prefers native, supports Web Share files, and falls back honestly", 
     else Reflect.deleteProperty(globalThis, "navigator");
   }
 });
+
+test("native cancellation does not offer a download and other failures reject", async () => {
+  try {
+    registerNativeShare(async () => { throw new DOMException("Sharing cancelled", "AbortError"); });
+    assert.deepEqual(await shareAiPack("Pack"), { method: "cancelled", offerDownload: false });
+    registerNativeShare(async () => { throw new Error("Native unavailable"); });
+    await assert.rejects(shareAiPack("Pack"), /Native unavailable/);
+  } finally {
+    registerNativeShare();
+  }
+});

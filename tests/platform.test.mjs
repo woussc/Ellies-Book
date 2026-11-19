@@ -154,7 +154,7 @@ test("native keyboard restores Done and scrolls each focused field after resize"
     assert.deepEqual(calls.pop(), { text: pack });
   }
   failure = new Error("Share canceled");
-  await assert.rejects(shareAiPack("Pack"), { name: "AbortError" });
+  assert.deepEqual(await shareAiPack("Pack"), { method: "cancelled", offerDownload: false });
   failure = new Error("Unavailable");
   await assert.rejects(shareAiPack("Pack"), /Unavailable/);
   failure = undefined;
