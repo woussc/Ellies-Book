@@ -16,7 +16,7 @@
 .skip-link:not(:focus-visible){top:-100px;transform:translateY(-100%)}
 button{min-width:44px}
 @media(max-width:1000px){input,select,textarea,.field input,.field select,.field textarea,.category-name input,.amount-field input,.start-form .form-pair>.field:last-child input,.spending-form select,.advanced .field input,.add-category input,.notes-panel textarea{font-size:16px}}
-.advanced summary,.note-download,.expense-row .text-button{min-height:44px}
+.advanced summary,.note-download,.expense-row .text-button,.sample-banner button{min-height:44px}
 .category-main>.icon-button{width:44px;min-width:44px;min-height:44px}
 @media(max-width:760px){input,select,textarea,.field input,.field select,.field textarea,.category-name input,.amount-field input,.start-form .form-pair>.field:last-child input,.spending-form select,.advanced .field input,.add-category input{font-size:16px}.category-symbol{display:none}.category-main{gap:7px}.category-name{width:0}.advanced{padding-left:0}.amount-field{max-width:94px}.amount-field input{width:75px}.category-main>.icon-button{width:44px;min-width:44px}.overview-numbers span{font-size:10px}.category-values{font-size:10px}.category-values strong{font-size:12px}.mobile-nav button{font-size:10px}}
 @media print{body{background:var(--white)}.sidebar,.topbar,.mobile-nav,.page-heading,.report-actions,.app-footer,.sample-banner,.toast{display:none!important}.main-column{margin:0;width:100%}main{padding:0;max-width:100%}.report-layout{display:block}.report-paper{border:0;padding:10mm;max-width:100%;break-inside:avoid}.report-paper table{font-size:12px}.report-paper tbody th{font-size:12px}.report-left{print-color-adjust:exact}.report-paper footer{margin-top:20px}@page{size:A4;margin:10mm}}
