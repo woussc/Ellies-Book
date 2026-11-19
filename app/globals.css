@@ -99,6 +99,9 @@
 .board-node.unrelated { background: var(--surface); }
 .board-node.unrelated .node-summary { color: var(--muted); }
 .node-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 12px; gap: 8px; align-items: start; width: 100%; min-height: 44px; padding: 8px 0; text-align: left; font-size: 16px; line-height: 1.4; }
+.node-summary, .node-relationship, .board-module-tools button, .board-node-tools button { appearance: none; border: 0; background: transparent; color: inherit; }
+.node-summary { border-radius: 6px; }
+.node-summary:hover, .node-relationship:hover { color: var(--accent); }
 .node-summary > span:first-child { overflow-wrap: anywhere; }
 .node-summary strong { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .node-summary .node-disclosure { color: var(--muted); text-align: center; }
