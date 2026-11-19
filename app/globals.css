@@ -1012,6 +1012,73 @@ main {
 .recent-hint {
   margin-top: 22px;
 }
+.spending-form {
+  scroll-margin-top: 90px;
+}
+.spending-form-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.spending-form .spending-form-heading h2 {
+  margin: 0;
+}
+.editing-hint {
+  margin: -8px 0 24px;
+}
+.expense-edit {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.expense-edit:hover,
+.expense-edit.is-editing {
+  background: var(--soft);
+}
+.expense-edit-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+.remove-entry {
+  display: flex;
+  margin: 14px auto 0;
+  color: var(--danger);
+}
+.remove-entry-confirmation {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.remove-entry-confirmation h3 {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.remove-entry-confirmation p {
+  margin: 10px 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.remove-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.secondary.danger-button {
+  color: var(--danger);
+  border-color: var(--danger);
+}
 .empty-state {
   padding: 55px 20px;
   color: var(--muted);
@@ -1873,6 +1940,10 @@ tbody th {
   }
 }
 @media (max-width: 760px) {
+  html {
+    /* Keep keyboard-focused form actions above the fixed phone navigation. */
+    scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
   .sidebar {
     display: none;
   }
