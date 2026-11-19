@@ -1,5 +1,13 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS6 PR 21 merge
+
+- [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `ac1a139efa484984e222dd482d6891310c6b25a8`; merged `origin/main` at `2e98ff0` without rebasing. IOS6 completes in the merge commit containing this checkpoint. Only `app/book/budget-app.tsx` conflicted. Kept PR 21 category draft commits, typed notifications, note modes, activity and Money flow recovery with native startup, report sharing, async file export and print. CSS auto-merged and retains safe-area coverage, 16px native fields and 44px targets. Ask AI native registration and cancellation remain intact.
+- [Fact] All 66 Node tests, lint, production build, Pages build, native build/sync and simulator Xcode build passed. Restored the app SPM minimum to 15.4 after sync. Reinstalled and launched on the iOS 26.5 iPhone 17 simulator.
+- [Fact] Inspected screenshots under `/Users/devin/ios-shots/`: `pr21-overview.png`, `pr21-money-flow-recovery.png`, `pr21-activity.png`, `pr21-notes-preview.png`, `pr21-keyboard.png`, `pr21-save.png`, `pr21-report-share.png` and `pr21-print.png`. Category amount commits appear once in activity. Removing the followed category recovers to Home & bills with its connected entries. Notes preview displays saved text. Numeric input stays above the keyboard with Previous/Next/Done; after Done, a normal swipe exposes Save spending. Report sharing opens the native sheet; print opens a one-page report preview. No content appeared behind the status area and no broken layout was observed on these surfaces.
+- [Fact] Disabled Simulator's connected hardware keyboard to expose the software keyboard for verification. Simulator-only category edits/removal changed the local test book, not repository data.
+- [Unknown] Physical-device behavior, third-party share delivery and printing to a printer were not checked. The browser Playwright screenshot workflow was merged but not run locally in this ticket; desktop/tablet visual acceptance remains with CI. Suggested follow-up skill: `.agent/skills/uiux-congress/SKILL.md` for any further visual changes.
+
 ## Latest checkpoint — IOS5 Ask AI cancellation
 
 - [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `e9bf063`; IOS5 completes in the commit containing this checkpoint. Retained SHUAI's native AbortError handling and added cancellation/error coverage in `tests/ai-share.test.mjs`; updated the platform integration expectation.
