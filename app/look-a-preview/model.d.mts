@@ -1,0 +1,15 @@
+export type Profile = "Household" | "Just me" | "Team";
+export type Category = { id: string; name: string; amount: number; owner: string; glCode: string };
+export type Expense = { id: string; categoryId: string; description: string; amount: number; status: "planned" | "committed" | "paid"; date: string; history: string[] };
+export type Budget = { id: string; name: string; profile: Profile; total: number; period: string; created: boolean; sample: boolean; categories: Category[]; expenses: Expense[]; notes: string; events: { text: string; at: string }[] };
+export const STORAGE_KEY: string;
+export const profiles: Record<Profile, string[]>;
+export function round(value: string | number): number;
+export function money(value: number): string;
+export function blankBudget(profile?: Profile): Budget;
+export function exampleBudget(): Budget;
+export function advanceExpense(budget: Budget, id: string): Budget;
+export function totals(budget: Budget, categoryId?: string): { plan: number; spent: number; committed: number; left: number; forecast: number };
+export function reportText(budget: Budget): string;
+export function csvText(budget: Budget): string;
+export function lifecycle(expenses: Expense[]): { lifecycleLines: { id: string; amount: number; stage: string }[]; transitions: { fromLineId: string; toLineId: string; convertedAmount: number }[] };

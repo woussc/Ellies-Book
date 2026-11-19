@@ -2,11 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { createRoot } from "react-dom/client";
 import { STORAGE_KEY, advanceExpense, blankBudget, csvText, exampleBudget, money, profiles, reportText, round, totals } from "./model.mjs";
 import "./style.css";
-
-type Profile = "Household" | "Just me" | "Team";
-type Category = { id: string; name: string; amount: number; owner: string; glCode: string };
-type Expense = { id: string; categoryId: string; description: string; amount: number; status: "planned" | "committed" | "paid"; date: string; history: string[] };
-type Budget = { id: string; name: string; profile: Profile; total: number; period: string; created: boolean; sample: boolean; categories: Category[]; expenses: Expense[]; notes: string; events: { text: string; at: string }[] };
+import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
 const pages: { id: Page; label: string; short: string; icon: string }[] = [
   { id: "start", label: "My budget", short: "Budget", icon: "book" },
