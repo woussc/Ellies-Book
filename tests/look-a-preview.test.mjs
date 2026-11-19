@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { advanceExpense, blankBudget, csvText, exampleBudget, persistBudget, readStoredBudget, reportText, totals } from "../app/look-a-preview/model.mjs";
+import { advanceExpense, blankBudget, csvText, editCategory, exampleBudget, persistBudget, readStoredBudget, reportText, totals } from "../app/look-a-preview/model.mjs";
 
 test("an unpaid invoice is a commitment, not actual spent", () => {
   const b = blankBudget(); b.total = 1000; b.categories[0].amount = 500;
@@ -40,4 +40,12 @@ test("exploring and removing an example preserves the personal budget across ref
   assert.deepEqual(readStoredBudget(storage,false),personal);
   persistBudget(storage,readStoredBudget(storage,false));
   assert.deepEqual(readStoredBudget(storage),personal);
+});
+test("category changes preserve before/after values in the audit trail", () => {
+  const b = exampleBudget(); const id = b.categories[0].id;
+  const edited = editCategory(b,id,{amount:2100,glCode:"001230"});
+  assert.equal(edited.categories[0].amount,2100); assert.equal(b.categories[0].amount,2000);
+  assert.equal(edited.events.at(-1).before.amount,2000); assert.equal(edited.events.at(-1).after.amount,2100);
+  assert.match(edited.events.at(-1).text,/2000 → 2100/); assert.match(edited.events.at(-1).text,/001230/);
+  assert.equal(editCategory(edited,id,{amount:2100}),edited);
 });

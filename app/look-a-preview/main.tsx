@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { advanceExpense, blankBudget, csvText, exampleBudget, money, persistBudget, profiles, readStoredBudget, reportText, round, totals } from "./model.mjs";
+import { advanceExpense, blankBudget, csvText, editCategory, exampleBudget, money, persistBudget, profiles, readStoredBudget, reportText, round, totals } from "./model.mjs";
 import "./style.css";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
 type Page = "start" | "plan" | "spend" | "home" | "report";
@@ -49,7 +49,7 @@ function App() {
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(""), 4500); return () => clearTimeout(id); }, [toast]);
   function change(next: Budget, action: string) { setBudget({ ...next, events: [...next.events, { text: action, at: new Date().toISOString() }] }); }
   function go(next: Page) { setPage(next); window.scrollTo({ top: 0 }); setTimeout(() => titleRef.current?.focus(), 0); }
-  function updateCategory(id: string, patch: Partial<Category>) { setBudget(b => ({ ...b, categories: b.categories.map(c => c.id === id ? { ...c, ...patch } : c) })); }
+  function updateCategory(id: string, patch: Partial<Category>) { setBudget(b => editCategory(b,id,patch)); }
   function create(e: FormEvent) { e.preventDefault(); change({ ...budget, created: true }, budget.created ? "Updated budget details" : "Created and confirmed budget"); notify("Your budget is saved. Let’s give it a plan."); go("plan"); }
   function addExpense(e: FormEvent) {
     e.preventDefault(); const amount = round(draft.amount); if (!(amount > 0)) return;

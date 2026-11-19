@@ -64,6 +64,15 @@ export function totals(budget, categoryId) {
 export function advanceExpense(budget, id) {
   return { ...budget, expenses: budget.expenses.map(e => e.id !== id || e.status === "paid" ? e : { ...e, status: e.status === "planned" ? "committed" : "paid", history: [...e.history, e.status === "planned" ? "committed" : "paid"] }) };
 }
+export function editCategory(budget, id, patch) {
+  const before = budget.categories.find(c => c.id === id);
+  if (!before) return budget;
+  const changes = Object.entries(patch).filter(([key,value]) => before[key] !== value);
+  if (!changes.length) return budget;
+  const after = { ...before, ...patch };
+  const text = `${before.name}: ${changes.map(([key,value]) => `${key} ${JSON.stringify(before[key])} → ${JSON.stringify(value)}`).join(", ")}`;
+  return { ...budget, categories: budget.categories.map(c => c.id === id ? after : c), events: [...budget.events,{ text, at:new Date().toISOString(), before, after }] };
+}
 export function reportText(budget) {
   const t = totals(budget);
   return `# ${budget.name}\n${budget.period} · ${budget.profile}\n\nOur budget is ${money(budget.total)}. We've planned ${money(t.plan)} by category.\n\nWe've paid ${money(t.spent)}, with ${money(t.committed)} still to pay. That leaves ${money(t.left)} available after those commitments.\n\n## By category\n${budget.categories.map(c => { const s = totals(budget, c.id); return `- ${c.name}: ${money(c.amount)} planned, ${money(s.spent)} paid, ${money(s.committed)} still to pay, ${money(s.left)} left.`; }).join("\n")}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;

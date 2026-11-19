@@ -12,6 +12,7 @@ export function money(value: number): string;
 export function blankBudget(profile?: Profile): Budget;
 export function exampleBudget(): Budget;
 export function advanceExpense(budget: Budget, id: string): Budget;
+export function editCategory(budget: Budget, id: string, patch: Partial<Category>): Budget;
 export function totals(budget: Budget, categoryId?: string): { plan: number; spent: number; committed: number; left: number; forecast: number };
 export function reportText(budget: Budget): string;
 export function csvText(budget: Budget): string;
