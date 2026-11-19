@@ -138,18 +138,25 @@ function download(content: string, name: string, type = "text/markdown") {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function CategoryInput({
+  defaultValue = "",
   onCommit,
   ...props
 }: Omit<
   InputHTMLAttributes<HTMLInputElement>,
   "value" | "onChange" | "onBlur" | "onKeyDown"
 > & { onCommit: (value: string) => void }) {
-  // Keep the in-progress text in the field; only a finished edit reaches the
-  // saved book and audit trail. The caller keys by saved value for restores.
+  // Keep drafts local. Reset on commit even if normalization leaves the saved
+  // value unchanged and the caller's saved-value key does not remount the input.
+  const [draft, setDraft] = useState(defaultValue);
   return (
     <input
       {...props}
-      onBlur={(event) => onCommit(event.currentTarget.value)}
+      value={draft}
+      onChange={(event) => setDraft(event.currentTarget.value)}
+      onBlur={(event) => {
+        onCommit(event.currentTarget.value);
+        setDraft(defaultValue);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && !event.nativeEvent.isComposing) {
           event.preventDefault();

@@ -97,6 +97,34 @@ async function checkCategoryEdit(page) {
   await navigate(page, "Where I stand", "Overview");
   await page.locator(".audit summary").click();
   assert.deepEqual(await edits(), expected, "Saved activity must survive reload");
+
+  await navigate(page, "Plan by category", "Plan");
+  const zeroAmount = page.getByRole("spinbutton", {
+    name: "Food & groceries planned amount", exact: true,
+  });
+  await zeroAmount.fill("0");
+  await zeroAmount.press("Tab");
+  assert.equal(await zeroAmount.inputValue(), "");
+  for (const [value, key] of [["-5", "Tab"], ["", "Enter"], ["0.001", "Tab"]]) {
+    await zeroAmount.fill(value);
+    await zeroAmount.press(key);
+    assert.equal(await zeroAmount.inputValue(), "", "Normalized zero must replace the finished draft");
+  }
+  await amount.fill("375.001");
+  await amount.press("Enter");
+  assert.equal(await amount.inputValue(), "375", "Unchanged rounded amounts must replace the draft");
+  await page.reload({ waitUntil: "networkidle" });
+  await navigate(page, "Plan by category", "Plan");
+  assert.equal(await amount.inputValue(), "375");
+  assert.equal(await zeroAmount.inputValue(), "");
+  await navigate(page, "Where I stand", "Overview");
+  await page.locator(".audit summary").click();
+  assert.deepEqual(await edits(), expected);
+  const zeroEdits = await page.locator(".audit p").evaluateAll((rows) =>
+    rows.map((row) => row.firstChild.textContent)
+      .filter((text) => text.startsWith("Food & groceries: amount ")),
+  );
+  assert.deepEqual(zeroEdits, ["Food & groceries: amount 900 → 0"], "Normalized no-ops must not create audit events");
 }
 
 async function checkNoteModes(page) {
