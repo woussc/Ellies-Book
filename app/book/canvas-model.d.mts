@@ -24,6 +24,16 @@ export type CanvasNode = {
   minimumHeight?: number;
   clearance?: number;
 };
+export type CanvasEdge = {
+  from: string;
+  to: string;
+  type: "allocation" | "entry" | "note" | "summary" | "membership";
+  label: string;
+};
+export function canvasVisibleEdges(
+  edges: CanvasEdge[],
+  visibleIds: Set<string>,
+): CanvasEdge[];
 export type CanvasAction = (
   | { type: "position"; id: string; x: number; y: number }
   | { type: "size"; id: string; size: NodeSize }
@@ -92,12 +102,7 @@ export function canvasGraph(
   context?: string | null,
 ): {
   nodes: CanvasNode[];
-  edges: {
-    from: string;
-    to: string;
-    type: "allocation" | "entry" | "note" | "summary" | "membership";
-    label: string;
-  }[];
+  edges: CanvasEdge[];
   width: number;
   height: number;
 };

@@ -1,6 +1,10 @@
 import { boardLayout, noteConnections } from "./board-model.mjs";
 import { money, totals } from "./model.mjs";
 
+export function canvasVisibleEdges(edges, visibleIds) {
+  return edges.filter((e) => visibleIds.has(e.from) || visibleIds.has(e.to));
+}
+
 export function canvasNodeInfo(budget, node) {
   const entry = budget.expenses.find(
     (e) => node.kind === "expense" && e.id === node.recordId,
@@ -434,6 +438,12 @@ export function canvasGraph(
   for (const category of budget.categories) {
     const id = `category:${category.id}`;
     add(id, "category", category.name, category.id, "budget", category.id);
+    edges.push({
+      from: "budget",
+      to: id,
+      type: "allocation",
+      label: "Budget category",
+    });
   }
   for (const entry of budget.expenses) {
     const id = `entry:${entry.id}`;
@@ -492,23 +502,22 @@ export function canvasGraph(
   if (!shown.length) shown = nodes.slice(0, 4);
   if (scene === "overview") {
     packOverview(shown, phone ? frameWidth : 480);
-    const category = nodes.find(
-      (n) => n.id === context && n.kind === "category",
+    const owner = nodes.find(
+      (n) => n.id === context && ["category", "cluster"].includes(n.kind),
     );
-    if (category) {
+    if (owner) {
       const extra = nodes.filter(
         (n) =>
           n.kind === "expense" &&
-          n.categoryId === category.recordId &&
+          (owner.kind === "category"
+            ? n.categoryId === owner.recordId
+            : n.status === owner.status) &&
           !shown.includes(n),
       );
       for (const [i, n] of extra.entries())
         Object.assign(n, {
-          x: Math.max(
-            16,
-            category.x + (i % 2 ? category.width + 24 : -n.width - 24),
-          ),
-          y: category.y + category.height + 24 + Math.floor(i / 2) * 128,
+          x: Math.max(16, owner.x + (i % 2 ? owner.width + 24 : -n.width - 24)),
+          y: owner.y + owner.height + 24 + Math.floor(i / 2) * 128,
         });
       shown.push(...extra);
     }

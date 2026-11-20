@@ -1322,7 +1322,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                           A Markdown backup includes every entry, its history
                           and your notes. Restore it from My budget.
                         </p>
-                        <button className="text-button" onClick={backup}>
+                        <button className="secondary" onClick={backup}>
                           Download book backup{" "}
                           <Icon name="download" size={17} />
                         </button>

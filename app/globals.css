@@ -676,8 +676,10 @@ main {
   justify-content: center;
   gap: 9px;
   background: transparent;
-  border: 0;
-  padding: 8px 0;
+  border: 1px solid var(--control-boundary, var(--line));
+  border-radius: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
   color: var(--accent);
   font-size: 13px;
   font-weight: 500;

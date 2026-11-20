@@ -16,6 +16,7 @@ import {
   canvasHitBounds,
   minimumCanvasSize,
   canvasContentMetrics,
+  canvasVisibleEdges,
 } from "../app/book/canvas-model.mjs";
 
 test("semantic hit bounds keep every widget tappable without growing its visible role shape", () => {
@@ -80,11 +81,15 @@ test("Fennuma keeps money exact, uses role shapes, and exposes four financial su
   );
   assert.equal(canvasNodeInfo(b, graph.nodes[2]).value, "$1,726.50");
   assert.equal(canvasNodeInfo(b, graph.nodes[3]).value, "$3,208.50");
-  assert.ok(
-    !graph.edges.some(
-      (e) => e.from === "budget" && e.to.startsWith("category:"),
-    ),
-  );
+  for (const category of graph.nodes.filter((n) => n.kind === "category"))
+    assert.ok(
+      graph.edges.some(
+        (e) =>
+          e.from === "budget" &&
+          e.to === category.id &&
+          e.type === "allocation",
+      ),
+    );
   const distant = { ...graph.nodes[0], id: "distant", x: 8000, y: 8000 };
   const fitted = fitCanvasViewport([...graph.nodes, distant], {
     width: 358,
@@ -121,6 +126,54 @@ test("selecting a category discloses its records without moving the resting over
       ),
     );
   assert.deepEqual(b, before);
+});
+
+test("a selected lifecycle cluster discloses members omitted from the resting overview", () => {
+  const b = exampleBudget();
+  b.expenses.sort(
+    (a, b) =>
+      Number(a.status === "committed") - Number(b.status === "committed"),
+  );
+  const before = structuredClone(b);
+  const rest = canvasGraph(b, undefined, false, true, "overview", 320);
+  assert.ok(
+    !rest.nodes.some((n) => n.kind === "expense" && n.status === "committed"),
+  );
+  const selected = canvasGraph(
+    b,
+    undefined,
+    false,
+    true,
+    "overview",
+    320,
+    "committed",
+  );
+  for (const entry of b.expenses.filter((e) => e.status === "committed")) {
+    const id = `entry:${entry.id}`;
+    assert.ok(selected.nodes.some((n) => n.id === id));
+    assert.ok(
+      selected.edges.some(
+        (e) => e.from === "committed" && e.to === id && e.type === "membership",
+      ),
+    );
+  }
+  for (const node of rest.nodes) {
+    const same = selected.nodes.find((n) => n.id === node.id);
+    assert.deepEqual([same.x, same.y], [node.x, node.y]);
+  }
+  assert.deepEqual(b, before);
+});
+
+test("connectors remain discoverable when only one endpoint is in the camera", () => {
+  const { edges } = canvasGraph(exampleBudget());
+  const membership = edges.find((e) => e.type === "membership");
+  assert.ok(
+    canvasVisibleEdges(edges, new Set([membership.from])).includes(membership),
+  );
+  assert.ok(
+    canvasVisibleEdges(edges, new Set([membership.to])).includes(membership),
+  );
+  assert.deepEqual(canvasVisibleEdges(edges, new Set()), []);
 });
 
 test("large amounts and long names enlarge their representation, never abbreviate money", () => {
@@ -355,7 +408,10 @@ test("canvas projects governed category, entry and Markdown relationships", () =
     graph.nodes.length,
     5 + budget.categories.length + budget.expenses.length,
   );
-  assert.equal(graph.edges.filter((e) => e.type === "allocation").length, 0);
+  assert.equal(
+    graph.edges.filter((e) => e.type === "allocation").length,
+    budget.categories.length,
+  );
   assert.equal(
     graph.edges.filter((e) => e.type === "entry").length,
     budget.expenses.length,

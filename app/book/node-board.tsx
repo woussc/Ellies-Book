@@ -12,6 +12,7 @@ import {
 import { boardLayout } from "./board-model.mjs";
 import {
   canvasGraph,
+  canvasVisibleEdges,
   canvasLayout,
   changeCanvas,
   canvasNodeInfo,
@@ -488,13 +489,31 @@ export default function NodeBoard({
         n.y * view.zoom + view.y < frame.height + 80),
   );
   const visibleIds = new Set(visibleNodes.map((n) => n.id));
-  const visibleEdges = graph.edges.filter(
-    (e) => visibleIds.has(e.from) && visibleIds.has(e.to),
+  const visibleEdges = canvasVisibleEdges(graph.edges, visibleIds);
+  const inViewIds = new Set(
+    painted
+      .filter(
+        (n) =>
+          (n.x + n.width) * view.zoom + view.x > 0 &&
+          n.x * view.zoom + view.x < frame.width &&
+          (n.y + n.height) * view.zoom + view.y > 0 &&
+          n.y * view.zoom + view.y < frame.height,
+      )
+      .map((n) => n.id),
   );
+  const outsideLinks = allGraph.edges.filter(
+    (e) =>
+      (e.from === selected && !inViewIds.has(e.to)) ||
+      (e.to === selected && !inViewIds.has(e.from)),
+  ).length;
 
   function selectWidget(id: string) {
     setSelected(id);
-    if (allGraph.nodes.find((n) => n.id === id)?.kind === "category")
+    if (
+      ["category", "cluster"].includes(
+        allGraph.nodes.find((n) => n.id === id)?.kind ?? "",
+      )
+    )
       setExpanded(id);
   }
 
@@ -1042,6 +1061,15 @@ export default function NodeBoard({
                 <div>
                   <strong>{selectedNode.title}</strong>
                   <span>{widgetInfo(selectedNode, budget).full}</span>
+                  {!!outsideLinks && (
+                    <small>
+                      {outsideLinks} linked{" "}
+                      {outsideLinks === 1 ? "item" : "items"} outside this view.{" "}
+                      {scene !== selectedNode.group
+                        ? "Explore to see them."
+                        : "Pan or use Tools → List."}
+                    </small>
+                  )}
                 </div>
                 {editing ? (
                   <button

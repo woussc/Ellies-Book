@@ -10,4 +10,6 @@ Board, Plan, Log, Books and Profile remain the approved navigation. The three-ta
 
 The compact Overview is the initial Board at every viewport, so financial summaries lead the first fold. All widgets and individual lifecycle clusters remain explicit choices with independent saved cameras. Semantic hit bounds stay at least 44×44 screen pixels without enlarging a role's visual shape or changing its position.
 
+Budget links to its saved categories through allocation edges, not fabricated stage-to-stage transactions. Selecting a lifecycle summary discloses its member entries. A connector remains drawn when either endpoint is in the camera; off-camera relationships have a count and a route through Explore or List.
+
 Verification includes responsive live interaction, exact-money containment, persistence/invariance, keyboard and reduced motion. Design artifacts are not test evidence. Physical iOS/Safari checks remain a separate gate when unavailable on this machine.
