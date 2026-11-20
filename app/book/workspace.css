@@ -1515,6 +1515,7 @@
 .widget-title { max-width: 100%; color: var(--muted); font: 500 13px/1.35 var(--font); overflow-wrap: anywhere; }
 .shape-compact .widget-title, .shape-pill .widget-title, .shape-signal .widget-title, .shape-circle .widget-title { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .widget-value { max-width: 100%; color: var(--text); font: 700 24px/1.2 var(--font); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.widget-title, .widget-value, .widget-caption { flex-shrink: 0; }
 .widget-value.negative { color: var(--danger); }
 .widget-caption { width: 100%; color: var(--muted); font: 400 12px/1.3 var(--font); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; overflow-wrap: anywhere; }
 .density-small .widget-surface { gap: 4px; padding: 12px; }
@@ -1571,17 +1572,23 @@
 .widget-workspace .canvas-list h3 { font-size: 16px; }
 .widget-workspace .canvas-list p { font-size: 13px; margin: 3px 0 0; }
 @media (max-width: 640px) {
-  .app-shell.board-page .page-heading { margin-bottom: 14px; gap: 12px; }
+  .app-shell.board-page .page-heading { margin-bottom: 6px; gap: 12px; }
   .app-shell.board-page .page-heading h1 { font-size: 22px; font-weight: 700; }
   .app-shell.board-page .page-heading p { display: none; }
   .app-shell.board-page .page-heading .heading-action { margin-top: 0; }
   .widget-toolbar > select { width: 120px; font-size: 13px; padding-left: 8px; }
   .widget-workspace .widget-toolbar > div { gap: 6px; }
   .widget-toolbar .outline-button { font-size: 13px; padding: 8px 9px; }
-  .widget-workspace .canvas-window { width: calc(100% + 40px); margin-inline: -20px; height: min(520px, calc(100svh - 260px)); min-height: 370px; border-inline: 0; border-radius: 0; }
-  .app-shell.board-page main { padding: 14px 20px 24px; }
-  .app-shell.board-page .topbar { height: 60px; }
-  .app-shell.board-page .example-banner { padding: 8px 12px; margin-bottom: 12px; font-size: 12px; }
+  .widget-workspace .canvas-window { width: calc(100% + 40px); margin-inline: -20px; height: min(520px, calc(100svh - 330px)); min-height: 320px; border-inline: 0; border-radius: 0; }
+  .app-shell.board-page main { padding: 8px 20px 24px; }
+  .app-shell.board-page .topbar { height: 52px; padding-block: 0; }
+  .app-shell.board-page .sample-banner { padding: 4px 8px; margin-bottom: 8px; align-items: center; }
+  .app-shell.board-page .sample-banner span { line-height: 1.3; }
+  .app-shell.board-page .sample-banner button { min-height: 44px; padding: 6px; border: 1px solid var(--control-boundary); border-radius: 8px; }
+  .app-shell.board-page .sample-banner .example-remove-full { display: none; }
+  .widget-scope { min-height: 24px; }
+  .widget-workspace .widget-toolbar { padding: 4px 0 8px; }
+  .widget-workspace:not(.arranging) > .canvas-guidance { display: none; }
   .widget-workspace .canvas-guidance { font-size: 12px; }
   .widget-workspace .canvas-footer { margin-top: 14px; }
   .widget-workspace .canvas-footer p { font-size: 12px; }

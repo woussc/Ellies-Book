@@ -29,7 +29,7 @@ import {
 import { useBook } from "./use-book";
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
-import NodeBoard from "./node-board";
+import NodeBoard, {type NodeBoardHandle} from "./node-board";
 import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
 import { serializeLibrary } from "./library-model.mjs";
 import "./workspace.css";
@@ -196,6 +196,8 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
   }
   const [setupBookId, setSetupBookId] = useState<string | null>(null);
   const [editingLayout, setEditingLayout] = useState(false);
+  const boardController = useRef<NodeBoardHandle>(null);
+  const boardScroll = useRef(0);
   const page = activePage ?? (budget.created ? "home" : "start");
   const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
@@ -236,15 +238,18 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
   function go(next: Page) {
     if (editingLayout && next !== "home") {
       if (!window.confirm("Discard this unsaved arrangement? Choose Cancel to return and use Done to save it.")) return;
+      boardController.current?.cancelArrange();
       setEditingLayout(false);
     }
     if (next !== "spend" && editingId) closeExpense(false);
+    if (page === "home") boardScroll.current = window.scrollY;
     setPage(next);
     window.scrollTo({ top: 0 });
     setTimeout(() => {
       const heading = titleRef.current ?? document.querySelector<HTMLElement>("#main h1");
       heading?.setAttribute("tabindex", "-1");
       heading?.focus({preventScroll:true});
+      if (next === "home") window.scrollTo({top: boardScroll.current});
     }, 0);
   }
   function openExpense(expense: Expense, trigger?: HTMLButtonElement) {
@@ -491,9 +496,10 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
           {budget.sample && (
             <div className="sample-banner">
               <span>
-                You’re exploring an example. It’s not your real budget.
+                Example data, not your budget.
               </span>
               <button
+                aria-label="Remove example"
                 onClick={() => {
                   try {
                     const personal = removeExample();
@@ -509,7 +515,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                   }
                 }}
               >
-                Remove example <Icon name="close" size={16} />
+                Remove <span className="example-remove-full">example</span> <Icon name="close" size={16} />
               </button>
             </div>
           )}
@@ -1141,9 +1147,9 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                   </div>
                 </>
               )}
-              {page === "home" && (
-                <>
-                  {header(
+              {budget.created && (
+                <section hidden={page !== "home"}>
+                  {page === "home" && header(
                     "Your board",
                     `${currentBook ? `${currentBook.name} / ` : ""}${budget.name} · ${budget.period}`,
                     <button className="primary heading-action canvas-add-entry" onClick={() => go("spend")}>
@@ -1151,6 +1157,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                     </button>,
                   )}
                   <NodeBoard
+                    controller={boardController}
                     scope={`${currentBook?.name ? `${currentBook.name} / ` : ""}${budget.name}`}
                     key={budget.id}
                     onEditingChange={setEditingLayout}
@@ -1172,7 +1179,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                       <p key={i}>{ev.text}<small>{new Date(ev.at).toLocaleString()}</small></p>
                     )) : <p>No changes recorded yet.</p>}
                   </details>
-                </>
+                </section>
               )}
               {page === "report" && (
                 <>

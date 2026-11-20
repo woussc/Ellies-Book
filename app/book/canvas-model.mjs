@@ -73,6 +73,38 @@ export function canvasHitBounds(node, zoom) {
   };
 }
 
+export function canvasContentMetrics(node, value, zoom) {
+  const roomy = ["standard", "wide"].includes(node.shape);
+  const titleSize = Math.max(12, (roomy ? 13 : 12) * zoom) / zoom;
+  const amountSize = Math.max(20, (roomy ? 24 : 20) * zoom) / zoom;
+  const titleWidth = [...node.title].reduce(
+    (w, char) => w + titleSize * (char.codePointAt(0) > 255 ? 1 : 0.55),
+    0,
+  );
+  const lines = Math.max(1, Math.ceil(titleWidth / (node.width - 24)));
+  const available = node.height - (node.shape === "pill" ? 16 : 24) - 2;
+  const titleHeight = titleSize * 1.35 * (roomy ? lines : 1);
+  const contentHeight = titleHeight + amountSize * 1.2 + 4;
+  const marker =
+    zoom < 0.6 ||
+    (node.width - 24) * zoom < value.length * 12 ||
+    contentHeight > available;
+  return {
+    marker,
+    titleSize,
+    amountSize,
+    markerLines: Math.max(
+      1,
+      Math.min(2, lines, Math.floor(available / (titleSize * 1.35))),
+    ),
+    caption:
+      !marker &&
+      zoom >= 0.9 &&
+      node.shape !== "pill" &&
+      contentHeight + 4 + 12 * 1.3 <= available,
+  };
+}
+
 export function canvasLayout(budget) {
   return (
     budget.board?.canvas ?? {
@@ -174,6 +206,7 @@ export function fitCanvasViewport(nodes, frame) {
 }
 
 export function settleCanvasNodes(nodes, anchorId) {
+  const gap = nodes[0]?.clearance ?? 24;
   const placed = [],
     result = new Map();
   const ordered = [...nodes].sort(
@@ -181,13 +214,13 @@ export function settleCanvasNodes(nodes, anchorId) {
   );
   for (const source of ordered) {
     const node = { ...source };
-    if (placed.some((other) => overlaps(node, other, 24))) {
+    if (placed.some((other) => overlaps(node, other, gap))) {
       const candidates = placed
         .flatMap((other) => [
-          { x: other.x + other.width + 24, y: node.y },
-          { x: other.x - node.width - 24, y: node.y },
-          { x: node.x, y: other.y + other.height + 24 },
-          { x: node.x, y: other.y - node.height - 24 },
+          { x: other.x + other.width + gap, y: node.y },
+          { x: other.x - node.width - gap, y: node.y },
+          { x: node.x, y: other.y + other.height + gap },
+          { x: node.x, y: other.y - node.height - gap },
         ])
         .filter(
           (p) => p.x >= 0 && p.y >= 0 && p.x <= 1000000 && p.y <= 1000000,
@@ -199,15 +232,17 @@ export function settleCanvasNodes(nodes, anchorId) {
       );
       const point = candidates.find(
         (p) =>
-          !placed.some((other) => overlaps({ ...node, ...p }, other, 23.99)),
+          !placed.some((other) =>
+            overlaps({ ...node, ...p }, other, gap - 0.01),
+          ),
       );
       if (point) Object.assign(node, point);
       else {
-        node.y = Math.max(...placed.map((n) => n.y + n.height)) + 24;
+        node.y = Math.max(...placed.map((n) => n.y + n.height)) + gap;
         if (node.y > 1000000) {
           Object.assign(node, { x: 16, y: 16 });
-          while (placed.some((other) => overlaps(node, other, 24)))
-            node.y += Math.max(...placed.map((n) => n.height)) + 24;
+          while (placed.some((other) => overlaps(node, other, gap)))
+            node.y += Math.max(...placed.map((n) => n.height)) + gap;
         }
       }
     }
@@ -244,6 +279,7 @@ function widgetSize(node, size, width, index) {
 }
 
 function packOverview(nodes, width) {
+  const gap = nodes[0]?.clearance ?? 24;
   const ordered = [...nodes].sort(
     (a, b) => Number(b.id === "paid") - Number(a.id === "paid"),
   );
@@ -252,13 +288,13 @@ function packOverview(nodes, width) {
   let y = 16,
     first = null;
   for (const node of ordered) {
-    if (first && first.width + node.width + 24 <= width - 32) {
+    if (first && first.width + node.width + gap <= width - 32) {
       node.x = width - 16 - node.width;
       node.y = y + 16;
-      y = Math.max(first.y + first.height, node.y + node.height) + 24;
+      y = Math.max(first.y + first.height, node.y + node.height) + gap;
       first = null;
     } else {
-      if (first) y = first.y + first.height + 24;
+      if (first) y = first.y + first.height + gap;
       node.x = 16;
       node.y = y;
       first = node;
@@ -324,6 +360,7 @@ export function canvasGraph(
       categoryId,
       status,
       size,
+      clearance: phone && scene === "overview" ? 12 : 24,
       x: 0,
       y: 0,
     };

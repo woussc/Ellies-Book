@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useImperativeHandle,
   useEffect,
   useMemo,
   useRef,
@@ -16,6 +17,7 @@ import {
   canvasNodeInfo,
   minimumCanvasSize,
   canvasHitBounds,
+  canvasContentMetrics,
   fitCanvasViewport,
   recoverCanvasViewport,
 } from "./canvas-model.mjs";
@@ -93,15 +95,15 @@ function WidgetContent({
   zoom?: number;
 }) {
   const info = widgetInfo(node, budget);
-  const marker =
-    zoom < 0.6 || (node.width - 24) * zoom < info.value.length * 12;
-  const amountSize = ["standard", "wide"].includes(node.shape) ? 24 : 20;
+  const { marker, titleSize, amountSize, markerLines, caption } =
+    canvasContentMetrics(node, info.value, zoom);
   return (
     <>
       <span
         className={`widget-title${marker ? " marker-title" : ""}`}
         style={{
-          fontSize: `${Math.max(12, node.shape === "standard" || node.shape === "wide" ? 13 * zoom : 12 * zoom) / zoom}px`,
+          fontSize: titleSize,
+          WebkitLineClamp: marker ? markerLines : undefined,
         }}
       >
         {node.title}
@@ -109,15 +111,13 @@ function WidgetContent({
       {!marker && (
         <strong
           className={`widget-value${info.negative ? " negative" : ""}`}
-          style={{ fontSize: `${Math.max(20, amountSize * zoom) / zoom}px` }}
+          style={{ fontSize: amountSize }}
           title={info.full}
         >
           {info.value}
         </strong>
       )}
-      {!marker && zoom >= 0.9 && node.shape !== "pill" && (
-        <span className="widget-caption">{info.caption}</span>
-      )}
+      {caption && <span className="widget-caption">{info.caption}</span>}
     </>
   );
 }
@@ -264,7 +264,10 @@ function SizeDialog({
   );
 }
 
+export type NodeBoardHandle = { cancelArrange: () => void };
+
 export default function NodeBoard({
+  controller,
   budget,
   setBudget,
   onPlan,
@@ -276,6 +279,7 @@ export default function NodeBoard({
   onEditingChange,
   scope,
 }: {
+  controller: import("react").Ref<NodeBoardHandle>;
   budget: Budget;
   setBudget: (next: SetStateAction<Budget>) => boolean;
   onPlan: () => void;
@@ -399,6 +403,13 @@ export default function NodeBoard({
       const rect = element!.getBoundingClientRect(),
         current = latest.current;
       const nextFrame = { width: rect.width, height: rect.height };
+      if (!rect.width || !rect.height) return;
+      if (
+        !first &&
+        previousFrame?.width === rect.width &&
+        previousFrame.height === rect.height
+      )
+        return;
       setFrame(nextFrame);
       const stored =
         scene === "all"
@@ -535,6 +546,9 @@ export default function NodeBoard({
     setDraft(null);
     setSizeId(null);
   }
+  useImperativeHandle(controller, () => ({
+    cancelArrange: () => finishArrange(false),
+  }));
   function fit() {
     const fitted = fitCanvasViewport(graph.nodes, frame);
     updateView(fitted.viewport, true, true);

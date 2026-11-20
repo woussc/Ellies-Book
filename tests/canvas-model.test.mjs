@@ -15,6 +15,7 @@ import {
   canvasNodeInfo,
   canvasHitBounds,
   minimumCanvasSize,
+  canvasContentMetrics,
 } from "../app/book/canvas-model.mjs";
 
 test("semantic hit bounds keep every widget tappable without growing its visible role shape", () => {
@@ -139,6 +140,42 @@ test("large amounts and long names enlarge their representation, never abbreviat
   assert.equal(deficit.title, "Over by");
   assert.ok(canvasNodeInfo(b, deficit).negative);
   assert.ok(!canvasNodeInfo(b, deficit).value.includes("-"));
+});
+
+test("semantic Fit keeps the Committed role instead of a squeezed partial label", () => {
+  const node = canvasGraph(exampleBudget()).nodes.find(
+    (n) => n.id === "committed",
+  );
+  assert.equal(canvasContentMetrics(node, "$65", 1).marker, false);
+  for (const zoom of [0.5, 0.604, 0.75, 0.9]) {
+    const content = canvasContentMetrics(node, "$65", zoom);
+    assert.equal(content.marker, true);
+    assert.equal(content.markerLines, 1);
+    assert.ok(content.titleSize * zoom >= 12);
+    assert.equal(content.caption, false);
+  }
+});
+
+test("narrow overview packs its financial summaries without reducing their readable scale", () => {
+  const nodes = canvasGraph(
+    exampleBudget(),
+    undefined,
+    false,
+    true,
+    "overview",
+    320,
+  ).nodes;
+  const budget = nodes.find((n) => n.id === "budget");
+  const paid = nodes.find((n) => n.id === "paid");
+  assert.ok(Math.abs(budget.y - paid.y) <= 16);
+  assert.ok(paid.x - budget.x - budget.width >= 12);
+  assert.ok(
+    Math.max(
+      ...nodes
+        .filter((n) => ["budget", "committed", "paid", "left"].includes(n.id))
+        .map((n) => n.y + n.height),
+    ) <= 340,
+  );
 });
 
 test("an enlarged wrapped category can shrink back to its content minimum", () => {

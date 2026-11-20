@@ -199,6 +199,17 @@ async function checkBoardLayout(page) {
   await page.getByRole("button", {name: "Balance cluster", exact: true}).click();
   await page.getByRole("button", {name: "Done", exact: true}).click();
   assert.deepEqual((await stored()).board.canvas.scenes.overview.positions, {});
+  await page.getByRole("button", {name: "Select Budget", exact: true}).click();
+  await page.getByRole("button", {name: "Tools", exact: true}).click();
+  await page.getByRole("button", {name: "Zoom in", exact: true}).click();
+  await page.waitForTimeout(300);
+  const camera = await page.locator(".canvas-world").getAttribute("style");
+  const scroll = await page.evaluate(() => window.scrollY);
+  await navigate(page, "Plan by category", "Plan");
+  await navigate(page, "Your board", "Board");
+  assert.equal(await page.locator(".canvas-world").getAttribute("style"), camera, "Plan round trip preserves the live camera");
+  assert.equal(await page.getByRole("button", {name: "Select Budget", exact: true}).getAttribute("aria-pressed"), "true");
+  await page.waitForFunction(y => Math.abs(window.scrollY - y) <= 1, scroll);
 }
 
 async function checkRestoreFeedback(page) {

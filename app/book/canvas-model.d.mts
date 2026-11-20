@@ -22,6 +22,7 @@ export type CanvasNode = {
   height: number;
   minimumWidth?: number;
   minimumHeight?: number;
+  clearance?: number;
 };
 export type CanvasAction = (
   | { type: "position"; id: string; x: number; y: number }
@@ -51,6 +52,17 @@ export function canvasNodeInfo(
   budget: Budget,
   node: CanvasNode,
 ): { value: string; full: string; caption: string; negative?: boolean };
+export function canvasContentMetrics(
+  node: CanvasNode,
+  value: string,
+  zoom: number,
+): {
+  marker: boolean;
+  titleSize: number;
+  amountSize: number;
+  markerLines: number;
+  caption: boolean;
+};
 export function canvasHitBounds(
   node: CanvasNode,
   zoom: number,
