@@ -16,7 +16,7 @@
   margin: 0 auto;
 }
 @media (min-width: 641px) {
-  .page-heading h1 {
+  .app-shell .page-heading h1 {
     font-size: 34px;
   }
 }

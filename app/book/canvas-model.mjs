@@ -65,12 +65,12 @@ export function canvasGraph(
       : size === "small"
         ? 148
         : size === "large"
-          ? 372
+          ? 448
           : kind === "budget"
-            ? 278
+            ? 304
             : kind === "category"
-              ? 254
-              : 240;
+              ? 312
+              : 288;
     const point = layout.positions[id] ?? { x, y };
     nodes.push({
       id,
