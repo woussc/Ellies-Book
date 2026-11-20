@@ -199,8 +199,9 @@ async function checkBoardLayout(page) {
   await page.getByRole("button", {name: "Balance cluster", exact: true}).click();
   await page.getByRole("button", {name: "Done", exact: true}).click();
   assert.deepEqual((await stored()).board.canvas.scenes.overview.positions, {});
-  await page.getByRole("button", {name: "Select Budget", exact: true}).click();
-  await page.getByRole("button", {name: "Tools", exact: true}).click();
+  const budgetFace = page.getByRole("button", {name: "Select Budget", exact: true});
+  if (await budgetFace.getAttribute("aria-pressed") !== "true") await budgetFace.click();
+  await page.getByRole("button", {name: "Board tools", exact: true}).click();
   await page.getByRole("button", {name: "Zoom in", exact: true}).click();
   await page.waitForTimeout(300);
   const camera = await page.locator(".canvas-world").getAttribute("style");
@@ -210,7 +211,7 @@ async function checkBoardLayout(page) {
   assert.equal(await page.locator(".canvas-world").getAttribute("style"), camera, "Plan round trip preserves the live camera");
   assert.equal(await page.getByRole("button", {name: "Select Budget", exact: true}).getAttribute("aria-pressed"), "true");
   await page.waitForFunction(y => Math.abs(window.scrollY - y) <= 1, scroll);
-  await page.locator(".widget-inspector").getByRole("button", {name: "Open", exact: true}).click();
+  await page.locator(".widget-inspector").getByRole("button", {name: "Open Budget", exact: true}).click();
   await page.getByRole("button", {name: "Edit plan", exact: true}).click();
   await page.waitForFunction(() => !document.querySelector("dialog[open]") && document.body.style.overflow !== "hidden");
   await navigate(page, "Your board", "Board");
