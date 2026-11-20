@@ -1,4 +1,11 @@
 @font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/manrope-variable.ttf") format("truetype");
+}
+@font-face {
   font-family: "DM Sans";
   font-style: normal;
   font-weight: 400;
@@ -35,24 +42,26 @@
 }
 
 :root {
-  --bg: #f6f3ec;
-  --surface: #fffefa;
-  --text: #2e3932;
-  --muted: #697067;
-  --border: #e4e5da;
-  --accent: #315d4b;
-  --accent-fg: #fffefa;
-  --primary-action: var(--accent);
+  --bg: #f6f4ed;
+  --surface: #fffef9;
+  --text: #28352e;
+  --muted: #536156;
+  --border: #d9ded3;
+  --accent: #934f3b;
+  --accent-fg: #fffef9;
+  --primary-action: var(--text);
   --primary-action-fg: var(--accent-fg);
   --radius: 16px;
-  --font: "DM Sans", sans-serif;
-  --serif: "Lora", Georgia, serif;
-  --soft: #efeee5;
-  --green-soft: #e6ecdf;
+  --font: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --serif: var(--font);
+  --soft: #e7ece2;
+  --green-soft: #e7ece2;
   --note: #f0eddc;
-  --commit: #a7b29b;
-  --danger: #a04434;
-  --line: #d2d6c8;
+  --commit: #c7d5c0;
+  --danger: #9d3931;
+  --line: #d9ded3;
+  --control-boundary: #7c8877;
+  --focus: #3e5f48;
   --white: #fff;
   --eb-accent: var(--accent);
   color-scheme: light;
@@ -60,7 +69,7 @@
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
-  font-size: 16px;
+  font-size: 100%;
   line-height: 1.5;
 }
 
@@ -349,7 +358,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 summary:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 input:focus,
@@ -378,7 +387,7 @@ p {
 h1,
 h2,
 h3 {
-  font-weight: 500;
+  font-weight: 700;
 }
 h1 {
   font-family: var(--serif);

@@ -2,23 +2,28 @@
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
-  type PointerEvent,
   type SetStateAction,
 } from "react";
-import { money, totals } from "./model.mjs";
-import { boardLayout, noteConnections } from "./board-model.mjs";
+import { boardLayout } from "./board-model.mjs";
 import {
   canvasGraph,
   canvasLayout,
   changeCanvas,
+  canvasNodeInfo,
+  minimumCanvasSize,
+  canvasHitBounds,
+  fitCanvasViewport,
   recoverCanvasViewport,
 } from "./canvas-model.mjs";
 import NodeDetail from "./node-detail";
+import useCanvasMotion from "./use-canvas-motion";
+import useWidgetPositions from "./use-widget-positions";
 import type { Budget, CanvasLayout, Expense, NodeSize } from "./model.mjs";
-import type { CanvasAction, CanvasNode } from "./canvas-model.mjs";
+import type { CanvasAction, CanvasNode, CanvasScene } from "./canvas-model.mjs";
 
 const subscribeWidth = (callback: () => void) => {
   const media = matchMedia("(max-width: 640px)");
@@ -27,143 +32,140 @@ const subscribeWidth = (callback: () => void) => {
 };
 const isPhone = () => matchMedia("(max-width: 640px)").matches;
 type Viewport = CanvasLayout["viewport"];
+const sceneNames: Record<CanvasScene, string> = {
+  overview: "Overview",
+  budget: "Budget",
+  committed: "Committed",
+  paid: "Paid",
+  notes: "Notes & links",
+  all: "All widgets",
+};
 
-function NodeContent({
+function Arrow({ angle = 0 }: { angle?: number }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      aria-hidden="true"
+      style={{ transform: `rotate(${angle}deg)` }}
+    >
+      <path d="M5 12h14m-6-6 6 6-6 6" />
+    </svg>
+  );
+}
+function MoveIcon({ resize = false }: { resize?: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      aria-hidden="true"
+    >
+      <path
+        d={
+          resize
+            ? "M7 17 17 7M8 7h9v9M5 12v7h7"
+            : "M4 12h16M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4M8 8l-4 4 4 4M16 8l4 4-4 4"
+        }
+      />
+    </svg>
+  );
+}
+
+function widgetInfo(node: CanvasNode, budget: Budget) {
+  return canvasNodeInfo(budget, node);
+}
+
+function WidgetContent({
   node,
   budget,
-  condensed = false,
+  zoom = 1,
 }: {
   node: CanvasNode;
   budget: Budget;
-  condensed?: boolean;
+  zoom?: number;
 }) {
-  const entry =
-    node.kind === "expense"
-      ? budget.expenses.find((entry) => entry.id === node.recordId)
-      : undefined;
-  const category = budget.categories.find(
-    (category) => category.id === node.categoryId,
-  );
-  const t = totals(
-    budget,
-    node.kind === "category" ? node.recordId : undefined,
-  );
-  const connections = noteConnections(budget);
-  if (condensed || node.size === "small")
-    return (
-      <p className="node-condensed-amount">
-        {node.kind === "notes"
-          ? `${connections.resolved.length} linked records`
-          : money(entry?.amount ?? t.left)}
-        {!entry && node.kind !== "notes" && <small> left</small>}
-      </p>
-    );
-  if (node.kind === "notes")
-    return (
-      <div className="node-content">
-        <p className="node-note-preview">
-          {budget.notes
-            .replace(/^---[\s\S]*?---\s*/, "")
-            .slice(0, node.size === "large" ? 260 : 100) ||
-            "The story behind your decisions. Add Markdown links to connect a category or entry."}
-        </p>
-        <small>
-          {connections.resolved.length} linked records
-          {connections.tags.length
-            ? ` · ${connections.tags.map((tag) => `#${tag}`).join(" ")}`
-            : ""}
-        </small>
-        {node.size === "large" && (
-          <ul className="node-preview-list">
-            {connections.resolved.slice(0, 3).map((record) => (
-              <li key={record.id}>{record.label}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    );
-  if (entry)
-    return (
-      <div className="node-content">
-        <strong className="node-amount">{money(entry.amount)}</strong>
-        <p className="node-caption">
-          {entry.date} · {category?.name}
-        </p>
-        {node.size === "large" && (
-          <div className="node-extra">
-            <span>History: {entry.history.join(" → ")}</span>
-            <p>
-              {entry.status === "planned"
-                ? "An idea, not yet committed. Does not reduce money left."
-                : entry.status === "committed"
-                  ? "Still to pay. Included in money in use."
-                  : "Paid. Counted once as actual spending."}
-            </p>
-          </div>
-        )}
-      </div>
-    );
+  const info = widgetInfo(node, budget);
+  const marker =
+    zoom < 0.6 || (node.width - 24) * zoom < info.value.length * 12;
+  const amountSize = ["standard", "wide"].includes(node.shape) ? 24 : 20;
   return (
-    <div className="node-content">
-      <strong className={`node-amount${t.left < 0 ? " negative" : ""}`}>
-        {money(t.left)}
-      </strong>
-      <span className="node-caption">left to commit</span>
-      <dl className="node-money-facts">
-        <div>
-          <dt>{node.kind === "category" ? "Allocated" : "Budget"}</dt>
-          <dd>{money(category?.amount ?? budget.total)}</dd>
-        </div>
-        <div>
-          <dt>In use</dt>
-          <dd>{money(t.spent + t.committed)}</dd>
-        </div>
-      </dl>
-      {node.size === "large" && (
-        <ul className="node-preview-list">
-          {node.kind === "budget"
-            ? budget.categories.slice(0, 3).map((category) => (
-                <li key={category.id}>
-                  <span>{category.name}</span>
-                  <b>{money(category.amount)}</b>
-                </li>
-              ))
-            : budget.expenses
-                .filter((entry) => entry.categoryId === node.recordId)
-                .slice(0, 3)
-                .map((entry) => (
-                  <li key={entry.id}>
-                    <span>{entry.description}</span>
-                    <b>{money(entry.amount)}</b>
-                  </li>
-                ))}
-          {node.kind === "category" &&
-            !budget.expenses.some(
-              (entry) => entry.categoryId === node.recordId,
-            ) && <li>No entries yet.</li>}
-        </ul>
+    <>
+      <span
+        className={`widget-title${marker ? " marker-title" : ""}`}
+        style={{
+          fontSize: `${Math.max(12, node.shape === "standard" || node.shape === "wide" ? 13 * zoom : 12 * zoom) / zoom}px`,
+        }}
+      >
+        {node.title}
+      </span>
+      {!marker && (
+        <strong
+          className={`widget-value${info.negative ? " negative" : ""}`}
+          style={{ fontSize: `${Math.max(20, amountSize * zoom) / zoom}px` }}
+          title={info.full}
+        >
+          {info.value}
+        </strong>
       )}
-    </div>
+      {!marker && zoom >= 0.9 && node.shape !== "pill" && (
+        <span className="widget-caption">{info.caption}</span>
+      )}
+    </>
   );
+}
+
+function edgeBoundary(node: CanvasNode, other: CanvasNode) {
+  const x = node.x + node.width / 2,
+    y = node.y + node.height / 2;
+  const dx = other.x + other.width / 2 - x,
+    dy = other.y + other.height / 2 - y;
+  const factor =
+    node.shape === "circle"
+      ? Math.hypot(dx / (node.width / 2), dy / (node.height / 2))
+      : Math.max(
+          Math.abs(dx) / (node.width / 2),
+          Math.abs(dy) / (node.height / 2),
+        );
+  return { x: x + dx / (factor || 1), y: y + dy / (factor || 1) };
 }
 
 function SizeDialog({
   node,
   budget,
-  onApply,
+  custom,
   onCancel,
+  onApply,
 }: {
   node: CanvasNode;
   budget: Budget;
-  onApply: (size: NodeSize) => void;
+  custom: boolean;
   onCancel: () => void;
+  onApply: (action: CanvasAction) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [size, setSize] = useState(node.size);
-  const minimum = ["budget", "category"].includes(node.kind);
+  const [size, setSize] = useState<NodeSize | null>(custom ? null : node.size);
+  const [width, setWidth] = useState(Math.round(node.width)),
+    [height, setHeight] = useState(Math.round(node.height));
+  const min = minimumCanvasSize(node);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
+  function preset(option: NodeSize) {
+    setSize(option);
+    const projected = canvasGraph(
+      changeCanvas(budget, { type: "size", id: node.id, size: option }),
+    ).nodes.find((n) => n.id === node.id)!;
+    setWidth(projected.width);
+    setHeight(projected.height);
+  }
   return (
     <dialog
       ref={dialog}
@@ -176,51 +178,85 @@ function SizeDialog({
     >
       <header>
         <h2 id="size-title">{node.title} size</h2>
-        <button
-          className="outline-button"
-          aria-label="Close size controls"
-          onClick={onCancel}
-        >
-          ×
+        <button className="outline-button" onClick={onCancel}>
+          Close
         </button>
       </header>
-      <p>Choose how much this node shows.</p>
+      <p>
+        Use a preset, adjust either side, or drag the resize corner in Arrange.
+      </p>
       <div className="size-options">
         {(["small", "medium", "large"] as NodeSize[]).map((option) => (
           <button
             key={option}
             className="size-option"
             aria-pressed={size === option}
-            disabled={minimum && option === "small"}
-            onClick={() => setSize(option)}
+            disabled={
+              ["budget", "category"].includes(node.kind) && option === "small"
+            }
+            onClick={() => preset(option)}
           >
             <strong>{option[0].toUpperCase() + option.slice(1)}</strong>
-            <span>
-              {option === "small"
-                ? "Summary + Open"
-                : option === "medium"
-                  ? "Essential money + Open"
-                  : "Essential money + a capped preview"}
-            </span>
           </button>
         ))}
       </div>
-      {minimum && (
+      {["budget", "category"].includes(node.kind) && (
         <p className="hint">
           Small is unavailable. Budget and Category start at Medium so essential
           money stays visible.
         </p>
       )}
-      <p className="eyebrow">Content preview · {size}</p>
-      <div className={`size-preview size-${size}`}>
-        <strong>{node.title}</strong>
-        <NodeContent budget={budget} node={{ ...node, size }} />
+      <div className="widget-size-sliders">
+        <label>
+          Width <output>{width}px</output>
+          <input
+            aria-label="Widget width"
+            type="range"
+            min={min.width}
+            max="560"
+            step="4"
+            value={width}
+            onChange={(e) => {
+              setWidth(Number(e.target.value));
+              setSize(null);
+            }}
+          />
+        </label>
+        <label>
+          Height <output>{height}px</output>
+          <input
+            aria-label="Widget height"
+            type="range"
+            min={min.height}
+            max="560"
+            step="4"
+            value={height}
+            onChange={(e) => {
+              setHeight(Number(e.target.value));
+              setSize(null);
+            }}
+          />
+        </label>
+      </div>
+      <div className="widget-size-preview">
+        <div style={{ width, height }}>
+          <WidgetContent node={node} budget={budget} />
+        </div>
       </div>
       <div className="size-actions">
         <button className="secondary" onClick={onCancel}>
           Cancel
         </button>
-        <button className="primary" onClick={() => onApply(size)}>
+        <button
+          className="primary"
+          onClick={() =>
+            onApply(
+              size
+                ? { type: "size", id: node.id, size }
+                : { type: "resize", id: node.id, width, height },
+            )
+          }
+        >
           Apply size
         </button>
       </div>
@@ -238,6 +274,7 @@ export default function NodeBoard({
   onBackup,
   storageError,
   onEditingChange,
+  scope,
 }: {
   budget: Budget;
   setBudget: (next: SetStateAction<Budget>) => boolean;
@@ -248,199 +285,310 @@ export default function NodeBoard({
   onBackup: () => void;
   storageError: boolean;
   onEditingChange: (editing: boolean) => void;
+  scope?: string;
 }) {
   const phone = useSyncExternalStore(subscribeWidth, isPhone, () => false);
-  const savedLayout = canvasLayout(budget);
-  const [arrange, setArrange] = useState<CanvasLayout | null>(null);
-  const [view, setView] = useState(savedLayout.viewport);
-  const viewRef = useRef(view);
+  const savedLayout = useMemo(() => canvasLayout(budget), [budget]);
+  const [scene, setScene] = useState<CanvasScene>("overview");
+  const [arrange, setArrange] = useState<CanvasLayout | null>(null),
+    draftRef = useRef<CanvasLayout | null>(null);
+  const [view, setView] = useState<Viewport>({ x: 0, y: 0, zoom: 1 }),
+    viewRef = useRef(view);
+  const [animateCamera, setAnimateCamera] = useState(false);
   const [mode, setMode] = useState<"map" | "list">("map");
-  const [selected, setSelected] = useState("budget");
-  const [menu, setMenu] = useState<string | null>(null);
-  const [sizeId, setSizeId] = useState<string | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [history, setHistory] = useState<string[]>([]);
-  const [finding, setFinding] = useState(false);
-  const [query, setQuery] = useState("");
-  const [message, setMessage] = useState("");
-  const [ghost, setGhost] = useState<CanvasNode | null>(null);
-  const windowRef = useRef<HTMLDivElement>(null);
-  const [frame, setFrame] = useState({ width: 0, height: 0 });
-  const pointer = useRef<{
-    pointerId: number;
-    id?: string;
-    startX: number;
-    startY: number;
-    x: number;
-    y: number;
-    origin: Viewport;
-  } | null>(null);
+  const [selected, setSelected] = useState<string | null>(null),
+    [hovered, setHovered] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [tools, setTools] = useState(false),
+    [finding, setFinding] = useState(false),
+    [query, setQuery] = useState("");
+  const [links, setLinks] = useState<"selection" | "all" | "hidden">(
+    "selection",
+  );
+  const [sizeId, setSizeId] = useState<string | null>(null),
+    [openId, setOpenId] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>([]),
+    [message, setMessage] = useState("");
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const windowRef = useRef<HTMLDivElement>(null),
+    findRef = useRef<HTMLInputElement>(null);
+  const arrangeOrigin = useRef(view),
+    [frame, setFrame] = useState({ width: 0, height: 0 });
   const layout = arrange ?? savedLayout;
-  const graph = canvasGraph(budget, layout, !!arrange, phone);
-  const nodesRef = useRef(graph.nodes);
+  const detailOrigin = useRef<{
+    viewport: Viewport;
+    selected: string | null;
+  } | null>(null);
+  const graph = useMemo(
+    () =>
+      canvasGraph(
+        budget,
+        layout,
+        false,
+        phone,
+        scene,
+        frame.width || 390,
+        expanded,
+      ),
+    [budget, layout, phone, scene, frame.width, expanded],
+  );
+  const allGraph = useMemo(() => canvasGraph(budget, layout), [budget, layout]);
+  const latest = useRef({ graph, layout });
   useEffect(() => {
-    nodesRef.current = graph.nodes;
-  }, [graph.nodes]);
+    latest.current = { graph, layout };
+  });
+  const editing = arrange !== null;
+  useEffect(() => {
+    onEditingChange(editing);
+    return () => onEditingChange(false);
+  }, [editing, onEditingChange]);
+  useEffect(() => {
+    if (finding) findRef.current?.focus();
+  }, [finding]);
+
+  function setDraft(next: CanvasLayout | null) {
+    draftRef.current = next;
+    setArrange(next);
+  }
+  function editLayout(action: CanvasAction, base = draftRef.current) {
+    if (!base) return;
+    setDraft(
+      canvasLayout(
+        changeCanvas(
+          { ...budget, board: { ...boardLayout(budget), canvas: base } },
+          {
+            ...action,
+            scene,
+            phone,
+            frameWidth: frame.width || 390,
+            context: expanded,
+          },
+        ),
+      ),
+    );
+  }
+  function updateView(next: Viewport, save = false, animate = false) {
+    viewRef.current = next;
+    setView(next);
+    setAnimateCamera(animate);
+    if (save) {
+      const action: CanvasAction = { type: "viewport", scene, ...next };
+      if (draftRef.current) editLayout(action);
+      else setBudget((b) => changeCanvas(b, action));
+    }
+  }
+  const motion = useCanvasMotion({
+    windowRef,
+    enabled: mode === "map",
+    arranging: editing,
+    layout,
+    getViewport: () => viewRef.current,
+    onViewport: updateView,
+    onLayout: editLayout,
+    onSelect: selectWidget,
+    onBeginArrange: () => beginArrange(false),
+  });
+  const painted = useWidgetPositions(graph.nodes, scene, motion.draggingId);
+
   useEffect(() => {
     const element = windowRef.current;
     if (!element || mode !== "map") return;
-    const observer = new ResizeObserver(() => {
-      const nextFrame = {
-        width: element.clientWidth,
-        height: element.clientHeight,
-      };
+    let first = true;
+    let previousFrame: { width: number; height: number } | undefined;
+    function resize() {
+      const rect = element!.getBoundingClientRect(),
+        current = latest.current;
+      const nextFrame = { width: rect.width, height: rect.height };
       setFrame(nextFrame);
-      const next = recoverCanvasViewport(
-        nodesRef.current,
-        viewRef.current,
-        nextFrame,
-      );
-      if (next !== viewRef.current) {
-        viewRef.current = next;
-        setView(next);
-      }
-    });
+      const stored =
+        scene === "all"
+          ? current.layout.viewport
+          : current.layout.scenes?.[scene]?.viewport;
+      const next = first
+        ? stored
+          ? recoverCanvasViewport(current.graph.nodes, stored, nextFrame)
+          : phone && scene === "overview"
+            ? { x: 0, y: 0, zoom: 1 }
+            : fitCanvasViewport(current.graph.nodes, nextFrame).viewport
+        : recoverCanvasViewport(
+            current.graph.nodes,
+            viewRef.current,
+            nextFrame,
+            previousFrame,
+          );
+      previousFrame = nextFrame;
+      first = false;
+      viewRef.current = next;
+      setView(next);
+      setAnimateCamera(false);
+    }
+    const observer = new ResizeObserver(resize);
     observer.observe(element);
+    resize();
     return () => observer.disconnect();
-  }, [mode, phone]);
-  const visibleNodes = graph.nodes.filter(
-    (node) =>
-      !frame.width ||
-      ((node.x + node.width) * view.zoom + view.x >= 0 &&
-        (node.y + node.height) * view.zoom + view.y >= 0 &&
-        node.x * view.zoom + view.x <= frame.width &&
-        node.y * view.zoom + view.y <= frame.height),
-  );
-  const openNode = graph.nodes.find((node) => node.id === openId);
-  const sizingNode = graph.nodes.find((node) => node.id === sizeId);
-  const selectedNode =
-    graph.nodes.find((node) => node.id === selected) ?? graph.nodes[0];
-  const results = graph.nodes
-    .filter((node) =>
-      `${node.title} ${node.recordId} ${node.kind === "notes" ? budget.notes : ""}`
-        .toLocaleLowerCase()
-        .includes(query.toLocaleLowerCase()),
-    )
-    .slice(0, 40);
+  }, [mode, scene, phone]);
 
-  function changeView(next: Viewport) {
-    viewRef.current = next;
-    setView(next);
-  }
-  function saveView(next: Viewport) {
-    changeView(next);
-    if (arrange)
-      setArrange((current) => current && { ...current, viewport: next });
-    else setBudget((b) => changeCanvas(b, { type: "viewport", ...next }));
-  }
-  function editLayout(action: CanvasAction) {
-    setArrange(
-      (current) =>
-        current &&
-        changeCanvas(
-          { ...budget, board: { ...boardLayout(budget), canvas: current } },
-          action,
-        ).board!.canvas!,
-    );
-  }
-  function beginArrange(id = "budget", size = false) {
-    onEditingChange(true);
-    setArrange(structuredClone({ ...savedLayout, viewport: viewRef.current }));
-    setSelected(id);
-    setMenu(null);
-    setMode("map");
-    setFinding(false);
-    if (size) setSizeId(id);
-    setMessage(
-      "Layout only. Move with a handle or the arrow buttons. Done saves; Cancel discards.",
-    );
-  }
-  function finishArrange(commit: boolean) {
-    onEditingChange(false);
-    if (commit && arrange) {
-      const saved = setBudget((b) => ({
-        ...b,
-        board: {
-          ...boardLayout(b),
-          canvas: { ...arrange, viewport: viewRef.current },
-        },
-      }));
-      setMessage(
-        saved
-          ? "Layout saved. Your money and relationships are unchanged."
-          : "Layout is on this page only. Download all books before leaving.",
+  useEffect(() => {
+    if (!pendingFocus || !frame.width) return;
+    const task = requestAnimationFrame(() => {
+      const node = latest.current.graph.nodes.find(
+        (n) => n.id === pendingFocus,
       );
-    } else {
-      changeView(savedLayout.viewport);
-      setMessage("Arrangement cancelled. Your saved layout is unchanged.");
-    }
-    setArrange(null);
-    setSizeId(null);
-    setGhost(null);
-    pointer.current = null;
-  }
-  function focusNode(node: CanvasNode, open = true) {
-    const rect = windowRef.current?.getBoundingClientRect();
-    const zoom = Math.max(0.9, Math.min(viewRef.current.zoom, 1.2));
-    saveView({
-      zoom,
-      x: (rect?.width ?? 360) / 2 - (node.x + node.width / 2) * zoom,
-      y: 36 - node.y * zoom,
+      if (!node) return;
+      const zoom = Math.min(
+        1,
+        (frame.width - 32) / node.width,
+        (frame.height - 32) / node.height,
+      );
+      const next = {
+        zoom,
+        x: (frame.width - node.width * zoom) / 2 - node.x * zoom,
+        y: (frame.height - node.height * zoom) / 2 - node.y * zoom,
+      };
+      viewRef.current = next;
+      setView(next);
+      setAnimateCamera(true);
+      setPendingFocus(null);
     });
-    setSelected(node.id);
-    setMenu(null);
-    setFinding(false);
-    if (open) {
-      setOpenId(node.id);
-      setHistory([]);
-    }
-    setMessage(`Located ${node.title}.`);
-  }
-  function navigate(id: string) {
-    const node = graph.nodes.find((node) => node.id === id);
-    if (!node) return;
-    if (openId) setHistory((items) => [...items, openId]);
-    setOpenId(id);
+    return () => cancelAnimationFrame(task);
+  }, [pendingFocus, frame, scene]);
+
+  const selectedNode =
+    graph.nodes.find((n) => n.id === selected) ?? graph.nodes[0];
+  const inlineResize =
+    selectedNode.width * view.zoom >= 104 &&
+    selectedNode.height * view.zoom >= 88;
+  const openNode = allGraph.nodes.find((n) => n.id === openId),
+    sizingNode = allGraph.nodes.find((n) => n.id === sizeId);
+  const results = allGraph.nodes
+    .filter((n) =>
+      `${n.title} ${n.status ?? ""} ${n.kind}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+    )
+    .slice(0, 12);
+  const activeId = hovered ?? selected;
+  const visibleNodes = painted.filter(
+    (n) =>
+      n.id === selectedNode.id ||
+      ((n.x + n.width) * view.zoom + view.x > -80 &&
+        n.x * view.zoom + view.x < frame.width + 80 &&
+        (n.y + n.height) * view.zoom + view.y > -80 &&
+        n.y * view.zoom + view.y < frame.height + 80),
+  );
+  const visibleIds = new Set(visibleNodes.map((n) => n.id));
+  const visibleEdges = graph.edges.filter(
+    (e) => visibleIds.has(e.from) && visibleIds.has(e.to),
+  );
+
+  function selectWidget(id: string) {
     setSelected(id);
-    const rect = windowRef.current?.getBoundingClientRect();
-    saveView({
-      zoom: 1,
-      x: (rect?.width ?? 360) / 2 - node.x - node.width / 2,
-      y: 36 - node.y,
-    });
+    if (allGraph.nodes.find((n) => n.id === id)?.kind === "category")
+      setExpanded(id);
   }
-  function zoomBy(factor: number) {
-    const rect = windowRef.current?.getBoundingClientRect();
-    const current = viewRef.current,
-      zoom = Math.max(0.2, Math.min(1.5, current.zoom * factor));
-    const x = (rect?.width ?? 360) / 2,
-      y = (rect?.height ?? 500) / 2;
-    saveView({
-      zoom,
-      x: x - ((x - current.x) * zoom) / current.zoom,
-      y: y - ((y - current.y) * zoom) / current.zoom,
-    });
+
+  function chooseScene(next: CanvasScene) {
+    setScene(next);
+    setExpanded(null);
+    setSelected(
+      ["budget", "committed", "paid", "notes"].includes(next) ? next : null,
+    );
+    setHovered(null);
+    setTools(false);
+    setFinding(false);
+    setMessage("");
+  }
+  function beginArrange(reveal = true) {
+    arrangeOrigin.current = viewRef.current;
+    setDraft(
+      canvasLayout(
+        changeCanvas(budget, { type: "viewport", scene, ...viewRef.current }),
+      ),
+    );
+    setMode("map");
+    setTools(false);
+    setFinding(false);
+    if (
+      reveal &&
+      (selectedNode.width * viewRef.current.zoom < 104 ||
+        selectedNode.height * viewRef.current.zoom < 88)
+    )
+      setPendingFocus(selectedNode.id);
+    setMessage("Drag any widget. Neighbours make room. Only layout changes.");
+    if (reveal) setSelected(selectedNode.id);
+  }
+  function finishArrange(save: boolean) {
+    if (save && draftRef.current) {
+      const draft = draftRef.current;
+      const viewport = viewRef.current;
+      setBudget((b) =>
+        changeCanvas(
+          { ...b, board: { ...boardLayout(b), canvas: draft } },
+          { type: "viewport", scene, ...viewport },
+        ),
+      );
+      setMessage("Arrangement saved. Money and relationships are unchanged.");
+    } else {
+      updateView(arrangeOrigin.current, false, true);
+      setMessage("Arrangement cancelled.");
+    }
+    setDraft(null);
+    setSizeId(null);
   }
   function fit() {
-    const rect = windowRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const minX = Math.min(...graph.nodes.map((node) => node.x)),
-      minY = Math.min(...graph.nodes.map((node) => node.y));
-    const width =
-      Math.max(...graph.nodes.map((node) => node.x + node.width)) - minX;
-    const height =
-      Math.max(...graph.nodes.map((node) => node.y + node.height)) - minY;
-    const zoom = Math.max(
-      0.2,
-      Math.min(1, (rect.width - 40) / width, (rect.height - 40) / height),
-    );
-    saveView({
-      zoom,
-      x: (rect.width - width * zoom) / 2 - minX * zoom,
-      y: (rect.height - height * zoom) / 2 - minY * zoom,
-    });
+    const fitted = fitCanvasViewport(graph.nodes, frame);
+    updateView(fitted.viewport, true, true);
     setMessage(
-      "Whole board in view. Use Find or List to open a node at a readable size.",
+      fitted.complete
+        ? `All ${graph.nodes.length} widgets fit. Zoom in or choose a cluster to read more.`
+        : "Readable local view. More widgets are outside it; pan, choose a cluster, or use List.",
+    );
+  }
+  function zoomBy(factor: number) {
+    const current = viewRef.current,
+      zoom = Math.max(0.5, Math.min(1.8, current.zoom * factor));
+    const x = frame.width / 2,
+      y = frame.height / 2;
+    updateView(
+      {
+        zoom,
+        x: x - ((x - current.x) * zoom) / current.zoom,
+        y: y - ((y - current.y) * zoom) / current.zoom,
+      },
+      true,
+      true,
+    );
+  }
+  function openRecord(node: CanvasNode) {
+    detailOrigin.current = {
+      viewport: { ...viewRef.current },
+      selected: graph.nodes.some((n) => n.id === node.id) ? node.id : selected,
+    };
+    if (graph.nodes.some((n) => n.id === node.id)) setSelected(node.id);
+    setOpenId(node.id);
+    setHistory([]);
+    setFinding(false);
+  }
+  function navigate(id: string) {
+    if (!allGraph.nodes.some((n) => n.id === id)) return;
+    if (openId) setHistory((items) => [...items, openId]);
+    setOpenId(id);
+  }
+  function closeDetail() {
+    const origin = detailOrigin.current;
+    if (origin) {
+      updateView(origin.viewport);
+      setSelected(origin.selected);
+    }
+    setHovered(null);
+    setOpenId(null);
+    setHistory([]);
+    requestAnimationFrame(() =>
+      (
+        windowRef.current?.querySelector<HTMLButtonElement>(
+          ".selected-node .widget-face",
+        ) ?? windowRef.current
+      )?.focus({ preventScroll: true }),
     );
   }
   function moveSelected(dx: number, dy: number) {
@@ -450,84 +598,30 @@ export default function NodeBoard({
       x: Math.max(0, selectedNode.x + dx),
       y: Math.max(0, selectedNode.y + dy),
     });
-    setMessage(
-      `${selectedNode.title} moved. Money and membership are unchanged.`,
-    );
   }
-  function startDrag(event: PointerEvent<HTMLButtonElement>, node: CanvasNode) {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    pointer.current = {
-      pointerId: event.pointerId,
-      id: node.id,
-      startX: event.clientX,
-      startY: event.clientY,
-      x: node.x,
-      y: node.y,
-      origin: viewRef.current,
-    };
-    setSelected(node.id);
-    setGhost(node);
-  }
-  function pointerMove(event: PointerEvent<HTMLDivElement>) {
-    const current = pointer.current;
-    if (!current || current.pointerId !== event.pointerId) return;
-    if (current.id) {
-      const x = Math.max(
-        0,
-        Math.round(
-          (current.x +
-            (event.clientX - current.startX) / viewRef.current.zoom) /
-            16,
-        ) * 16,
-      );
-      const y = Math.max(
-        0,
-        Math.round(
-          (current.y +
-            (event.clientY - current.startY) / viewRef.current.zoom) /
-            16,
-        ) * 16,
-      );
-      editLayout({ type: "position", id: current.id, x, y });
-    } else
-      changeView({
-        ...current.origin,
-        x: current.x + event.clientX - current.startX,
-        y: current.y + event.clientY - current.startY,
-      });
-  }
-  function stopPointer(event: PointerEvent<HTMLDivElement>, cancel = false) {
-    const current = pointer.current;
-    if (!current || current.pointerId !== event.pointerId) return;
-    if (current.id && cancel)
-      editLayout({
-        type: "position",
-        id: current.id,
-        x: current.x,
-        y: current.y,
-      });
-    if (!current.id) {
-      if (cancel) changeView(current.origin);
-      else saveView(viewRef.current);
-    }
-    pointer.current = null;
-    setGhost(null);
-  }
+  const directions = [
+    ["left", -32, 0, 180],
+    ["up", 0, -32, -90],
+    ["down", 0, 32, 90],
+    ["right", 32, 0, 0],
+  ] as const;
+
   return (
-    <section className="canvas-workspace" aria-label="Project node board">
-      <div className="canvas-toolbar">
-        {arrange ? (
+    <section
+      className={`canvas-workspace widget-workspace${editing ? " arranging" : ""}`}
+      aria-label="Node board"
+    >
+      <div className="widget-scope">
+        <span>{scope ?? budget.name}</span>
+        <span>USD</span>
+      </div>
+      <div className="canvas-toolbar widget-toolbar">
+        {editing ? (
           <>
+            <strong>Arrange widgets</strong>
             <div>
-              <strong>Arrange your board</strong>
-              <span className="layout-badge">Layout only</span>
-            </div>
-            <div className="toolbar-actions">
               <button
-                className="secondary"
+                className="outline-button"
                 onClick={() => finishArrange(false)}
               >
                 Cancel
@@ -539,63 +633,173 @@ export default function NodeBoard({
           </>
         ) : (
           <>
-            <div className="view-switch" role="group" aria-label="Board view">
-              <button
-                className="outline-button"
-                aria-pressed={mode === "map"}
-                onClick={() => setMode("map")}
-              >
-                Map
-              </button>
-              <button
-                className="outline-button"
-                aria-pressed={mode === "list"}
-                onClick={() => setMode("list")}
-              >
-                List
-              </button>
-            </div>
-            <div className="toolbar-actions">
+            <select
+              aria-label="Widget cluster"
+              value={scene}
+              onChange={(e) => chooseScene(e.target.value as CanvasScene)}
+            >
+              {Object.entries(sceneNames).map(([id, title]) => (
+                <option key={id} value={id}>
+                  {title}
+                </option>
+              ))}
+            </select>
+            <div>
               <button
                 className="outline-button"
                 aria-expanded={finding}
-                onClick={() => setFinding(!finding)}
+                onClick={() => {
+                  setFinding(!finding);
+                  setTools(false);
+                }}
               >
                 Find
               </button>
               <button className="outline-button" onClick={() => beginArrange()}>
                 Arrange
               </button>
+              <button
+                className="outline-button"
+                aria-label="Board tools"
+                aria-expanded={tools}
+                onClick={() => {
+                  setTools(!tools);
+                  setFinding(false);
+                }}
+              >
+                Tools
+              </button>
             </div>
           </>
         )}
       </div>
+      {tools && (
+        <div className="widget-tools" aria-label="Board tools">
+          <div role="group" aria-label="Board view">
+            {(["map", "list"] as const).map((item) => (
+              <button
+                key={item}
+                className="outline-button"
+                aria-pressed={mode === item}
+                onClick={() => setMode(item)}
+              >
+                {item === "map" ? "Map" : "List"}
+              </button>
+            ))}
+          </div>
+          {mode === "map" && (
+            <>
+              <button className="outline-button" onClick={fit}>
+                Fit
+              </button>
+              <button
+                className="outline-button"
+                aria-pressed={links !== "hidden"}
+                onClick={() =>
+                  setLinks(
+                    links === "hidden"
+                      ? selected
+                        ? "selection"
+                        : "all"
+                      : "hidden",
+                  )
+                }
+              >
+                {links === "hidden" ? "Show links" : "Hide links"}
+              </button>
+              <div className="zoom-controls">
+                <button
+                  className="outline-button"
+                  aria-label="Zoom out"
+                  disabled={view.zoom <= 0.5}
+                  onClick={() => zoomBy(1 / 1.2)}
+                >
+                  −
+                </button>
+                <output>{Math.round(view.zoom * 100)}%</output>
+                <button
+                  className="outline-button"
+                  aria-label="Zoom in"
+                  disabled={view.zoom >= 1.8}
+                  onClick={() => zoomBy(1.2)}
+                >
+                  +
+                </button>
+              </div>
+              <label>
+                Links
+                <select
+                  aria-label="Relationship links"
+                  value={links}
+                  onChange={(e) => setLinks(e.target.value as typeof links)}
+                >
+                  <option value="selection">On interaction</option>
+                  <option value="all">All visible links</option>
+                  <option value="hidden">Hidden</option>
+                </select>
+              </label>
+              <div className="widget-pan" role="group" aria-label="Pan board">
+                {directions.map(([name, dx, dy, angle]) => (
+                  <button
+                    key={name}
+                    className="outline-button"
+                    aria-label={`Pan board ${name}`}
+                    onClick={() =>
+                      updateView(
+                        {
+                          ...viewRef.current,
+                          x: viewRef.current.x - dx * 3,
+                          y: viewRef.current.y - dy * 3,
+                        },
+                        true,
+                        true,
+                      )
+                    }
+                  >
+                    <Arrow angle={angle} />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {finding && (
         <section className="canvas-find" aria-label="Find a node">
-          <label>
-            Find by name, entry ID or note tag
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a category or entry…"
-            />
-          </label>
+          <header>
+            <label>
+              Find a node
+              <input
+                ref={findRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Category, entry or status"
+              />
+            </label>
+            <button
+              className="outline-button"
+              onClick={() => setFinding(false)}
+            >
+              Close Find
+            </button>
+          </header>
           <div>
             {results.map((node) => (
               <button
                 className="outline-button"
                 key={node.id}
-                onClick={() => {
-                  setMode("map");
-                  focusNode(node);
-                }}
+                aria-label={`Open ${node.title}`}
+                onClick={() => openRecord(node)}
               >
                 <span>
                   {node.title}
-                  <small>{node.kind}</small>
+                  <small>
+                    {node.kind === "cluster"
+                      ? "Lifecycle cluster"
+                      : (node.status ?? node.kind)}
+                  </small>
                 </span>
-                Open ↗
+                Open
               </button>
             ))}
             {!results.length && (
@@ -605,119 +809,44 @@ export default function NodeBoard({
         </section>
       )}
       <p className="canvas-guidance">
-        {arrange
-          ? "Position never changes money or relationships. Select a node, then use its handle or the arrows."
-          : "Budget → categories → entries. Dashed links come from your Markdown notes."}
+        {editing
+          ? inlineResize
+            ? "Drag to shuffle. Drag the selected corner to resize. Cancel keeps your saved layout."
+            : "Drag to shuffle. Use Size, or zoom in for corner resizing. Cancel restores your layout."
+          : selected
+            ? "Tap again to open. Explore a cluster for its records. USD."
+            : "Tap a widget to see its links. All amounts in USD."}
       </p>
-      {arrange && (
-        <div
-          className="move-controls"
-          role="group"
-          aria-label="Move selected node"
-        >
-          <span>
-            Move <strong>{selectedNode.title}</strong>
-          </span>
-          {[
-            ["←", -48, 0, "left"],
-            ["↑", 0, -48, "up"],
-            ["↓", 0, 48, "down"],
-            ["→", 48, 0, "right"],
-          ].map(([label, dx, dy, name]) => (
-            <button
-              className="outline-button"
-              key={name}
-              aria-label={`Move ${selectedNode.title} ${name}`}
-              onClick={() => moveSelected(Number(dx), Number(dy))}
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            className="outline-button"
-            onClick={() => setSizeId(selectedNode.id)}
-          >
-            Size
-          </button>
-        </div>
-      )}
       {mode === "map" ? (
         <>
-          <div className="canvas-map-controls">
-            <div className="zoom-controls">
-              <button
-                className="outline-button"
-                aria-label="Zoom out"
-                disabled={view.zoom <= 0.2}
-                onClick={() => zoomBy(1 / 1.2)}
-              >
-                −
-              </button>
-              <output aria-label="Zoom level">
-                {Math.round(view.zoom * 100)}%
-              </output>
-              <button
-                className="outline-button"
-                aria-label="Zoom in"
-                disabled={view.zoom >= 1.5}
-                onClick={() => zoomBy(1.2)}
-              >
-                +
-              </button>
-              <button className="outline-button" onClick={fit}>
-                Fit
-              </button>
-            </div>
-            <button
-              className="outline-button"
-              onClick={() => {
-                if (!arrange) beginArrange();
-                editLayout({ type: "auto" });
-                if (!arrange)
-                  setArrange(
-                    (current) => current && { ...current, positions: {} },
-                  );
-                setMessage(
-                  "Auto-arranged. Review, then Done to save or Cancel to keep your layout.",
-                );
-              }}
-            >
-              Auto-arrange
-            </button>
-          </div>
           <div
-            className={`canvas-window${arrange ? " arranging" : ""}`}
             ref={windowRef}
+            className={`canvas-window${motion.interacting ? " interacting" : ""}${animateCamera ? " animate-camera" : ""}${view.zoom < 0.55 ? " distant-view" : ""}`}
             role="region"
-            aria-label="Pannable node canvas. Drag the background or use the Pan board buttons. A List view is also available."
-            onPointerDown={(e) => {
+            aria-label={`${sceneNames[scene]} widget map`}
+            onPointerDownCapture={motion.onPointerDownCapture}
+            onPointerDown={motion.onPointerDown}
+            onPointerMove={motion.onPointerMove}
+            onPointerUp={motion.onPointerUp}
+            onPointerCancel={motion.onPointerCancel}
+            onPointerUpCapture={(e) => {
               if (
-                e.button !== 0 ||
-                (e.target as HTMLElement).closest(
-                  "button,input,textarea,a,[data-canvas-node]",
-                )
-              )
-                return;
-              e.currentTarget.setPointerCapture(e.pointerId);
-              pointer.current = {
-                pointerId: e.pointerId,
-                startX: e.clientX,
-                startY: e.clientY,
-                x: viewRef.current.x,
-                y: viewRef.current.y,
-                origin: viewRef.current,
-              };
+                !(e.target as Element).closest("button") &&
+                motion.isBackgroundTap()
+              ) {
+                setSelected(null);
+                setHovered(null);
+                setExpanded(null);
+                setLinks("selection");
+              }
             }}
-            onPointerMove={pointerMove}
-            onPointerUp={(e) => stopPointer(e)}
-            onPointerCancel={(e) => stopPointer(e, true)}
           >
             <div
               className="canvas-world"
               style={{
                 width: graph.width,
                 height: graph.height,
-                transform: `translate(${view.x}px,${view.y}px) scale(${view.zoom})`,
+                transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.zoom})`,
               }}
             >
               <svg
@@ -726,245 +855,263 @@ export default function NodeBoard({
                 height={graph.height}
                 aria-hidden="true"
               >
-                {graph.edges.map((edge, i) => {
-                  const from = graph.nodes.find(
-                      (node) => node.id === edge.from,
-                    )!,
-                    to = graph.nodes.find((node) => node.id === edge.to)!;
-                  const vertical =
-                    to.x < from.x + from.width + 20 && to.y > from.y;
-                  const x1 = vertical
-                      ? from.x + from.width / 2
-                      : from.x + from.width,
-                    y1 = vertical
-                      ? from.y + from.height
-                      : from.y + from.height / 2,
-                    x2 = vertical ? to.x + to.width / 2 : to.x,
-                    y2 = vertical ? to.y : to.y + to.height / 2;
-                  const bend = vertical ? (y1 + y2) / 2 : (x1 + x2) / 2;
+                {visibleEdges.map((edge, i) => {
+                  const from = painted.find((n) => n.id === edge.from)!,
+                    to = painted.find((n) => n.id === edge.to)!;
+                  const a = edgeBoundary(from, to),
+                    b = edgeBoundary(to, from);
+                  const x1 = a.x,
+                    y1 = a.y,
+                    x2 = b.x,
+                    y2 = b.y;
+                  const mx = (x1 + x2) / 2 + (y2 - y1) * 0.12,
+                    my = (y1 + y2) / 2 - (x2 - x1) * 0.12;
                   return (
                     <g
+                      data-link-visible={
+                        links !== "hidden" &&
+                        (links === "all" ||
+                          edge.from === activeId ||
+                          edge.to === activeId)
+                      }
+                      style={{
+                        opacity:
+                          links !== "hidden" &&
+                          (links === "all" ||
+                            edge.from === activeId ||
+                            edge.to === activeId)
+                            ? 1
+                            : 0,
+                      }}
                       key={`${edge.from}-${edge.to}-${i}`}
                       className={`edge-${edge.type}`}
                     >
                       <path
-                        d={
-                          vertical
-                            ? `M ${x1} ${y1} C ${x1} ${bend}, ${x2} ${bend}, ${x2} ${y2}`
-                            : `M ${x1} ${y1} C ${bend} ${y1}, ${bend} ${y2}, ${x2} ${y2}`
+                        strokeDasharray={
+                          edge.type === "membership" ? "5 5" : undefined
                         }
+                        d={`M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`}
                       />
-                      <text
-                        x={vertical ? (x1 + x2) / 2 + 12 : bend}
-                        y={vertical ? bend : (y1 + y2) / 2 - 8}
-                        textAnchor={vertical ? "start" : "middle"}
-                      >
-                        {edge.label}
-                      </text>
+                      {view.zoom >= 0.9 && edge.type === "membership" && (
+                        <text x={mx} y={my - 7} textAnchor="middle">
+                          {edge.label}
+                        </text>
+                      )}
                     </g>
                   );
                 })}
               </svg>
-              {ghost && (
-                <div
-                  className="node-placement"
-                  aria-hidden="true"
-                  style={{
-                    left: ghost.x,
-                    top: ghost.y,
-                    width: ghost.width,
-                    height: 146,
-                  }}
-                >
-                  Original position
-                </div>
-              )}
               {visibleNodes.map((node) => (
                 <article
                   key={node.id}
                   data-canvas-node={node.id}
-                  className={`canvas-node node-${node.kind} density-${node.size}${selected === node.id ? " selected-node" : ""}${ghost?.id === node.id ? " moving-node" : ""}${menu === node.id ? " menu-open" : ""}`}
+                  className={`canvas-node node-${node.kind} shape-${node.shape} density-${node.size}${widgetInfo(node, budget).negative ? " is-negative" : ""}${selected === node.id ? " selected-node" : ""}${motion.draggingId === node.id ? " moving-node" : ""}`}
                   style={{
-                    left: node.x,
-                    top: node.y,
                     width: node.width,
                     height: node.height,
+                    transform: `translate3d(${node.x}px,${node.y}px,0)`,
                   }}
                   aria-label={`${node.title} ${node.kind} node`}
                 >
-                  <header>
-                    <div>
-                      <small>
-                        {node.status ??
-                          (node.kind === "budget"
-                            ? "Project budget"
-                            : node.kind === "notes"
-                              ? "Markdown"
-                              : "Category")}
-                      </small>
-                      <h3>{node.title}</h3>
-                    </div>
-                    {arrange && (
-                      <button
-                        className="outline-button node-handle"
-                        aria-label={`Drag or select ${node.title}`}
-                        aria-pressed={selected === node.id}
-                        onPointerDown={(e) => startDrag(e, node)}
-                        onClick={() => setSelected(node.id)}
-                        onKeyDown={(e) => {
-                          const direction: Record<string, [number, number]> = {
-                            ArrowLeft: [-48, 0],
-                            ArrowRight: [48, 0],
-                            ArrowUp: [0, -48],
-                            ArrowDown: [0, 48],
-                          };
-                          if (direction[e.key]) {
-                            e.preventDefault();
-                            const [x, y] = direction[e.key];
-                            editLayout({
-                              type: "position",
-                              id: node.id,
-                              x: Math.max(0, node.x + x),
-                              y: Math.max(0, node.y + y),
-                            });
-                          }
-                        }}
-                      >
-                        ↔
-                      </button>
-                    )}
-                  </header>
-                  <NodeContent
-                    node={node}
-                    budget={budget}
-                    condensed={!!arrange}
-                  />
-                  <div className="node-actions">
-                    {arrange ? (
-                      <>
-                        <button
-                          className="outline-button"
-                          aria-label={`Size ${node.title}`}
-                          onClick={() => {
-                            setSelected(node.id);
-                            setSizeId(node.id);
-                          }}
-                        >
-                          Size
-                        </button>
-                        <button
-                          className="outline-button"
-                          aria-label={`Select ${node.title} to move`}
-                          onClick={() => {
-                            setSelected(node.id);
-                            setMessage(
-                              `${node.title} selected. Use the four movement buttons above the canvas.`,
-                            );
-                          }}
-                        >
-                          Move
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          className="outline-button"
-                          aria-label={`Open ${node.title}`}
-                          onClick={() => focusNode(node)}
-                        >
-                          Open ↗
-                        </button>
-                        <button
-                          className="outline-button"
-                          aria-label={`More options for ${node.title}`}
-                          aria-expanded={menu === node.id}
-                          onClick={() =>
-                            setMenu(menu === node.id ? null : node.id)
-                          }
-                        >
-                          More ···
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {menu === node.id && (
-                    <div className="node-menu">
-                      <button
-                        className="outline-button"
-                        onClick={() => beginArrange(node.id, true)}
-                      >
-                        Change size
-                      </button>
-                      <button
-                        className="outline-button"
-                        onClick={() => beginArrange(node.id)}
-                      >
-                        Move this node
-                      </button>
-                    </div>
+                  <button
+                    className="widget-face"
+                    style={canvasHitBounds(node, view.zoom)}
+                    aria-label={`${editing ? "Drag or select" : "Select"} ${node.title}`}
+                    aria-pressed={selected === node.id}
+                    onPointerDown={(e) => motion.beginNode(e, node)}
+                    onPointerEnter={(e) => {
+                      if (e.pointerType === "mouse") setHovered(node.id);
+                    }}
+                    onPointerLeave={() => setHovered(null)}
+                    onFocus={() => setHovered(node.id)}
+                    onBlur={() => setHovered(null)}
+                    onClick={() => {
+                      if (motion.canClick()) {
+                        if (
+                          !editing &&
+                          selected === node.id &&
+                          view.zoom >= 0.9
+                        )
+                          openRecord(node);
+                        else {
+                          selectWidget(node.id);
+                          setLinks("selection");
+                        }
+                        if (view.zoom < 0.9) setPendingFocus(node.id);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (!editing) {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          openRecord(node);
+                        } else if (e.key === " ") {
+                          e.preventDefault();
+                          selectWidget(node.id);
+                          setLinks("selection");
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setSelected(null);
+                          setHovered(null);
+                          setExpanded(null);
+                          setLinks("selection");
+                        }
+                        return;
+                      }
+                      const direction = directions.find(
+                        ([name]) =>
+                          `Arrow${name[0].toUpperCase()}${name.slice(1)}` ===
+                          e.key,
+                      );
+                      if (direction) {
+                        e.preventDefault();
+                        setSelected(node.id);
+                        editLayout({
+                          type: "position",
+                          id: node.id,
+                          x: Math.max(0, node.x + direction[1]),
+                          y: Math.max(0, node.y + direction[2]),
+                        });
+                      }
+                    }}
+                  >
+                    <span
+                      className="widget-surface"
+                      style={{ height: node.height }}
+                    >
+                      <WidgetContent
+                        node={node}
+                        budget={budget}
+                        zoom={view.zoom}
+                      />
+                      {editing && (
+                        <span className="widget-grab">
+                          <MoveIcon />
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                  {editing && inlineResize && selectedNode.id === node.id && (
+                    <button
+                      className="widget-resize"
+                      aria-label={`Resize ${node.title}`}
+                      style={{ width: 44 / view.zoom, height: 44 / view.zoom }}
+                      onPointerDown={(e) => motion.beginResize(e, node)}
+                      onClick={() => {
+                        if (motion.canClick()) setSizeId(node.id);
+                      }}
+                    >
+                      <MoveIcon resize />
+                    </button>
                   )}
                 </article>
               ))}
             </div>
+            {motion.dropPreview && (
+              <div
+                className="widget-drop-outline"
+                aria-hidden="true"
+                style={{
+                  width: motion.dropPreview.width,
+                  height: motion.dropPreview.height,
+                  transform: `translate3d(${motion.dropPreview.x * view.zoom + view.x}px,${motion.dropPreview.y * view.zoom + view.y}px,0) scale(${view.zoom})`,
+                }}
+              />
+            )}
+            <span className="widget-map-label">
+              {sceneNames[scene]} · {graph.nodes.length} widgets
+            </span>
           </div>
-          <div
-            className="canvas-pan-controls"
-            role="group"
-            aria-label="Pan board"
-          >
-            <span>Pan board</span>
-            {[
-              ["←", 80, 0, "left"],
-              ["↑", 0, 80, "up"],
-              ["↓", 0, -80, "down"],
-              ["→", -80, 0, "right"],
-            ].map(([label, x, y, name]) => (
-              <button
-                className="outline-button"
-                key={name}
-                aria-label={`Pan board ${name}`}
-                onClick={() =>
-                  saveView({
-                    ...viewRef.current,
-                    x: viewRef.current.x + Number(x),
-                    y: viewRef.current.y + Number(y),
-                  })
-                }
+          <div className="widget-inspector" aria-label="Selected widget">
+            {selected || editing ? (
+              <div className="widget-selection">
+                <div>
+                  <strong>{selectedNode.title}</strong>
+                  <span>{widgetInfo(selectedNode, budget).full}</span>
+                </div>
+                {editing ? (
+                  <button
+                    className="outline-button"
+                    onClick={() => setSizeId(selectedNode.id)}
+                  >
+                    Size
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="outline-button"
+                      aria-label={`Open ${selectedNode.title}`}
+                      onClick={() => openRecord(selectedNode)}
+                    >
+                      Open
+                    </button>
+                    {["budget", "balance", "cluster", "notes"].includes(
+                      selectedNode.kind,
+                    ) &&
+                      scene !== selectedNode.group && (
+                        <button
+                          className="outline-button"
+                          aria-label={`Explore ${selectedNode.title} cluster`}
+                          onClick={() => chooseScene(selectedNode.group)}
+                        >
+                          Explore
+                        </button>
+                      )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="widget-rest-hint">
+                Select a widget for its exact amount, links and Open view.
+              </p>
+            )}
+            {editing && (
+              <div
+                className="widget-movement"
+                role="group"
+                aria-label="Move selected node"
               >
-                {label}
-              </button>
-            ))}
-            <button
-              className="outline-button"
-              onClick={() => focusNode(graph.nodes[0], false)}
-            >
-              Budget
-            </button>
+                {directions.map(([name, dx, dy, angle]) => (
+                  <button
+                    key={name}
+                    className="outline-button"
+                    aria-label={`Move ${selectedNode.title} ${name}`}
+                    onClick={() => moveSelected(dx, dy)}
+                  >
+                    <Arrow angle={angle} />
+                  </button>
+                ))}
+                <button
+                  className="outline-button"
+                  onClick={() => {
+                    editLayout({ type: "auto" });
+                    setMessage(
+                      "Cluster balanced. Done saves; Cancel restores.",
+                    );
+                  }}
+                >
+                  Balance cluster
+                </button>
+              </div>
+            )}
           </div>
         </>
       ) : (
         <div className="canvas-list" aria-label="All board nodes">
-          {graph.nodes.map((node) => (
+          {allGraph.nodes.map((node) => (
             <article key={node.id}>
               <div>
                 <small>{node.status ?? node.kind}</small>
                 <h3>{node.title}</h3>
-                {node.kind !== "notes" && (
-                  <NodeContent
-                    node={{ ...node, size: "small" }}
-                    budget={budget}
-                  />
-                )}
+                <strong>{widgetInfo(node, budget).full}</strong>
+                <p>{widgetInfo(node, budget).caption}</p>
               </div>
               <button
                 className="outline-button"
                 aria-label={`Open ${node.title}`}
-                onClick={() => {
-                  setOpenId(node.id);
-                  setHistory([]);
-                }}
+                onClick={() => openRecord(node)}
               >
-                Open ↗
+                Open
               </button>
             </article>
           ))}
@@ -977,28 +1124,27 @@ export default function NodeBoard({
             `${budget.categories.length} categories · ${budget.expenses.length} entries · saved on this device`}
       </p>
       <footer className="canvas-footer">
-        <p>One project. Connected views. Your numbers stay put.</p>
+        <p>Layout moves. Your numbers stay put.</p>
         <div>
           <button className="outline-button" onClick={onBackup}>
             Download project
           </button>
           <button className="outline-button" onClick={onReport}>
-            Share a report ↗
+            Share a report
           </button>
         </div>
       </footer>
       {sizingNode && (
         <SizeDialog
           key={sizingNode.id}
-          node={sizingNode}
+          node={graph.nodes.find((n) => n.id === sizeId) ?? sizingNode}
           budget={budget}
+          custom={!!layout.dimensions?.[sizingNode.id]}
           onCancel={() => setSizeId(null)}
-          onApply={(size) => {
-            editLayout({ type: "size", id: sizingNode.id, size });
+          onApply={(action) => {
+            editLayout(action);
             setSizeId(null);
-            setMessage(
-              `${sizingNode.title} set to ${size}. Done saves this arrangement.`,
-            );
+            setMessage("Size changed. Done saves this arrangement.");
           }}
         />
       )}
@@ -1009,12 +1155,9 @@ export default function NodeBoard({
           budget={budget}
           setBudget={setBudget}
           hasBack={!!history.length}
-          onClose={() => {
-            setOpenId(null);
-            setHistory([]);
-          }}
+          onClose={closeDetail}
           onBack={() => {
-            if (!history.length) setOpenId(null);
+            if (!history.length) closeDetail();
             else {
               setOpenId(history.at(-1)!);
               setHistory((items) => items.slice(0, -1));

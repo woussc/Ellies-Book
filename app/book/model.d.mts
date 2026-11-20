@@ -36,6 +36,11 @@ export type CanvasLayout = {
   positions: Record<string, { x: number; y: number }>;
   sizes: Record<string, NodeSize>;
   viewport: { x: number; y: number; zoom: number };
+  dimensions?: Record<string, { width: number; height: number }>;
+  scenes?: Partial<Record<"overview" | "budget" | "committed" | "paid" | "notes", {
+    positions: Record<string, { x: number; y: number }>;
+    viewport: { x: number; y: number; zoom: number };
+  }>>;
 };
 export type BoardLayout = {
   canvas?: CanvasLayout;

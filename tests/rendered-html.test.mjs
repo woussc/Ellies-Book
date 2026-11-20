@@ -18,7 +18,7 @@ test("the real app renders Book-first onboarding and the approved navigation", a
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   for (const text of [
-    "Ellie",
+    "fennuma",
     "A book for your plans.",
     "Book name",
     "Household",

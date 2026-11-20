@@ -44,6 +44,9 @@ const pages: { id: Page; label: string; short: string; icon: string }[] = [
   { id: "books", label: "Your books", short: "Books", icon: "book" },
   { id: "profile", label: "Your profile", short: "Profile", icon: "person" },
 ];
+function BrandMark({ size = 28 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 27Q10 3 18 20" fill="none" stroke="#28352E" strokeWidth="4" strokeLinecap="round"/><path d="M14 28Q23 6 28 27" fill="none" stroke="#C7D5C0" strokeWidth="4" strokeLinecap="round"/><circle cx="18" cy="6" r="3" fill="#C87963"/></svg>;
+}
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
   const paths: Record<string, ReactNode> = {
     book: (
@@ -409,7 +412,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
   const needsBudget = !budget.created && !["start", "books", "profile"].includes(page);
   const currentBook = library.books.find(book => book.projects.some(project => project.id === budget.id));
   return (
-    <div className="app-shell" inert={status === "loading" ? true : undefined}>
+    <div className={`app-shell${page === "home" ? " board-page" : ""}`} inert={status === "loading" ? true : undefined}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -418,9 +421,9 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
           className="brand"
           onClick={() => go(budget.created ? "home" : "start")}
         >
-          <Icon name="book" size={34} />
+          <BrandMark size={28} />
           <span>
-            ellie’s book<span>A little more clarity.</span>
+            fennuma<span>A little more clarity.</span>
           </span>
         </button>
         <button className="workspace scope-button" onClick={() => go("books")} aria-label="Switch book or project">
@@ -468,8 +471,8 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
       <div className="main-column">
         <div className="topbar">
           <span className="mobile-brand">
-            <Icon name="book" size={25} />
-            ellie’s book
+            <BrandMark size={26} />
+            fennuma
           </span>
           <span className="desktop-crumb">
             Your money, a little clearer <span>/</span>{" "}
@@ -1148,6 +1151,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                     </button>,
                   )}
                   <NodeBoard
+                    scope={`${currentBook?.name ? `${currentBook.name} / ` : ""}${budget.name}`}
                     key={budget.id}
                     onEditingChange={setEditingLayout}
                     budget={budget}
@@ -1183,8 +1187,8 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                   <div className="report-layout">
                     <article className="paper report-paper">
                       <div className="report-brand">
-                        <Icon name="book" size={24} />
-                        ellie’s book<span>Budget check-in</span>
+                        <BrandMark size={24} />
+                        fennuma<span>Budget check-in</span>
                       </div>
                       <h2>{budget.name}</h2>
                       <p className="report-period">
@@ -1253,7 +1257,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                       <footer>
                         Left = budget − paid − still to pay.
                         <br />
-                        Prepared with Ellie’s Book · Saved locally, shared by
+                        Prepared with Fennuma · Saved locally, shared by
                         you.
                       </footer>
                     </article>
@@ -1292,7 +1296,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                           commitments.
                         </p>
                         <button
-                          className="text-button"
+                          className="outline-button"
                           onClick={() => {
                             download(
                               csvText(budget),
@@ -1328,7 +1332,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
           )}
           <footer className="app-footer">
             <span>Small steps. A clearer picture.</span>
-            <span>Ellie’s Book</span>
+            <span>Fennuma</span>
           </footer>
         </main>
       </div>

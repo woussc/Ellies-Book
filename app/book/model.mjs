@@ -121,9 +121,20 @@ export function validateBudget(b) {
       if (!object(canvas) || !object(canvas.positions) || !object(canvas.sizes) || !object(canvas.viewport) ||
           !Object.values(canvas.positions).every(point => object(point) && coordinate(point.x) && coordinate(point.y) && point.x >= 0 && point.y >= 0) ||
           !Object.entries(canvas.sizes).every(([id, size]) => ["small", "medium", "large"].includes(size) && !(size === "small" && (id === "budget" || id.startsWith("category:")))) ||
-          !coordinate(canvas.viewport.x) || !coordinate(canvas.viewport.y) || !Number.isFinite(canvas.viewport.zoom) || canvas.viewport.zoom < 0.2 || canvas.viewport.zoom > 1.5) {
+          !coordinate(canvas.viewport.x) || !coordinate(canvas.viewport.y) || !Number.isFinite(canvas.viewport.zoom) || canvas.viewport.zoom < 0.05 || canvas.viewport.zoom > 1.8) {
         throw new Error("Could not read the canvas layout in this backup.");
       }
+      const validView = view => object(view) && object(view.positions) && object(view.viewport) &&
+        Object.values(view.positions).every(p => object(p) && coordinate(p.x) && coordinate(p.y) && p.x >= 0 && p.y >= 0) &&
+        coordinate(view.viewport.x) && coordinate(view.viewport.y) && Number.isFinite(view.viewport.zoom) && view.viewport.zoom >= 0.05 && view.viewport.zoom <= 1.8;
+      if (canvas.scenes !== undefined && (!object(canvas.scenes) || !Object.entries(canvas.scenes).every(([key, view]) =>
+        ["overview", "budget", "committed", "paid", "notes"].includes(key) && validView(view))))
+        throw new Error("Could not read the widget cluster layout in this backup.");
+      if (canvas.dimensions !== undefined && (!object(canvas.dimensions) || !Object.entries(canvas.dimensions).every(([id, size]) => {
+        const minWidth = id === "budget" ? 138 : id.startsWith("category:") ? 128 : 104;
+        const minHeight = id === "budget" ? 104 : id.startsWith("category:") ? 88 : 64;
+        return object(size) && Number.isFinite(size.width) && Number.isFinite(size.height) && size.width >= minWidth && size.height >= minHeight && size.width <= 560 && size.height <= 560;
+      }))) throw new Error("Could not read the widget dimensions in this backup.");
     }
   }
   if (

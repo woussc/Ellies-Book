@@ -142,8 +142,8 @@ async function checkCategoryEdit(page) {
 async function checkNoteModes(page) {
   const note = "# Home repairs\nKeep this edit.";
   await page.getByRole("button", { name: "Find", exact: true }).click();
-  await page.getByRole("searchbox", { name: "Find by name, entry ID or note tag", exact: true }).fill("Notes");
-  await page.locator(".canvas-find").getByRole("button", {name: /Notes & connections/}).click();
+  await page.getByRole("textbox", { name: "Find a node", exact: true }).fill("Notes");
+  await page.locator(".canvas-find").getByRole("button", {name: "Open Notes", exact: true}).click();
   const detail = page.locator(".node-detail");
   await detail.getByRole("button", {name: "Edit notes", exact: true}).click();
   const editor = detail.getByRole("textbox", {name: "Markdown notes", exact: true});
@@ -161,6 +161,7 @@ async function checkRemovedCategory(page) {
   await navigate(page, "Plan by category", "Plan");
   await page.getByRole("button", { name: "Remove A little extra", exact: true }).click();
   await navigate(page, "Your board", "Board");
+  await page.getByRole("button", {name: "Board tools", exact: true}).click();
   await page.getByRole("button", {name: "List", exact: true}).click();
   assert.equal(await page.getByRole("button", {name: "Open A little extra", exact: true}).count(), 0);
   assert.equal(await page.getByRole("button", {name: "Open November rent", exact: true}).count(), 1);
@@ -170,15 +171,16 @@ async function checkRemovedCategory(page) {
 }
 
 async function checkBoardLayout(page) {
+  assert.equal(await page.locator(".widget-toolbar > select").inputValue(), "overview", "Financial overview is home at every viewport");
   const stored = async () => activeBudget(parseLibrary(await page.evaluate(() => localStorage.getItem("ellies-book:library:v1.md"))));
   const before = await stored();
-  const clipped = await page.locator(".canvas-node .node-money-facts dd").evaluateAll(elements => elements.filter(element => {
-    const content = element.closest(".node-content").getBoundingClientRect(), rect = element.getBoundingClientRect();
+  const clipped = await page.locator(".canvas-node .widget-value").evaluateAll(elements => elements.filter(element => {
+    const content = element.closest(".widget-surface").getBoundingClientRect(), rect = element.getBoundingClientRect();
     return rect.bottom > content.bottom + 1 || rect.top < content.top - 1;
   }).map(element => element.textContent));
-  assert.deepEqual(clipped, [], "Essential amounts must fit inside Medium nodes");
+  assert.deepEqual(clipped, [], "Essential amounts must fit inside compact widgets");
   await page.getByRole("button", {name: "Arrange", exact: true}).click();
-  await page.getByRole("button", {name: "Size Budget", exact: true}).click();
+  await page.getByRole("button", {name: "Size", exact: true}).click();
   const sizes = page.locator(".size-dialog");
   assert.equal(await sizes.getByRole("button", {name: /^Small/}).isDisabled(), true);
   await sizes.getByRole("button", {name: /^Large/}).click();
@@ -187,15 +189,16 @@ async function checkBoardLayout(page) {
   await page.getByRole("button", {name: "Done", exact: true}).click();
   const after = await stored();
   assert.equal(after.board.canvas.sizes.budget, "large");
-  assert.ok(after.board.canvas.positions.budget.x > 0);
+  assert.ok(after.board.canvas.scenes.overview.positions.budget.x > 0);
   delete before.board;
   delete after.board;
   assert.deepEqual(after, before, "Layout edits must not alter financial records, notes, or audit history");
   await page.reload({waitUntil: "networkidle"});
   assert.equal((await stored()).board.canvas.sizes.budget, "large");
-  await page.getByRole("button", {name: "Auto-arrange", exact: true}).click();
+  await page.getByRole("button", {name: "Arrange", exact: true}).click();
+  await page.getByRole("button", {name: "Balance cluster", exact: true}).click();
   await page.getByRole("button", {name: "Done", exact: true}).click();
-  assert.deepEqual((await stored()).board.canvas.positions, {});
+  assert.deepEqual((await stored()).board.canvas.scenes.overview.positions, {});
 }
 
 async function checkRestoreFeedback(page) {

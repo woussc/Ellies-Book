@@ -49,9 +49,11 @@ export default function NodeDetail({
   const amount =
     node.kind === "category" ? (category?.amount ?? 0) : budget.total;
   const entries =
-    node.kind === "category"
-      ? budget.expenses.filter((entry) => entry.categoryId === node.recordId)
-      : budget.expenses;
+    node.kind === "cluster"
+      ? budget.expenses.filter((entry) => entry.status === node.status)
+      : node.kind === "category"
+        ? budget.expenses.filter((entry) => entry.categoryId === node.recordId)
+        : budget.expenses;
   const title = node.kind === "budget" ? budget.name : node.title;
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
@@ -105,7 +107,11 @@ export default function NodeDetail({
                 ? "Project budget"
                 : node.kind === "category"
                   ? "Category"
-                  : "Note"}{" "}
+                  : node.kind === "balance"
+                    ? "Budget summary"
+                    : node.kind === "cluster"
+                      ? "Lifecycle cluster"
+                      : "Note"}{" "}
             details
           </strong>
           <small>
@@ -123,7 +129,7 @@ export default function NodeDetail({
         >
           {hasBack ? "← Back" : "← Back to board"}
         </button>
-        <p className="eyebrow">{expense?.status ?? node.kind}</p>
+        <p className="eyebrow">{expense?.status ?? node.status ?? node.kind}</p>
         <h1 id="node-detail-title">{title}</h1>
         {expense ? (
           <>
@@ -171,7 +177,20 @@ export default function NodeDetail({
               <p
                 className={`detail-entry-amount${summary.left < 0 ? " negative" : ""}`}
               >
-                {money(summary.left)} <span>left to commit</span>
+                {money(
+                  node.kind === "cluster"
+                    ? node.status === "paid"
+                      ? summary.spent
+                      : summary.committed
+                    : summary.left,
+                )}{" "}
+                <span>
+                  {node.kind === "cluster"
+                    ? node.status === "paid"
+                      ? "paid"
+                      : "still to pay"
+                    : "left to commit"}
+                </span>
               </p>
               <dl className="detail-metrics">
                 <div>
@@ -222,9 +241,11 @@ export default function NodeDetail({
         {tab === "Entries" && (
           <section aria-label="Entries">
             <h2>
-              {node.kind === "category"
-                ? "In this category"
-                : "Project entries"}
+              {node.kind === "cluster"
+                ? `${node.title} entries`
+                : node.kind === "category"
+                  ? "In this category"
+                  : "Project entries"}
             </h2>
             {!entries.length ? (
               <p>No entries yet. Your plan has room to grow.</p>
