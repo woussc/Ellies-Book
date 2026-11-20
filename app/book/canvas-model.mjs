@@ -51,7 +51,7 @@ export function canvasNodeInfo(budget, node) {
 export function minimumCanvasSize(node) {
   return {
     width: Math.max(
-      node.kind === "budget" ? 138 : node.kind === "category" ? 128 : 104,
+      node.kind === "budget" ? 136 : node.kind === "category" ? 128 : 104,
       node.minimumWidth ?? 0,
     ),
     height: Math.max(
@@ -174,8 +174,12 @@ export function fitCanvasViewport(nodes, frame) {
     minY = Math.min(...nodes.map((n) => n.y));
   const width = Math.max(...nodes.map((n) => n.x + n.width)) - minX,
     height = Math.max(...nodes.map((n) => n.y + n.height)) - minY;
-  const zoom = Math.max(
+  const minimumZoom = Math.max(
     0.5,
+    ...nodes.map((n) => 12 / (n.clearance ?? 24)),
+  );
+  const zoom = Math.max(
+    minimumZoom,
     Math.min(1, (frame.width - 32) / width, (frame.height - 32) / height),
   );
   const complete =
@@ -183,7 +187,7 @@ export function fitCanvasViewport(nodes, frame) {
   if (!complete) {
     const root = nodes.find((n) => n.id === "budget") ?? nodes[0];
     const localZoom = Math.max(
-      0.5,
+      minimumZoom,
       Math.min(
         1,
         (frame.width - 32) / root.width,
@@ -276,7 +280,7 @@ function widgetSize(node, size, width, index) {
       shape: "compact",
     };
   return {
-    width: Math.max(138, Math.min(160, (width - 44) / 2)),
+    width: Math.max(136, Math.min(160, (width - 44) / 2)),
     height: 104,
     shape: "standard",
   };

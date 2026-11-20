@@ -210,25 +210,40 @@ test("semantic Fit keeps the Committed role instead of a squeezed partial label"
 });
 
 test("narrow overview packs its financial summaries without reducing their readable scale", () => {
+  for (const width of [313, 320]) {
+    const nodes = canvasGraph(
+      exampleBudget(),
+      undefined,
+      false,
+      true,
+      "overview",
+      width,
+    ).nodes;
+    const budget = nodes.find((n) => n.id === "budget");
+    const paid = nodes.find((n) => n.id === "paid");
+    assert.ok(Math.abs(budget.y - paid.y) <= 16);
+    assert.ok(paid.x - budget.x - budget.width >= 12);
+    assert.ok(
+      Math.max(
+        ...nodes
+          .filter((n) => ["budget", "committed", "paid", "left"].includes(n.id))
+          .map((n) => n.y + n.height),
+      ) <= 340,
+    );
+  }
+});
+
+test("phone Overview Fit preserves its screen-space clearance floor", () => {
   const nodes = canvasGraph(
     exampleBudget(),
     undefined,
     false,
     true,
     "overview",
-    320,
+    390,
   ).nodes;
-  const budget = nodes.find((n) => n.id === "budget");
-  const paid = nodes.find((n) => n.id === "paid");
-  assert.ok(Math.abs(budget.y - paid.y) <= 16);
-  assert.ok(paid.x - budget.x - budget.width >= 12);
-  assert.ok(
-    Math.max(
-      ...nodes
-        .filter((n) => ["budget", "committed", "paid", "left"].includes(n.id))
-        .map((n) => n.y + n.height),
-    ) <= 340,
-  );
+  const fitted = fitCanvasViewport(nodes, { width: 383, height: 514 });
+  assert.ok(nodes.every((n) => n.clearance * fitted.viewport.zoom >= 12));
 });
 
 test("an enlarged wrapped category can shrink back to its content minimum", () => {
@@ -354,7 +369,7 @@ test("free movement repels widgets without a grid, while each cluster keeps its 
   assert.deepEqual(next, before);
 });
 
-test("a fitted phone overview stays fitted on resize without resetting an intentional close-up", () => {
+test("a local phone overview stays readable on resize without resetting an intentional close-up", () => {
   const nodes = canvasGraph(
     exampleBudget(),
     undefined,
@@ -366,11 +381,10 @@ test("a fitted phone overview stays fitted on resize without resetting an intent
     narrow = { width: 272, height: 420 };
   const fitted = fitCanvasViewport(nodes, wide).viewport;
   const resized = recoverCanvasViewport(nodes, fitted, narrow, wide);
-  for (const n of nodes) {
-    assert.ok(n.x * resized.zoom + resized.x >= 15.9);
-    assert.ok((n.x + n.width) * resized.zoom + resized.x <= 256.1);
-  }
   const root = nodes[0];
+  assert.ok(resized.zoom >= 1);
+  assert.ok(root.x * resized.zoom + resized.x >= 15.9);
+  assert.ok((root.x + root.width) * resized.zoom + resized.x <= 256.1);
   const closeup = { zoom: 1.5, x: 16 - root.x * 1.5, y: 16 - root.y * 1.5 };
   assert.equal(recoverCanvasViewport(nodes, closeup, narrow, wide), closeup);
 });
@@ -383,17 +397,21 @@ test("Fit reports whether every widget is really inside the frame, including dis
     true,
     "overview",
   ).nodes;
-  const frame = { width: 272, height: 420 };
+  const local = fitCanvasViewport(nodes, { width: 272, height: 420 });
+  assert.equal(local.complete, false);
+  const frame = { width: 1440, height: 1200 };
   const fitted = fitCanvasViewport(nodes, frame);
   assert.equal(fitted.complete, true);
   for (const n of nodes) {
     assert.ok(n.x * fitted.viewport.zoom + fitted.viewport.x >= 15.9);
     assert.ok(
-      (n.x + n.width) * fitted.viewport.zoom + fitted.viewport.x <= 256.1,
+      (n.x + n.width) * fitted.viewport.zoom + fitted.viewport.x <=
+        frame.width - 15.9,
     );
     assert.ok(n.y * fitted.viewport.zoom + fitted.viewport.y >= 15.9);
     assert.ok(
-      (n.y + n.height) * fitted.viewport.zoom + fitted.viewport.y <= 404.1,
+      (n.y + n.height) * fitted.viewport.zoom + fitted.viewport.y <=
+        frame.height - 15.9,
     );
   }
   const distant = [...nodes, { ...nodes[0], id: "far", x: 1000000 }];

@@ -8,7 +8,7 @@ Supersede the earlier typography, palette and board geometry decisions only with
 
 Board, Plan, Log, Books and Profile remain the approved navigation. The three-tab design illustration does not replace it. Scope and USD stay explicit. Aggregate contribution links are dashed and labeled; real category/entry and Markdown links are solid. Layout never changes financial relationships, values, lifecycle or audit records.
 
-The compact Overview is the initial Board at every viewport, so financial summaries lead the first fold. All widgets and individual lifecycle clusters remain explicit choices with independent saved cameras. Semantic hit bounds stay at least 44×44 screen pixels without enlarging a role's visual shape or changing its position.
+The compact Overview is the initial Board at every viewport, so financial summaries lead the first fold. All widgets and individual lifecycle clusters remain explicit choices with independent saved cameras. Semantic hit bounds stay at least 44×44 screen pixels without enlarging a role's visual shape or changing its position. Fit retains a readable local view when shrinking the full scene would put gaps below 12 screen pixels. Automatic Arrange keeps toolbar geometry and open panels stable; instructions sit below the canvas.
 
 Budget links to its saved categories through allocation edges, not fabricated stage-to-stage transactions. Selecting a lifecycle summary discloses its member entries. A connector remains drawn when either endpoint is in the camera; off-camera relationships have a count and a route through Explore or List.
 

@@ -1429,6 +1429,8 @@
   font: 500 14px var(--font);
 }
 .widget-toolbar .outline-button { padding: 8px 12px; }
+.widget-toolbar button,
+.widget-toolbar > select { height: 44px; min-height: 44px; padding-block: 8px; }
 .widget-tools {
   display: flex;
   flex-wrap: wrap;

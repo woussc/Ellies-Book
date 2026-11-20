@@ -536,8 +536,10 @@ export default function NodeBoard({
       ),
     );
     setMode("map");
-    setTools(false);
-    setFinding(false);
+    if (reveal) {
+      setTools(false);
+      setFinding(false);
+    }
     if (
       reveal &&
       (selectedNode.width * viewRef.current.zoom < 104 ||
@@ -841,15 +843,6 @@ export default function NodeBoard({
           </div>
         </section>
       )}
-      <p className="canvas-guidance">
-        {editing
-          ? inlineResize
-            ? "Drag to shuffle. Drag the selected corner to resize. Cancel keeps your saved layout."
-            : "Drag to shuffle. Use Size, or zoom in for corner resizing. Cancel restores your layout."
-          : selected
-            ? "Tap again to open. Explore a cluster for its records. USD."
-            : "Tap a widget to see its links. All amounts in USD."}
-      </p>
       {mode === "map" ? (
         <>
           <div
@@ -1105,6 +1098,13 @@ export default function NodeBoard({
             ) : (
               <p className="widget-rest-hint">
                 Select a widget for its exact amount, links and Open view.
+              </p>
+            )}
+            {editing && (
+              <p className="canvas-guidance">
+                {inlineResize
+                  ? "Drag to shuffle. Drag the selected corner to resize. Cancel keeps your saved layout."
+                  : "Drag to shuffle. Use Size, or zoom in for corner resizing. Cancel restores your layout."}
               </p>
             )}
             {editing && (
