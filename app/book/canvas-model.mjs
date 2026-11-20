@@ -362,11 +362,10 @@ export function canvasGraph(
       ) /
         (node.width - 24),
     );
-    if (kind === "category" && titleLines > 1)
-      node.height = Math.max(
-        node.height,
-        Math.ceil((titleLines * 18 + 32 + 16 + 30) / 4) * 4,
-      );
+    if (kind === "category" && titleLines > 1) {
+      node.minimumHeight = Math.ceil((titleLines * 18 + 32 + 16 + 30) / 4) * 4;
+      node.height = Math.max(node.height, node.minimumHeight);
+    }
     node.minimumWidth =
       Math.ceil(
         (info.value.length *
@@ -374,7 +373,6 @@ export function canvasGraph(
           24) /
           4,
       ) * 4;
-    if (kind === "category" && titleLines > 1) node.minimumHeight = node.height;
     nodes.push(node);
   }
   add("budget", "budget", "Budget", budget.id, "budget");

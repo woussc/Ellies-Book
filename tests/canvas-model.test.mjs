@@ -14,6 +14,7 @@ import {
   recoverCanvasViewport,
   canvasNodeInfo,
   canvasHitBounds,
+  minimumCanvasSize,
 } from "../app/book/canvas-model.mjs";
 
 test("semantic hit bounds keep every widget tappable without growing its visible role shape", () => {
@@ -138,6 +139,40 @@ test("large amounts and long names enlarge their representation, never abbreviat
   assert.equal(deficit.title, "Over by");
   assert.ok(canvasNodeInfo(b, deficit).negative);
   assert.ok(!canvasNodeInfo(b, deficit).value.includes("-"));
+});
+
+test("an enlarged wrapped category can shrink back to its content minimum", () => {
+  const b = exampleBudget();
+  b.categories[0].name =
+    "A very long category name that needs more than one line";
+  const id = `category:${b.categories[0].id}`;
+  const original = canvasGraph(b).nodes.find((n) => n.id === id);
+  const minimum = minimumCanvasSize(original).height;
+  const grown = changeCanvas(b, {
+    type: "resize",
+    id,
+    width: original.width,
+    height: 400,
+  });
+  const enlarged = canvasGraph(grown).nodes.find((n) => n.id === id);
+  assert.equal(enlarged.height, 400);
+  assert.equal(minimumCanvasSize(enlarged).height, minimum);
+  const shrunk = changeCanvas(grown, {
+    type: "resize",
+    id,
+    width: original.width,
+    height: minimum,
+  });
+  assert.equal(
+    canvasGraph(shrunk).nodes.find((n) => n.id === id).height,
+    minimum,
+  );
+  const records = (book) => {
+    const copy = structuredClone(book);
+    delete copy.board;
+    return copy;
+  };
+  assert.deepEqual(records(shrunk), records(b));
 });
 
 test("an offscreen saved viewport recovers a readable Budget without moving records", () => {
