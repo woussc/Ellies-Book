@@ -19,7 +19,6 @@ import {
   localDate,
   money,
   profiles,
-  parseBook,
   serializeBook,
   reportText,
   removeExpense,
@@ -30,16 +29,19 @@ import { useBook } from "./use-book";
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
 import NodeBoard from "./node-board";
+import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
+import { serializeLibrary } from "./library-model.mjs";
+import "./workspace.css";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
-type Page = "start" | "plan" | "spend" | "home" | "report";
+type Page = "start" | "settings" | "plan" | "spend" | "home" | "report" | "books" | "profile";
 type ToastKind = "success" | "error" | "info";
 const pages: { id: Page; label: string; short: string; icon: string }[] = [
-  { id: "start", label: "My budget", short: "Budget", icon: "book" },
+  { id: "home", label: "Your board", short: "Board", icon: "flow" },
   { id: "plan", label: "Plan by category", short: "Plan", icon: "plan" },
   { id: "spend", label: "Log spending", short: "Log", icon: "plus" },
-  { id: "home", label: "Where I stand", short: "Board", icon: "flow" },
-  { id: "report", label: "Share a report", short: "Share", icon: "share" },
+  { id: "books", label: "Your books", short: "Books", icon: "book" },
+  { id: "profile", label: "Your profile", short: "Profile", icon: "person" },
 ];
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
   const paths: Record<string, ReactNode> = {
@@ -172,8 +174,10 @@ function CategoryInput({
   );
 }
 export default function BudgetApp() {
-  const { budget, setBudget, removeExample, status, error, legacy, recovery } =
+  const { budget, library, libraryAction, restoreBooks, setBudget, removeExample, status, error, legacy, recovery } =
     useBook();
+  const [setupBookId, setSetupBookId] = useState<string | null>(null);
+  const [editingLayout, setEditingLayout] = useState(false);
   const [activePage, setPage] = useState<Page | null>(null);
   const page = activePage ?? (budget.created ? "home" : "start");
   const [toast, setToast] = useState<{ text: string; kind: ToastKind } | null>(null);
@@ -214,10 +218,18 @@ export default function BudgetApp() {
     });
   }
   function go(next: Page) {
+    if (editingLayout && next !== "home") {
+      if (!window.confirm("Discard this unsaved arrangement? Choose Cancel to return and use Done to save it.")) return;
+      setEditingLayout(false);
+    }
     if (next !== "spend" && editingId) closeExpense(false);
     setPage(next);
     window.scrollTo({ top: 0 });
-    setTimeout(() => titleRef.current?.focus(), 0);
+    setTimeout(() => {
+      const heading = titleRef.current ?? document.querySelector<HTMLElement>("#main h1");
+      heading?.setAttribute("tabindex", "-1");
+      heading?.focus({preventScroll:true});
+    }, 0);
   }
   function openExpense(expense: Expense, trigger?: HTMLButtonElement) {
     if (editingId === expense.id) {
@@ -272,20 +284,13 @@ export default function BudgetApp() {
     try {
       if (file.size > 5_000_000)
         throw new Error("Choose an Ellie’s Book backup smaller than 5 MB.");
-      const restored = parseBook(await file.text());
-      if (
-        (budget.created || recovery) &&
-        !window.confirm(
-          "Restore this book in place of the current one? Download a backup first if you want to keep both.",
-        )
-      )
-        return;
-      const saved = setBudget(restored, true);
-      go(restored.created ? "home" : "start");
+      if (recovery && !window.confirm("Add these books to a recovered library? Download the saved copy first. The unreadable original will also be retained on this device.")) return;
+      const saved = restoreBooks(await file.text());
+      go("books");
       notify(
         saved
-          ? "Book opened. Check the save status before leaving."
-          : "Book opened on this page only. Download a book backup before leaving.",
+          ? "Backup added as new books. Your other projects are unchanged."
+          : "Backup is not saved. Keep this page open and download all books.",
         saved ? "success" : "error",
       );
     } catch (error) {
@@ -296,6 +301,18 @@ export default function BudgetApp() {
     }
   }
   const backup = () => download(serializeBook(budget), "ellies-book.md");
+  const backupAll = () => download(serializeLibrary(library), "ellies-book-library.md");
+  function newBook(bookId: string | null = null) {
+    setSetupBookId(bookId);
+    go("start");
+  }
+  function selectProject(projectId: string) {
+    const saved = libraryAction({ type: "select", id: projectId });
+    setEditingId(null);
+    setDraft({description: "", amount: "", categoryId: "", status: "paid", date: localDate()});
+    go("home");
+    if (!saved) notify("Project is open on this page only. Download all books before leaving.", "error");
+  }
   function addExpense(e: FormEvent) {
     e.preventDefault();
     const amount = round(draft.amount);
@@ -376,7 +393,8 @@ export default function BudgetApp() {
       {action}
     </header>
   );
-  const needsBudget = !budget.created && page !== "start";
+  const needsBudget = !budget.created && !["start", "books", "profile"].includes(page);
+  const currentBook = library.books.find(book => book.projects.some(project => project.id === budget.id));
   return (
     <div className="app-shell" inert={status === "loading" ? true : undefined}>
       <a className="skip-link" href="#main">
@@ -392,7 +410,7 @@ export default function BudgetApp() {
             ellie’s book<span>A little more clarity.</span>
           </span>
         </button>
-        <div className="workspace">
+        <button className="workspace scope-button" onClick={() => go("books")} aria-label="Switch book or project">
           <span className="workspace-mark">
             {budget.profile === "Team"
               ? "T"
@@ -401,10 +419,10 @@ export default function BudgetApp() {
                 : "H"}
           </span>
           <div>
-            <strong>{budget.name || "Your next chapter"}</strong>
-            <span>{budget.profile} budget</span>
+            <strong>{currentBook?.name || (budget.sample ? "Example book" : "Your next chapter")}</strong>
+            <span>{budget.name || "Choose a project"} ↗</span>
           </div>
-        </div>
+        </button>
         <nav aria-label="Main navigation">
           {pages.map((p) => (
             <button
@@ -485,6 +503,7 @@ export default function BudgetApp() {
               <button className="text-button" onClick={backup}>
                 Download current book
               </button>
+              <button className="text-button" onClick={backupAll}>Download all books</button>
               {recovery && (
                 <button
                   className="text-button"
@@ -501,6 +520,7 @@ export default function BudgetApp() {
               )}
             </div>
           )}
+          {legacy && ["start", "books", "profile"].includes(page) && <div className="legacy-notice"><p>Your earlier Function Budget Studio data stays unchanged on this device.</p><button className="secondary" onClick={() => download(legacy,"ellies-book-legacy-copy.json","application/json")}>Download earlier data</button></div>}
           {needsBudget ? (
             <>
               {header(
@@ -513,7 +533,15 @@ export default function BudgetApp() {
             </>
           ) : (
             <>
-              {page === "start" && (
+              {page === "start" && <BookSetup key={setupBookId || "new-book"} book={library.books.find(book => book.id === setupBookId)} onCancel={() => go("books")} onExample={() => { setBudget(exampleBudget()); go("home"); }} onCreate={(name, project) => {
+                const saved = libraryAction(setupBookId ? {type:"project",bookId:setupBookId,project} : {type:"book",name,project});
+                setDraft({description:"",amount:"",categoryId:"",status:"paid",date:localDate()});
+                go("home");
+                notify(saved ? "Your project is ready. Welcome to your board." : "Project created on this page only. Download all books before leaving.", saved ? "success" : "error");
+              }} />}
+              {page === "books" && <BooksPage library={library} onNewBook={() => newBook()} onNewProject={id => newBook(id)} onOpen={selectProject} onRestore={restore} onBackup={backupAll} />}
+              {page === "profile" && <ProfilePage library={library} onName={name => { const saved = libraryAction({type:"profile", name}); notify(saved ? "Local profile saved." : "Profile is not saved. Download all books before leaving.",saved ? "success":"error"); }} onBackup={backupAll} onProjectBackup={backup} onRestore={restore} onSettings={() => go("settings")} hasProject={budget.created} />}
+              {page === "settings" && (
                 <>
                   {header(
                     budget.created
@@ -853,7 +881,7 @@ export default function BudgetApp() {
                       </p>
                       <button
                         className="text-button"
-                        onClick={() => go("start")}
+                        onClick={() => go("settings")}
                       >
                         Edit total budget <Icon name="arrow" size={17} />
                       </button>
@@ -1100,13 +1128,15 @@ export default function BudgetApp() {
               {page === "home" && (
                 <>
                   {header(
-                    "Your money, connected.",
-                    `${budget.name} · ${budget.period}`,
-                    <button className="primary heading-action" onClick={() => go("spend")}>
-                      <Icon name="plus" size={19} /> Log spending
+                    "Your board",
+                    `${currentBook ? `${currentBook.name} / ` : ""}${budget.name} · ${budget.period}`,
+                    <button className="primary heading-action canvas-add-entry" onClick={() => go("spend")}>
+                      <Icon name="plus" size={19} /> Add entry
                     </button>,
                   )}
                   <NodeBoard
+                    key={budget.id}
+                    onEditingChange={setEditingLayout}
                     budget={budget}
                     setBudget={setBudget}
                     storageError={storageError}

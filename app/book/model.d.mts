@@ -31,7 +31,14 @@ export type Budget = {
 };
 export type BoardModule = "budget" | "committed" | "paid" | "notes";
 export type BoardSize = "compact" | "regular" | "wide";
+export type NodeSize = "small" | "medium" | "large";
+export type CanvasLayout = {
+  positions: Record<string, { x: number; y: number }>;
+  sizes: Record<string, NodeSize>;
+  viewport: { x: number; y: number; zoom: number };
+};
 export type BoardLayout = {
+  canvas?: CanvasLayout;
   order: BoardModule[];
   sizes: Partial<Record<BoardModule, BoardSize>>;
   expanded: string[];

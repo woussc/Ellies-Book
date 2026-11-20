@@ -366,7 +366,8 @@ test("exploring an example cannot replace the only copy of unsaved personal edit
     import { createElement } from 'react';
     import { renderToStaticMarkup } from 'react-dom/server';
     import { useBook } from './app/book/use-book.ts';
-    import { blankBudget, exampleBudget, parseBook, STORAGE_KEY, SAMPLE_STORAGE_KEY } from './app/book/model.mjs';
+    import { blankBudget, exampleBudget, STORAGE_KEY, SAMPLE_STORAGE_KEY } from './app/book/model.mjs';
+    import { activeBudget, parseLibrary, LIBRARY_KEY } from './app/book/library-model.mjs';
     const map = new Map();
     let failWrites = false;
     globalThis.localStorage = {
@@ -385,13 +386,14 @@ test("exploring an example cannot replace the only copy of unsaved personal edit
     let retained;
     book.setBudget(budget => { retained = budget; return budget; });
     assert.deepEqual(retained, unsaved, 'The downloadable in-memory book must retain every unsaved edit');
-    assert.equal(parseBook(map.get(STORAGE_KEY)).notes, 'Original note');
+    assert.equal(activeBudget(parseLibrary(map.get(LIBRARY_KEY))).notes, 'Original note');
+    assert.equal(map.has(STORAGE_KEY), false, 'The legacy single-book key is not rewritten');
     assert.equal(map.has(SAMPLE_STORAGE_KEY), false);
     failWrites = false;
     assert.equal(book.setBudget(retained), true);
     assert.equal(book.setBudget(exampleBudget()), true);
     book.removeExample();
-    assert.deepEqual(parseBook(map.get(STORAGE_KEY)), unsaved);
+    assert.deepEqual(activeBudget(parseLibrary(map.get(LIBRARY_KEY))), unsaved);
   `], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
 });

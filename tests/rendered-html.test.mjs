@@ -12,24 +12,24 @@ async function render() {
   );
 }
 
-test("the real app renders blank onboarding and the five approved flows", async () => {
+test("the real app renders Book-first onboarding and the approved navigation", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   for (const text of [
     "Ellie",
-    "Create my budget",
+    "A book for your plans.",
+    "Book name",
     "Household",
     "Just me",
     "Team",
-    "Budget period",
+    "Continue",
     "Plan by category",
     "Log spending",
-    "Where I stand",
-    "Share a report",
-    "Explore an example",
-    "Restore a book",
+    "Your board",
+    "Your books",
+    "Your profile",
     "Skip to content",
   ])
     assert.ok(html.includes(text), text);

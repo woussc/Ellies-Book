@@ -1,20 +1,244 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent, type SetStateAction } from "react";
-import type { BoardModule, BoardSize, Budget, Expense } from "./model.mjs";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent,
+  type SetStateAction,
+} from "react";
 import { money, totals } from "./model.mjs";
-import { boardLayout, changeBoard, noteConnections, orderedNodes, resolveNoteLink, type BoardAction } from "./board-model.mjs";
-import { renderMarkdownDocument } from "../markdown-render";
+import { boardLayout, noteConnections } from "./board-model.mjs";
+import {
+  canvasGraph,
+  canvasLayout,
+  changeCanvas,
+  recoverCanvasViewport,
+} from "./canvas-model.mjs";
+import NodeDetail from "./node-detail";
+import type { Budget, CanvasLayout, Expense, NodeSize } from "./model.mjs";
+import type { CanvasAction, CanvasNode } from "./canvas-model.mjs";
 
-const titles: Record<BoardModule, string> = { budget: "Budget & plans", committed: "Committed", paid: "Paid", notes: "Notes & connections" };
-const sizes: BoardSize[] = ["compact", "regular", "wide"];
+const subscribeWidth = (callback: () => void) => {
+  const media = matchMedia("(max-width: 640px)");
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+};
+const isPhone = () => matchMedia("(max-width: 640px)").matches;
+type Viewport = CanvasLayout["viewport"];
 
-function BoardIcon({ type }: { type: "move" | "shrink" | "grow" | "up" | "down" }) {
-  const paths = { move: <><path d="M8 4h8M8 10h8M8 16h8" /><path d="M4 4h.01M4 10h.01M4 16h.01" /></>, shrink: <path d="M3 9h6V3m12 12h-6v6M9 9 3 3m12 12 6 6" />, grow: <path d="M3 9V3h6m6 18h6v-6M3 3l6 6m12 12-6-6" />, up: <path d="m6 14 6-6 6 6" />, down: <path d="m6 10 6 6 6-6" /> };
-  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[type]}</svg>;
+function NodeContent({
+  node,
+  budget,
+  condensed = false,
+}: {
+  node: CanvasNode;
+  budget: Budget;
+  condensed?: boolean;
+}) {
+  const entry =
+    node.kind === "expense"
+      ? budget.expenses.find((entry) => entry.id === node.recordId)
+      : undefined;
+  const category = budget.categories.find(
+    (category) => category.id === node.categoryId,
+  );
+  const t = totals(
+    budget,
+    node.kind === "category" ? node.recordId : undefined,
+  );
+  const connections = noteConnections(budget);
+  if (condensed || node.size === "small")
+    return (
+      <p className="node-condensed-amount">
+        {node.kind === "notes"
+          ? `${connections.resolved.length} linked records`
+          : money(entry?.amount ?? t.left)}
+        {!entry && node.kind !== "notes" && <small> left</small>}
+      </p>
+    );
+  if (node.kind === "notes")
+    return (
+      <div className="node-content">
+        <p className="node-note-preview">
+          {budget.notes
+            .replace(/^---[\s\S]*?---\s*/, "")
+            .slice(0, node.size === "large" ? 260 : 100) ||
+            "The story behind your decisions. Add Markdown links to connect a category or entry."}
+        </p>
+        <small>
+          {connections.resolved.length} linked records
+          {connections.tags.length
+            ? ` · ${connections.tags.map((tag) => `#${tag}`).join(" ")}`
+            : ""}
+        </small>
+        {node.size === "large" && (
+          <ul className="node-preview-list">
+            {connections.resolved.slice(0, 3).map((record) => (
+              <li key={record.id}>{record.label}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  if (entry)
+    return (
+      <div className="node-content">
+        <strong className="node-amount">{money(entry.amount)}</strong>
+        <p className="node-caption">
+          {entry.date} · {category?.name}
+        </p>
+        {node.size === "large" && (
+          <div className="node-extra">
+            <span>History: {entry.history.join(" → ")}</span>
+            <p>
+              {entry.status === "planned"
+                ? "An idea, not yet committed. Does not reduce money left."
+                : entry.status === "committed"
+                  ? "Still to pay. Included in money in use."
+                  : "Paid. Counted once as actual spending."}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  return (
+    <div className="node-content">
+      <strong className={`node-amount${t.left < 0 ? " negative" : ""}`}>
+        {money(t.left)}
+      </strong>
+      <span className="node-caption">left to commit</span>
+      <dl className="node-money-facts">
+        <div>
+          <dt>{node.kind === "category" ? "Allocated" : "Budget"}</dt>
+          <dd>{money(category?.amount ?? budget.total)}</dd>
+        </div>
+        <div>
+          <dt>In use</dt>
+          <dd>{money(t.spent + t.committed)}</dd>
+        </div>
+      </dl>
+      {node.size === "large" && (
+        <ul className="node-preview-list">
+          {node.kind === "budget"
+            ? budget.categories.slice(0, 3).map((category) => (
+                <li key={category.id}>
+                  <span>{category.name}</span>
+                  <b>{money(category.amount)}</b>
+                </li>
+              ))
+            : budget.expenses
+                .filter((entry) => entry.categoryId === node.recordId)
+                .slice(0, 3)
+                .map((entry) => (
+                  <li key={entry.id}>
+                    <span>{entry.description}</span>
+                    <b>{money(entry.amount)}</b>
+                  </li>
+                ))}
+          {node.kind === "category" &&
+            !budget.expenses.some(
+              (entry) => entry.categoryId === node.recordId,
+            ) && <li>No entries yet.</li>}
+        </ul>
+      )}
+    </div>
+  );
 }
 
-export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpense, onReport, onBackup, storageError }: {
+function SizeDialog({
+  node,
+  budget,
+  onApply,
+  onCancel,
+}: {
+  node: CanvasNode;
+  budget: Budget;
+  onApply: (size: NodeSize) => void;
+  onCancel: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [size, setSize] = useState(node.size);
+  const minimum = ["budget", "category"].includes(node.kind);
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      className="size-dialog"
+      aria-labelledby="size-title"
+      onCancel={(e) => {
+        e.preventDefault();
+        onCancel();
+      }}
+    >
+      <header>
+        <h2 id="size-title">{node.title} size</h2>
+        <button
+          className="outline-button"
+          aria-label="Close size controls"
+          onClick={onCancel}
+        >
+          ×
+        </button>
+      </header>
+      <p>Choose how much this node shows.</p>
+      <div className="size-options">
+        {(["small", "medium", "large"] as NodeSize[]).map((option) => (
+          <button
+            key={option}
+            className="size-option"
+            aria-pressed={size === option}
+            disabled={minimum && option === "small"}
+            onClick={() => setSize(option)}
+          >
+            <strong>{option[0].toUpperCase() + option.slice(1)}</strong>
+            <span>
+              {option === "small"
+                ? "Summary + Open"
+                : option === "medium"
+                  ? "Essential money + Open"
+                  : "Essential money + a capped preview"}
+            </span>
+          </button>
+        ))}
+      </div>
+      {minimum && (
+        <p className="hint">
+          Small is unavailable. Budget and Category start at Medium so essential
+          money stays visible.
+        </p>
+      )}
+      <p className="eyebrow">Content preview · {size}</p>
+      <div className={`size-preview size-${size}`}>
+        <strong>{node.title}</strong>
+        <NodeContent budget={budget} node={{ ...node, size }} />
+      </div>
+      <div className="size-actions">
+        <button className="secondary" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="primary" onClick={() => onApply(size)}>
+          Apply size
+        </button>
+      </div>
+    </dialog>
+  );
+}
+
+export default function NodeBoard({
+  budget,
+  setBudget,
+  onPlan,
+  onSpend,
+  onExpense,
+  onReport,
+  onBackup,
+  storageError,
+  onEditingChange,
+}: {
   budget: Budget;
   setBudget: (next: SetStateAction<Budget>) => boolean;
   onPlan: () => void;
@@ -23,189 +247,785 @@ export default function NodeBoard({ budget, setBudget, onPlan, onSpend, onExpens
   onReport: () => void;
   onBackup: () => void;
   storageError: boolean;
+  onEditingChange: (editing: boolean) => void;
 }) {
-  const layout = boardLayout(budget);
-  const summary = totals(budget);
-  const connections = noteConnections(budget);
-  const [editing, setEditing] = useState(false);
-  const [category, setCategory] = useState("");
-  const [noteTag, setNoteTag] = useState("");
-  const [writing, setWriting] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
-  const [dragging, setDragging] = useState<BoardModule | null>(null);
-  const [dropBefore, setDropBefore] = useState<BoardModule | null | undefined>(undefined);
-  const drag = useRef<{ id: BoardModule; startX: number; startY: number; x: number; y: number; active: boolean; before?: BoardModule | null } | null>(null);
-  const dragFrame = useRef<number | null>(null);
-  const boardRef = useRef<HTMLDivElement>(null);
-  const [destination, setDestination] = useState<{ id: string; module?: boolean } | null>(null);
-  useEffect(() => () => { if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current); }, []);
+  const phone = useSyncExternalStore(subscribeWidth, isPhone, () => false);
+  const savedLayout = canvasLayout(budget);
+  const [arrange, setArrange] = useState<CanvasLayout | null>(null);
+  const [view, setView] = useState(savedLayout.viewport);
+  const viewRef = useRef(view);
+  const [mode, setMode] = useState<"map" | "list">("map");
+  const [selected, setSelected] = useState("budget");
+  const [menu, setMenu] = useState<string | null>(null);
+  const [sizeId, setSizeId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
+  const [finding, setFinding] = useState(false);
+  const [query, setQuery] = useState("");
+  const [message, setMessage] = useState("");
+  const [ghost, setGhost] = useState<CanvasNode | null>(null);
+  const windowRef = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState({ width: 0, height: 0 });
+  const pointer = useRef<{
+    pointerId: number;
+    id?: string;
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+    origin: Viewport;
+  } | null>(null);
+  const layout = arrange ?? savedLayout;
+  const graph = canvasGraph(budget, layout, !!arrange, phone);
+  const nodesRef = useRef(graph.nodes);
   useEffect(() => {
-    if (dragging) boardRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
-  }, [dragging]);
+    nodesRef.current = graph.nodes;
+  }, [graph.nodes]);
   useEffect(() => {
-    if (!destination) return;
-    const frame = requestAnimationFrame(() => {
-      const node = Array.from(boardRef.current?.querySelectorAll<HTMLElement>(destination.module ? "[data-board-module]" : "[data-board-node]") ?? []).find(el => (destination.module ? el.dataset.boardModule : el.dataset.boardNode) === destination.id);
-      if (!node) return;
-      node.focus({ preventScroll: true });
-      node.scrollIntoView({ block: destination.module ? "start" : "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    const element = windowRef.current;
+    if (!element || mode !== "map") return;
+    const observer = new ResizeObserver(() => {
+      const nextFrame = {
+        width: element.clientWidth,
+        height: element.clientHeight,
+      };
+      setFrame(nextFrame);
+      const next = recoverCanvasViewport(
+        nodesRef.current,
+        viewRef.current,
+        nextFrame,
+      );
+      if (next !== viewRef.current) {
+        viewRef.current = next;
+        setView(next);
+      }
     });
-    return () => cancelAnimationFrame(frame);
-  }, [destination]);
-  const selected = budget.categories.find(c => c.id === category);
-  const update = (action: BoardAction, text: string) => {
-    const saved = setBudget(b => changeBoard(b, action));
-    setAnnouncement(saved ? `${text} Layout saved.` : `${text} Not saved. Download a book backup before leaving.`);
-  };
-  function follow(id: string) {
-    setNoteTag("");
-    if (!id) {
-      setCategory("");
-      setAnnouncement("Showing all connections.");
-      return;
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [mode, phone]);
+  const visibleNodes = graph.nodes.filter(
+    (node) =>
+      !frame.width ||
+      ((node.x + node.width) * view.zoom + view.x >= 0 &&
+        (node.y + node.height) * view.zoom + view.y >= 0 &&
+        node.x * view.zoom + view.x <= frame.width &&
+        node.y * view.zoom + view.y <= frame.height),
+  );
+  const openNode = graph.nodes.find((node) => node.id === openId);
+  const sizingNode = graph.nodes.find((node) => node.id === sizeId);
+  const selectedNode =
+    graph.nodes.find((node) => node.id === selected) ?? graph.nodes[0];
+  const results = graph.nodes
+    .filter((node) =>
+      `${node.title} ${node.recordId} ${node.kind === "notes" ? budget.notes : ""}`
+        .toLocaleLowerCase()
+        .includes(query.toLocaleLowerCase()),
+    )
+    .slice(0, 40);
+
+  function changeView(next: Viewport) {
+    viewRef.current = next;
+    setView(next);
+  }
+  function saveView(next: Viewport) {
+    changeView(next);
+    if (arrange)
+      setArrange((current) => current && { ...current, viewport: next });
+    else setBudget((b) => changeCanvas(b, { type: "viewport", ...next }));
+  }
+  function editLayout(action: CanvasAction) {
+    setArrange(
+      (current) =>
+        current &&
+        changeCanvas(
+          { ...budget, board: { ...boardLayout(budget), canvas: current } },
+          action,
+        ).board!.canvas!,
+    );
+  }
+  function beginArrange(id = "budget", size = false) {
+    onEditingChange(true);
+    setArrange(structuredClone({ ...savedLayout, viewport: viewRef.current }));
+    setSelected(id);
+    setMenu(null);
+    setMode("map");
+    setFinding(false);
+    if (size) setSizeId(id);
+    setMessage(
+      "Layout only. Move with a handle or the arrow buttons. Done saves; Cancel discards.",
+    );
+  }
+  function finishArrange(commit: boolean) {
+    onEditingChange(false);
+    if (commit && arrange) {
+      const saved = setBudget((b) => ({
+        ...b,
+        board: {
+          ...boardLayout(b),
+          canvas: { ...arrange, viewport: viewRef.current },
+        },
+      }));
+      setMessage(
+        saved
+          ? "Layout saved. Your money and relationships are unchanged."
+          : "Layout is on this page only. Download all books before leaving.",
+      );
+    } else {
+      changeView(savedLayout.viewport);
+      setMessage("Arrangement cancelled. Your saved layout is unchanged.");
     }
-    const record = resolveNoteLink(budget, id);
-    if (!record) return;
-    setCategory(record.categoryId);
-    update({ type: "reveal", id: record.id }, `Opened ${record.label}. Related nodes are highlighted.`);
-    setDestination({ id: record.id });
+    setArrange(null);
+    setSizeId(null);
+    setGhost(null);
+    pointer.current = null;
   }
-  function followLink(target: string) {
-    const link = resolveNoteLink(budget, target);
-    if (link) follow(link.id);
-    else setAnnouncement(`No record named “${target}” yet. The note is kept as written.`);
-  }
-  const matched = (id: string) => category ? id === category : noteTag ? connections.resolved.some(r => r.categoryId === id) : true;
-  function moveModule(id: BoardModule, direction: -1 | 1) {
-    const index = layout.order.indexOf(id);
-    const other = layout.order[index + direction];
-    if (!other) return;
-    update(direction === -1 ? { type: "move", id, before: other } : { type: "move", id: other, before: id }, `${titles[id]} moved ${direction === -1 ? "earlier" : "later"}.`);
-  }
-  function pointerMove(event: PointerEvent<HTMLButtonElement>) {
-    const current = drag.current;
-    if (!current) return;
-    current.x = event.clientX;
-    current.y = event.clientY;
-    if (current.active || Math.hypot(current.x - current.startX, current.y - current.startY) < 8) return;
-    current.active = true;
-    setDragging(current.id);
-    dragFrame.current = requestAnimationFrame(dragTick);
-  }
-  function dragTick() {
-    const current = drag.current;
-    if (!current?.active) return;
-    const cards = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-board-module]") ?? []);
-    const others = cards.filter(el => el.dataset.boardModule !== current.id);
-    const boardRect = boardRef.current?.getBoundingClientRect();
-    const target = others.reduce<HTMLElement | undefined>((nearest, card) => {
-      const distance = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return Math.abs(current.y - (r.top + r.height / 2)); };
-      return !nearest || distance(card) < distance(nearest) ? card : nearest;
-    }, undefined);
-    if (target && boardRect && current.x >= boardRect.left - 44 && current.x <= boardRect.right + 44) {
-      const rect = target.getBoundingClientRect();
-      const index = others.indexOf(target);
-      current.before = current.y > rect.top + rect.height / 2 ? others[index + 1]?.dataset.boardModule as BoardModule ?? null : target.dataset.boardModule as BoardModule;
-    } else current.before = undefined;
-    setDropBefore(current.before);
-    if (current.y > window.innerHeight - 140) window.scrollBy(0, 12);
-    else if (current.y < 90) window.scrollBy(0, -12);
-    dragFrame.current = requestAnimationFrame(dragTick);
-  }
-  function pointerEnd(cancelled = false) {
-    if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
-    dragFrame.current = null;
-    if (!cancelled && drag.current && drag.current.before !== undefined) {
-      update({ type: "move", id: drag.current.id, before: drag.current.before }, `${titles[drag.current.id]} moved.`);
-      setDestination({ id: drag.current.id, module: true });
+  function focusNode(node: CanvasNode, open = true) {
+    const rect = windowRef.current?.getBoundingClientRect();
+    const zoom = Math.max(0.9, Math.min(viewRef.current.zoom, 1.2));
+    saveView({
+      zoom,
+      x: (rect?.width ?? 360) / 2 - (node.x + node.width / 2) * zoom,
+      y: 36 - node.y * zoom,
+    });
+    setSelected(node.id);
+    setMenu(null);
+    setFinding(false);
+    if (open) {
+      setOpenId(node.id);
+      setHistory([]);
     }
-    drag.current = null;
-    setDragging(null);
-    setDropBefore(undefined);
+    setMessage(`Located ${node.title}.`);
   }
-  function nodeTools(id: string, name: string, rows: { id: string }[]) {
-    const index = rows.findIndex(r => r.id === id);
-    return editing ? <div className="board-node-tools" aria-label={`Arrange ${name}`}>
-      <button disabled={index === 0} aria-label={`Move ${name} up`} onClick={() => update({ type: "node", id, before: rows[index - 1].id }, `${name} moved up.`)}><BoardIcon type="up" /></button>
-      <button disabled={index === rows.length - 1} aria-label={`Move ${name} down`} onClick={() => update({ type: "node", id: rows[index + 1].id, before: id }, `${name} moved down.`)}><BoardIcon type="down" /></button>
-    </div> : null;
+  function navigate(id: string) {
+    const node = graph.nodes.find((node) => node.id === id);
+    if (!node) return;
+    if (openId) setHistory((items) => [...items, openId]);
+    setOpenId(id);
+    setSelected(id);
+    const rect = windowRef.current?.getBoundingClientRect();
+    saveView({
+      zoom: 1,
+      x: (rect?.width ?? 360) / 2 - node.x - node.width / 2,
+      y: 36 - node.y,
+    });
   }
-  function expenseNode(e: Expense, rows: Expense[]) {
-    const c = budget.categories.find(c => c.id === e.categoryId)!;
-    const expanded = layout.expanded.includes(e.id);
-    return <article data-board-node={e.id} tabIndex={-1} aria-label={`${e.description} record`} className={`board-node expense-node ${matched(c.id) ? "" : "unrelated"} ${category === c.id ? "connected" : ""}`} key={e.id}>
-      <button className="node-summary" aria-expanded={expanded} onClick={() => update({ type: "expand", id: e.id }, `${e.description} ${expanded ? "collapsed" : "expanded"}.`)}>
-        <span>{e.description}</span><strong>{money(e.amount)}</strong><span className="node-disclosure" aria-hidden="true">{expanded ? "−" : "+"}</span>
-      </button>
-      <button className="node-relationship" aria-label={`Follow ${c.name} from ${e.description}`} onClick={() => follow(c.id)}><span aria-hidden="true">↳</span> {c.name}</button>
-      {expanded && <div className="node-details"><p>{e.date} · {e.status === "committed" ? "Still to pay" : e.status === "paid" ? "Already paid" : "An idea, not a commitment"}</p><p className="node-trail">Budget → {c.name} → {e.history.join(" → ")}</p><button className="text-button" onClick={() => onExpense(e)}>Edit entry & history</button></div>}
-      {nodeTools(e.id, e.description, rows)}
-    </article>;
+  function zoomBy(factor: number) {
+    const rect = windowRef.current?.getBoundingClientRect();
+    const current = viewRef.current,
+      zoom = Math.max(0.2, Math.min(1.5, current.zoom * factor));
+    const x = (rect?.width ?? 360) / 2,
+      y = (rect?.height ?? 500) / 2;
+    saveView({
+      zoom,
+      x: x - ((x - current.x) * zoom) / current.zoom,
+      y: y - ((y - current.y) * zoom) / current.zoom,
+    });
   }
-  const categoryRows = orderedNodes(budget.categories, layout);
-  const planned = orderedNodes(budget.expenses.filter(e => e.status === "planned"), layout);
-  return <section className={`node-workspace ${editing ? "layout-editing" : ""}`} aria-label="Your connected money board">
-    <div className="board-root">
-      <div><span>{summary.left < 0 ? "Over budget" : "Left to spend"}</span><strong className={summary.left < 0 ? "negative" : ""}>{money(Math.abs(summary.left))}</strong><span>After paid + committed</span></div>
-      <div className="board-root-facts"><span>Budget <b>{money(budget.total)}</b></span><span>Paid <b>{money(summary.spent)}</b></span><span>Committed <b>{money(summary.committed)}</b></span></div>
-    </div>
-    <div className="board-toolbar">
-      <label>Follow a category<select value={category} onChange={e => follow(e.target.value)}><option value="">All connections</option>{budget.categories.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}</select></label>
-      <button className={editing ? "primary" : "secondary"} aria-pressed={editing} onClick={() => setEditing(!editing)}>{editing ? "Done arranging" : "Arrange board"}</button>
-      {editing && <button className="text-button" onClick={() => update({ type: "reset" }, "Original layout restored.")}>Reset layout</button>}
-    </div>
-    {editing ? <p className="board-guidance">Drag a handle to see a short-card overview. Release at the green line, or use the move buttons. Small shows a summary, Medium a preview, Large the full card on your phone.</p> : <p className="board-guidance">Tap a node to open it. Follow a link to open and find its record.</p>}
-    {(category || noteTag) && <div className="board-connection-trail"><span>{noteTag ? `Notes tagged #${noteTag}` : `${selected?.name ?? "Category"}: budget → committed → paid`}</span><button className="text-button" onClick={() => { follow(""); setNoteTag(""); }}>Clear focus</button></div>}
-    <div className={`money-board ${dragging ? "board-dragging" : ""}`} ref={boardRef}>
-      {layout.order.map((id, index) => {
-        const size = layout.sizes[id] ?? (id === "notes" ? "wide" : "regular");
-        const expenses = orderedNodes(budget.expenses.filter(e => e.status === id), layout);
-        const amount = id === "budget" ? budget.total : id === "committed" ? summary.committed : summary.spent;
-        const count = id === "budget" ? categoryRows.length : expenses.length;
-        const contents = id === "notes" ? "note & connections" : id === "budget" ? `${count} categories${planned.length ? ` + ${planned.length} ideas` : ""}` : `${count} entries`;
-        return <section key={id} tabIndex={-1} data-board-module={id} className={`board-module module-${id} size-${size} ${dragging === id ? "is-dragging" : ""} ${dropBefore === id ? "drop-before" : ""} ${dropBefore === null && id === layout.order.filter(value => value !== dragging).at(-1) ? "drop-after" : ""}`} aria-labelledby={`module-${id}`}>
-          <header className="board-module-heading"><h2 id={`module-${id}`}>{titles[id]}</h2>{id !== "notes" && <span className="board-module-count">{id === "budget" ? budget.categories.length : expenses.length}</span>}</header>
-          {editing && <div className="board-module-tools" aria-label={`Arrange ${titles[id]}`}>
-            <button className="board-drag-handle" aria-label={`Drag ${titles[id]}`} onPointerDown={e => { if (!e.isPrimary || e.button !== 0) return; e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, active: false }; }} onPointerMove={pointerMove} onPointerUp={() => pointerEnd()} onPointerCancel={() => pointerEnd(true)} onLostPointerCapture={() => pointerEnd(true)}><BoardIcon type="move" /></button>
-            <button disabled={index === 0} aria-label={`Move ${titles[id]} earlier`} onClick={() => moveModule(id, -1)}><BoardIcon type="up" /></button>
-            <button disabled={index === layout.order.length - 1} aria-label={`Move ${titles[id]} later`} onClick={() => moveModule(id, 1)}><BoardIcon type="down" /></button>
-            <span className="board-size-label">{size === "regular" ? "Medium" : size === "wide" ? "Large" : "Small"}</span>
-            <button disabled={size === "compact"} aria-label={`Shrink ${titles[id]}`} onClick={() => update({ type: "size", id, size: sizes[sizes.indexOf(size) - 1] }, `${titles[id]} made smaller.`)}><BoardIcon type="shrink" /></button>
-            <button disabled={size === "wide"} aria-label={`Enlarge ${titles[id]}`} onClick={() => update({ type: "size", id, size: sizes[sizes.indexOf(size) + 1] }, `${titles[id]} made larger.`)}><BoardIcon type="grow" /></button>
-          </div>}
-          {id !== "notes" && <div className="module-total"><strong>{money(amount)}</strong><span>{id === "budget" ? "Confirmed to work with" : id === "committed" ? "Still to pay · not paid twice" : "Already spent"}</span></div>}
-          <p className="module-phone-summary">{id === "notes" ? (budget.notes ? `${connections.resolved.length} linked records · saved note` : "No notes yet") : contents}</p>
-          {id === "budget" ? <>
-            <p className={`board-plan-balance ${summary.plan > budget.total ? "negative" : ""}`}>{money(Math.abs(budget.total - summary.plan))} {summary.plan > budget.total ? "over-assigned in your plan" : "still to assign to categories"}</p>
-            <div className="board-node-list">{categoryRows.map(c => {
-              const s = totals(budget, c.id);
-              const expanded = layout.expanded.includes(c.id);
-              const linked = budget.expenses.filter(e => e.categoryId === c.id);
-              return <article key={c.id} data-board-node={c.id} tabIndex={-1} aria-label={`${c.name} category`} className={`board-node category-node ${matched(c.id) ? "" : "unrelated"} ${category === c.id ? "connected" : ""}`}>
-                <button className="node-summary" aria-expanded={expanded} onClick={() => update({ type: "expand", id: c.id }, `${c.name} ${expanded ? "collapsed" : "expanded"}.`)}><span>{c.name}</span><strong>{money(c.amount)}</strong><span className="node-disclosure" aria-hidden="true">{expanded ? "−" : "+"}</span></button>
-                <div className="board-node-meter" aria-hidden="true"><span style={{ width: `${Math.min(100, (s.spent + s.committed) / (c.amount || 1) * 100)}%` }} /></div>
-                <button className="node-relationship" onClick={() => follow(c.id)}>{linked.length} linked {linked.length === 1 ? "entry" : "entries"} <span aria-hidden="true">→</span></button>
-                {expanded && <div className="node-details"><p className={s.left < 0 ? "negative" : ""}>{money(s.left)} left in this category</p><p>Paid {money(s.spent)} · Committed {money(s.committed)}</p>{c.owner && <p>Owner: {c.owner}</p>}<button className="text-button" onClick={() => onSpend(c.id)}>Add a linked entry</button></div>}
-                {nodeTools(c.id, c.name, categoryRows)}
-              </article>;
-            })}</div>
-            {planned.length > 0 && <div className="planned-nodes"><h3>Ideas · not committed</h3><p>These affect your forecast, not your left-to-spend amount.</p>{planned.map(e => expenseNode(e, planned))}</div>}
-            <button className="text-button module-action" onClick={onPlan}>Adjust category plan <span aria-hidden="true">→</span></button>
-          </> : id === "notes" ? <>
-            <div className="board-notes-heading"><p>The why behind the numbers.</p><button className="text-button" onClick={() => setWriting(!writing)}>{writing ? "Read note" : "Edit note"}</button></div>
-            {writing ? <label className="board-note-editor">Budget notes<textarea value={budget.notes} placeholder="A decision about [[Home & bills]]… Add #tags or YAML tags." onChange={e => setBudget(b => ({ ...b, notes: e.target.value }))} rows={7} /></label> : <div className="markdown-preview board-note-preview" role="region" aria-label="Budget notes preview">{budget.notes ? renderMarkdownDocument(budget.notes, { onWikilink: followLink, onTag: tag => { setCategory(""); setNoteTag(tag); setAnnouncement(`Showing note connections tagged #${tag}.`); } }) : <p>No note yet. Add the story behind a decision, then link it to a category with [[double brackets]].</p>}</div>}
-            {(connections.tags.length > 0 || connections.resolved.length > 0) && <div className="board-note-links" aria-label="Markdown relationships">{connections.tags.map(tag => <button aria-pressed={noteTag === tag} key={tag} onClick={() => { setCategory(""); setNoteTag(noteTag === tag ? "" : tag); }}>#{tag}</button>)}{connections.resolved.map(link => <button key={link.id} onClick={() => follow(link.id)}>↗ {link.label}</button>)}</div>}
-            {connections.unresolved.length > 0 && <p className="board-note-unresolved">Not linked yet: {connections.unresolved.join(", ")}. Your note is kept as written.</p>}
-            <p className="board-note-save">{storageError ? "Not saved · download a book backup" : "Markdown + YAML · saved on this device"}</p>
-          </> : <>
-            <div className="board-node-list">{expenses.length ? expenses.map(e => expenseNode(e, expenses)) : <div className="board-empty"><p>{id === "paid" ? "Nothing paid yet." : "No commitments yet."}</p><span>{id === "paid" ? "Paid entries will connect back to their category here." : "Add a bill or promise before you pay it."}</span></div>}</div>
-            <button className="text-button module-action" onClick={() => onSpend()}>Log spending <span aria-hidden="true">→</span></button>
-          </>}
-          {(size === "compact" || (size === "regular" && (count > 2 || id === "notes" || (id === "budget" && planned.length > 0)))) && <button className={`text-button module-expand ${size === "regular" ? "module-expand-medium" : ""}`} onClick={() => update({ type: "size", id, size: "wide" }, `${titles[id]} opened in full.`)}>{id === "notes" ? "Open full note & connections" : `Show all ${contents}`} →</button>}
-        </section>;
-      })}
-    </div>
-    <footer className="board-footer"><p>One book. Connected views. Moving a card never moves your money.</p><div><button className="text-button" onClick={onBackup}>Download book backup</button><button className="text-button" onClick={onReport}>Share where you stand →</button></div></footer>
-    <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
-  </section>;
+  function fit() {
+    const rect = windowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const minX = Math.min(...graph.nodes.map((node) => node.x)),
+      minY = Math.min(...graph.nodes.map((node) => node.y));
+    const width =
+      Math.max(...graph.nodes.map((node) => node.x + node.width)) - minX;
+    const height =
+      Math.max(...graph.nodes.map((node) => node.y + node.height)) - minY;
+    const zoom = Math.max(
+      0.2,
+      Math.min(1, (rect.width - 40) / width, (rect.height - 40) / height),
+    );
+    saveView({
+      zoom,
+      x: (rect.width - width * zoom) / 2 - minX * zoom,
+      y: (rect.height - height * zoom) / 2 - minY * zoom,
+    });
+    setMessage(
+      "Whole board in view. Use Find or List to open a node at a readable size.",
+    );
+  }
+  function moveSelected(dx: number, dy: number) {
+    editLayout({
+      type: "position",
+      id: selectedNode.id,
+      x: Math.max(0, selectedNode.x + dx),
+      y: Math.max(0, selectedNode.y + dy),
+    });
+    setMessage(
+      `${selectedNode.title} moved. Money and membership are unchanged.`,
+    );
+  }
+  function startDrag(event: PointerEvent<HTMLButtonElement>, node: CanvasNode) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointer.current = {
+      pointerId: event.pointerId,
+      id: node.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      x: node.x,
+      y: node.y,
+      origin: viewRef.current,
+    };
+    setSelected(node.id);
+    setGhost(node);
+  }
+  function pointerMove(event: PointerEvent<HTMLDivElement>) {
+    const current = pointer.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    if (current.id) {
+      const x = Math.max(
+        0,
+        Math.round(
+          (current.x +
+            (event.clientX - current.startX) / viewRef.current.zoom) /
+            16,
+        ) * 16,
+      );
+      const y = Math.max(
+        0,
+        Math.round(
+          (current.y +
+            (event.clientY - current.startY) / viewRef.current.zoom) /
+            16,
+        ) * 16,
+      );
+      editLayout({ type: "position", id: current.id, x, y });
+    } else
+      changeView({
+        ...current.origin,
+        x: current.x + event.clientX - current.startX,
+        y: current.y + event.clientY - current.startY,
+      });
+  }
+  function stopPointer(event: PointerEvent<HTMLDivElement>, cancel = false) {
+    const current = pointer.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    if (current.id && cancel)
+      editLayout({
+        type: "position",
+        id: current.id,
+        x: current.x,
+        y: current.y,
+      });
+    if (!current.id) {
+      if (cancel) changeView(current.origin);
+      else saveView(viewRef.current);
+    }
+    pointer.current = null;
+    setGhost(null);
+  }
+  return (
+    <section className="canvas-workspace" aria-label="Project node board">
+      <div className="canvas-toolbar">
+        {arrange ? (
+          <>
+            <div>
+              <strong>Arrange your board</strong>
+              <span className="layout-badge">Layout only</span>
+            </div>
+            <div className="toolbar-actions">
+              <button
+                className="secondary"
+                onClick={() => finishArrange(false)}
+              >
+                Cancel
+              </button>
+              <button className="primary" onClick={() => finishArrange(true)}>
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="view-switch" role="group" aria-label="Board view">
+              <button
+                className="outline-button"
+                aria-pressed={mode === "map"}
+                onClick={() => setMode("map")}
+              >
+                Map
+              </button>
+              <button
+                className="outline-button"
+                aria-pressed={mode === "list"}
+                onClick={() => setMode("list")}
+              >
+                List
+              </button>
+            </div>
+            <div className="toolbar-actions">
+              <button
+                className="outline-button"
+                aria-expanded={finding}
+                onClick={() => setFinding(!finding)}
+              >
+                Find
+              </button>
+              <button className="outline-button" onClick={() => beginArrange()}>
+                Arrange
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {finding && (
+        <section className="canvas-find" aria-label="Find a node">
+          <label>
+            Find by name, entry ID or note tag
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a category or entry…"
+            />
+          </label>
+          <div>
+            {results.map((node) => (
+              <button
+                className="outline-button"
+                key={node.id}
+                onClick={() => {
+                  setMode("map");
+                  focusNode(node);
+                }}
+              >
+                <span>
+                  {node.title}
+                  <small>{node.kind}</small>
+                </span>
+                Open ↗
+              </button>
+            ))}
+            {!results.length && (
+              <p>No matching node. Your records have not changed.</p>
+            )}
+          </div>
+        </section>
+      )}
+      <p className="canvas-guidance">
+        {arrange
+          ? "Position never changes money or relationships. Select a node, then use its handle or the arrows."
+          : "Budget → categories → entries. Dashed links come from your Markdown notes."}
+      </p>
+      {arrange && (
+        <div
+          className="move-controls"
+          role="group"
+          aria-label="Move selected node"
+        >
+          <span>
+            Move <strong>{selectedNode.title}</strong>
+          </span>
+          {[
+            ["←", -48, 0, "left"],
+            ["↑", 0, -48, "up"],
+            ["↓", 0, 48, "down"],
+            ["→", 48, 0, "right"],
+          ].map(([label, dx, dy, name]) => (
+            <button
+              className="outline-button"
+              key={name}
+              aria-label={`Move ${selectedNode.title} ${name}`}
+              onClick={() => moveSelected(Number(dx), Number(dy))}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            className="outline-button"
+            onClick={() => setSizeId(selectedNode.id)}
+          >
+            Size
+          </button>
+        </div>
+      )}
+      {mode === "map" ? (
+        <>
+          <div className="canvas-map-controls">
+            <div className="zoom-controls">
+              <button
+                className="outline-button"
+                aria-label="Zoom out"
+                disabled={view.zoom <= 0.2}
+                onClick={() => zoomBy(1 / 1.2)}
+              >
+                −
+              </button>
+              <output aria-label="Zoom level">
+                {Math.round(view.zoom * 100)}%
+              </output>
+              <button
+                className="outline-button"
+                aria-label="Zoom in"
+                disabled={view.zoom >= 1.5}
+                onClick={() => zoomBy(1.2)}
+              >
+                +
+              </button>
+              <button className="outline-button" onClick={fit}>
+                Fit
+              </button>
+            </div>
+            <button
+              className="outline-button"
+              onClick={() => {
+                if (!arrange) beginArrange();
+                editLayout({ type: "auto" });
+                if (!arrange)
+                  setArrange(
+                    (current) => current && { ...current, positions: {} },
+                  );
+                setMessage(
+                  "Auto-arranged. Review, then Done to save or Cancel to keep your layout.",
+                );
+              }}
+            >
+              Auto-arrange
+            </button>
+          </div>
+          <div
+            className={`canvas-window${arrange ? " arranging" : ""}`}
+            ref={windowRef}
+            role="region"
+            aria-label="Pannable node canvas. Drag the background or use the Pan board buttons. A List view is also available."
+            onPointerDown={(e) => {
+              if (
+                e.button !== 0 ||
+                (e.target as HTMLElement).closest(
+                  "button,input,textarea,a,[data-canvas-node]",
+                )
+              )
+                return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              pointer.current = {
+                pointerId: e.pointerId,
+                startX: e.clientX,
+                startY: e.clientY,
+                x: viewRef.current.x,
+                y: viewRef.current.y,
+                origin: viewRef.current,
+              };
+            }}
+            onPointerMove={pointerMove}
+            onPointerUp={(e) => stopPointer(e)}
+            onPointerCancel={(e) => stopPointer(e, true)}
+          >
+            <div
+              className="canvas-world"
+              style={{
+                width: graph.width,
+                height: graph.height,
+                transform: `translate(${view.x}px,${view.y}px) scale(${view.zoom})`,
+              }}
+            >
+              <svg
+                className="canvas-connectors"
+                width={graph.width}
+                height={graph.height}
+                aria-hidden="true"
+              >
+                {graph.edges.map((edge, i) => {
+                  const from = graph.nodes.find(
+                      (node) => node.id === edge.from,
+                    )!,
+                    to = graph.nodes.find((node) => node.id === edge.to)!;
+                  const vertical =
+                    to.x < from.x + from.width + 20 && to.y > from.y;
+                  const x1 = vertical
+                      ? from.x + from.width / 2
+                      : from.x + from.width,
+                    y1 = vertical
+                      ? from.y + from.height
+                      : from.y + from.height / 2,
+                    x2 = vertical ? to.x + to.width / 2 : to.x,
+                    y2 = vertical ? to.y : to.y + to.height / 2;
+                  const bend = vertical ? (y1 + y2) / 2 : (x1 + x2) / 2;
+                  return (
+                    <g
+                      key={`${edge.from}-${edge.to}-${i}`}
+                      className={`edge-${edge.type}`}
+                    >
+                      <path
+                        d={
+                          vertical
+                            ? `M ${x1} ${y1} C ${x1} ${bend}, ${x2} ${bend}, ${x2} ${y2}`
+                            : `M ${x1} ${y1} C ${bend} ${y1}, ${bend} ${y2}, ${x2} ${y2}`
+                        }
+                      />
+                      <text
+                        x={vertical ? (x1 + x2) / 2 + 12 : bend}
+                        y={vertical ? bend : (y1 + y2) / 2 - 8}
+                        textAnchor={vertical ? "start" : "middle"}
+                      >
+                        {edge.label}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+              {ghost && (
+                <div
+                  className="node-placement"
+                  aria-hidden="true"
+                  style={{
+                    left: ghost.x,
+                    top: ghost.y,
+                    width: ghost.width,
+                    height: 146,
+                  }}
+                >
+                  Original position
+                </div>
+              )}
+              {visibleNodes.map((node) => (
+                <article
+                  key={node.id}
+                  data-canvas-node={node.id}
+                  className={`canvas-node node-${node.kind} density-${node.size}${selected === node.id ? " selected-node" : ""}${ghost?.id === node.id ? " moving-node" : ""}${menu === node.id ? " menu-open" : ""}`}
+                  style={{
+                    left: node.x,
+                    top: node.y,
+                    width: node.width,
+                    height: node.height,
+                  }}
+                  aria-label={`${node.title} ${node.kind} node`}
+                >
+                  <header>
+                    <div>
+                      <small>
+                        {node.status ??
+                          (node.kind === "budget"
+                            ? "Project budget"
+                            : node.kind === "notes"
+                              ? "Markdown"
+                              : "Category")}
+                      </small>
+                      <h3>{node.title}</h3>
+                    </div>
+                    {arrange && (
+                      <button
+                        className="outline-button node-handle"
+                        aria-label={`Drag or select ${node.title}`}
+                        aria-pressed={selected === node.id}
+                        onPointerDown={(e) => startDrag(e, node)}
+                        onClick={() => setSelected(node.id)}
+                        onKeyDown={(e) => {
+                          const direction: Record<string, [number, number]> = {
+                            ArrowLeft: [-48, 0],
+                            ArrowRight: [48, 0],
+                            ArrowUp: [0, -48],
+                            ArrowDown: [0, 48],
+                          };
+                          if (direction[e.key]) {
+                            e.preventDefault();
+                            const [x, y] = direction[e.key];
+                            editLayout({
+                              type: "position",
+                              id: node.id,
+                              x: Math.max(0, node.x + x),
+                              y: Math.max(0, node.y + y),
+                            });
+                          }
+                        }}
+                      >
+                        ↔
+                      </button>
+                    )}
+                  </header>
+                  <NodeContent
+                    node={node}
+                    budget={budget}
+                    condensed={!!arrange}
+                  />
+                  <div className="node-actions">
+                    {arrange ? (
+                      <>
+                        <button
+                          className="outline-button"
+                          aria-label={`Size ${node.title}`}
+                          onClick={() => {
+                            setSelected(node.id);
+                            setSizeId(node.id);
+                          }}
+                        >
+                          Size
+                        </button>
+                        <button
+                          className="outline-button"
+                          aria-label={`Select ${node.title} to move`}
+                          onClick={() => {
+                            setSelected(node.id);
+                            setMessage(
+                              `${node.title} selected. Use the four movement buttons above the canvas.`,
+                            );
+                          }}
+                        >
+                          Move
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="outline-button"
+                          aria-label={`Open ${node.title}`}
+                          onClick={() => focusNode(node)}
+                        >
+                          Open ↗
+                        </button>
+                        <button
+                          className="outline-button"
+                          aria-label={`More options for ${node.title}`}
+                          aria-expanded={menu === node.id}
+                          onClick={() =>
+                            setMenu(menu === node.id ? null : node.id)
+                          }
+                        >
+                          More ···
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {menu === node.id && (
+                    <div className="node-menu">
+                      <button
+                        className="outline-button"
+                        onClick={() => beginArrange(node.id, true)}
+                      >
+                        Change size
+                      </button>
+                      <button
+                        className="outline-button"
+                        onClick={() => beginArrange(node.id)}
+                      >
+                        Move this node
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+          <div
+            className="canvas-pan-controls"
+            role="group"
+            aria-label="Pan board"
+          >
+            <span>Pan board</span>
+            {[
+              ["←", 80, 0, "left"],
+              ["↑", 0, 80, "up"],
+              ["↓", 0, -80, "down"],
+              ["→", -80, 0, "right"],
+            ].map(([label, x, y, name]) => (
+              <button
+                className="outline-button"
+                key={name}
+                aria-label={`Pan board ${name}`}
+                onClick={() =>
+                  saveView({
+                    ...viewRef.current,
+                    x: viewRef.current.x + Number(x),
+                    y: viewRef.current.y + Number(y),
+                  })
+                }
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              className="outline-button"
+              onClick={() => focusNode(graph.nodes[0], false)}
+            >
+              Budget
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="canvas-list" aria-label="All board nodes">
+          {graph.nodes.map((node) => (
+            <article key={node.id}>
+              <div>
+                <small>{node.status ?? node.kind}</small>
+                <h3>{node.title}</h3>
+                {node.kind !== "notes" && (
+                  <NodeContent
+                    node={{ ...node, size: "small" }}
+                    budget={budget}
+                  />
+                )}
+              </div>
+              <button
+                className="outline-button"
+                aria-label={`Open ${node.title}`}
+                onClick={() => {
+                  setOpenId(node.id);
+                  setHistory([]);
+                }}
+              >
+                Open ↗
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+      <p className="canvas-status" role="status">
+        {storageError
+          ? "Not saved. Download all books before leaving."
+          : message ||
+            `${budget.categories.length} categories · ${budget.expenses.length} entries · saved on this device`}
+      </p>
+      <footer className="canvas-footer">
+        <p>One project. Connected views. Your numbers stay put.</p>
+        <div>
+          <button className="outline-button" onClick={onBackup}>
+            Download project
+          </button>
+          <button className="outline-button" onClick={onReport}>
+            Share a report ↗
+          </button>
+        </div>
+      </footer>
+      {sizingNode && (
+        <SizeDialog
+          key={sizingNode.id}
+          node={sizingNode}
+          budget={budget}
+          onCancel={() => setSizeId(null)}
+          onApply={(size) => {
+            editLayout({ type: "size", id: sizingNode.id, size });
+            setSizeId(null);
+            setMessage(
+              `${sizingNode.title} set to ${size}. Done saves this arrangement.`,
+            );
+          }}
+        />
+      )}
+      {openNode && (
+        <NodeDetail
+          key={openNode.id}
+          node={openNode}
+          budget={budget}
+          setBudget={setBudget}
+          hasBack={!!history.length}
+          onClose={() => {
+            setOpenId(null);
+            setHistory([]);
+          }}
+          onBack={() => {
+            if (!history.length) setOpenId(null);
+            else {
+              setOpenId(history.at(-1)!);
+              setHistory((items) => items.slice(0, -1));
+            }
+          }}
+          onNavigate={navigate}
+          onPlan={onPlan}
+          onSpend={onSpend}
+          onExpense={onExpense}
+        />
+      )}
+    </section>
+  );
 }

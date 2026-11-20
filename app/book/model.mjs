@@ -115,6 +115,16 @@ export function validateBudget(b) {
       !ids(b.board.expanded) || !ids(b.board.nodeOrder)) {
       throw new Error("Could not read the board layout in this backup.");
     }
+    if (b.board.canvas !== undefined) {
+      const canvas = b.board.canvas;
+      const coordinate = (value) => Number.isFinite(value) && Math.abs(value) <= 1000000;
+      if (!object(canvas) || !object(canvas.positions) || !object(canvas.sizes) || !object(canvas.viewport) ||
+          !Object.values(canvas.positions).every(point => object(point) && coordinate(point.x) && coordinate(point.y) && point.x >= 0 && point.y >= 0) ||
+          !Object.entries(canvas.sizes).every(([id, size]) => ["small", "medium", "large"].includes(size) && !(size === "small" && (id === "budget" || id.startsWith("category:")))) ||
+          !coordinate(canvas.viewport.x) || !coordinate(canvas.viewport.y) || !Number.isFinite(canvas.viewport.zoom) || canvas.viewport.zoom < 0.2 || canvas.viewport.zoom > 1.5) {
+        throw new Error("Could not read the canvas layout in this backup.");
+      }
+    }
   }
   if (
     !b.expenses.every(
