@@ -422,6 +422,30 @@ test("a stale project editor cannot write into a selected restored copy", () => 
   assert.equal(result.status, 0, result.stderr);
 });
 
+test("an active example can be reopened without treating a new example as an update", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import {createElement} from 'react';
+    import {renderToStaticMarkup} from 'react-dom/server';
+    import {useBook} from './app/book/use-book.ts';
+    import {exampleBudget} from './app/book/model.mjs';
+    import {activeBudget, parseLibrary, LIBRARY_KEY} from './app/book/library-model.mjs';
+    const map = new Map();
+    globalThis.localStorage = {getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value)};
+    let book;
+    renderToStaticMarkup(createElement(function Probe() {book = useBook(); return null;}));
+    assert.equal(book.setBudget(exampleBudget()), true);
+    const first = activeBudget(parseLibrary(map.get(LIBRARY_KEY)));
+    assert.equal(book.setBudget(exampleBudget()), true);
+    assert.equal(activeBudget(parseLibrary(map.get(LIBRARY_KEY))).sample, true);
+    const selected = activeBudget(parseLibrary(map.get(LIBRARY_KEY)));
+    assert.notEqual(selected.id, first.id);
+    assert.equal(book.setBudget({...selected, notes: 'A sample edit'}), true);
+    assert.equal(activeBudget(parseLibrary(map.get(LIBRARY_KEY))).notes, 'A sample edit');
+  `], {encoding: 'utf8'});
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test("unconfirmed ideas affect forecast but never approved headroom or paid spend", () => {
   const b = blankBudget();
   b.total = 1000;

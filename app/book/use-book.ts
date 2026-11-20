@@ -165,7 +165,7 @@ function setBudget(next: SetStateAction<Budget>, projectId?: string) {
   const prev = getSnapshot();
   if (projectId && prev.budget.id !== projectId) return false;
   const budget = typeof next === "function" ? next(prev.budget) : next;
-  if (budget.sample && !prev.budget.sample)
+  if (budget.sample && (!prev.budget.sample || budget.id !== prev.budget.id))
     return libraryAction({ type: "example" });
   if (!activeBudget(prev.library))
     return libraryAction({
