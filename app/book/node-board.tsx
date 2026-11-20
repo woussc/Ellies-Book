@@ -1178,9 +1178,18 @@ export default function NodeBoard({
             }
           }}
           onNavigate={navigate}
-          onPlan={onPlan}
-          onSpend={onSpend}
-          onExpense={onExpense}
+          onPlan={() => {
+            closeDetail();
+            onPlan();
+          }}
+          onSpend={(categoryId) => {
+            closeDetail();
+            onSpend(categoryId);
+          }}
+          onExpense={(expense) => {
+            closeDetail();
+            onExpense(expense);
+          }}
         />
       )}
     </section>
