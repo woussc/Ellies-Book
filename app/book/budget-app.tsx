@@ -176,18 +176,24 @@ function CategoryInput({
 }
 export default function BudgetApp() {
   const book = useBook();
-  return <ProjectWorkspace key={book.budget.id} book={book} />;
+  const [activePage, setPage] = useState<Page | null>(null);
+  const [toast, setToast] = useState<{text: string; kind: ToastKind} | null>(null);
+  return <ProjectWorkspace key={book.budget.id} book={book} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
 }
-function ProjectWorkspace({book}: {book: ReturnType<typeof useBook>}) {
+function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
+  book: ReturnType<typeof useBook>;
+  activePage: Page | null;
+  setPage: (page: Page | null) => void;
+  toast: {text: string; kind: ToastKind} | null;
+  setToast: (toast: {text: string; kind: ToastKind} | null) => void;
+}) {
   const { budget, library, libraryAction, restoreBooks, setBudget: saveBudget, removeExample, status, error, legacy, recovery } = book;
   function setBudget(next: SetStateAction<Budget>) {
     return saveBudget(next, budget.id);
   }
   const [setupBookId, setSetupBookId] = useState<string | null>(null);
   const [editingLayout, setEditingLayout] = useState(false);
-  const [activePage, setPage] = useState<Page | null>(null);
   const page = activePage ?? (budget.created ? "home" : "start");
-  const [toast, setToast] = useState<{ text: string; kind: ToastKind } | null>(null);
   const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
   const [newCategory, setNewCategory] = useState("");
@@ -217,7 +223,7 @@ function ProjectWorkspace({book}: {book: ReturnType<typeof useBook>}) {
     if (toast.kind === "error") return;
     const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
-  }, [toast]);
+  }, [toast, setToast]);
   function change(next: Budget, action: string) {
     return setBudget({
       ...next,

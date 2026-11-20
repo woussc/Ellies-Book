@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { activeBudget, parseLibrary } from "../app/book/library-model.mjs";
+import { serializeBook } from "../app/book/model.mjs";
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000/";
 const OUT_DIR = process.env.SCREENSHOT_OUT || "artifacts/screenshots";
@@ -153,7 +154,7 @@ async function checkNoteModes(page) {
   await detail.getByRole("button", {name: "Edit notes", exact: true}).click();
   assert.equal(await editor.inputValue(), note);
   await detail.getByRole("button", {name: "Cancel", exact: true}).click();
-  await detail.getByRole("button", {name: "Close", exact: true}).click();
+  await detail.getByRole("button", {name: "Close ×", exact: true}).click();
 }
 
 async function checkRemovedCategory(page) {
@@ -165,7 +166,7 @@ async function checkRemovedCategory(page) {
   assert.equal(await page.getByRole("button", {name: "Open November rent", exact: true}).count(), 1);
   await page.getByRole("button", {name: "Open Home & bills", exact: true}).click();
   assert.match(await page.locator(".detail-metrics").innerText(), /\$375/);
-  await page.locator(".node-detail").getByRole("button", {name: "Close", exact: true}).click();
+  await page.locator(".node-detail").getByRole("button", {name: "Close ×", exact: true}).click();
 }
 
 async function checkBoardLayout(page) {
@@ -197,6 +198,21 @@ async function checkBoardLayout(page) {
   assert.deepEqual((await stored()).board.canvas.positions, {});
 }
 
+async function checkRestoreFeedback(page) {
+  const before = parseLibrary(await page.evaluate(() => localStorage.getItem("ellies-book:library:v1.md")));
+  const project = {...activeBudget(before), id: "ci-restored-project", name: "Restored project", sample: false};
+  await navigate(page, "Your books", "Books");
+  await page.getByLabel("Restore / add books", {exact: true}).setInputFiles({
+    name: "project-backup.md", mimeType: "text/markdown", buffer: Buffer.from(serializeBook(project)),
+  });
+  await page.getByRole("heading", {name: "Your books", exact: true}).waitFor();
+  await page.getByText("Backup added as new books. Your other projects are unchanged.", {exact: true}).waitFor();
+  assert.equal(await page.getByRole("button", {name: "Open Restored project", exact: true}).count(), 1);
+  const after = parseLibrary(await page.evaluate(() => localStorage.getItem("ellies-book:library:v1.md")));
+  assert.deepEqual(after.example, before.example);
+  assert.equal(after.books.length, before.books.length + 1);
+}
+
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   await waitForServer(BASE_URL);
@@ -220,6 +236,7 @@ async function main() {
       await page.screenshot({ path: `${OUT_DIR}/${vp.label}-board.png`, fullPage: true });
       await checkNoteModes(page);
       await checkRemovedCategory(page);
+      await checkRestoreFeedback(page);
       console.log(`Passed keyboard, category-edit, note-mode and removed-category regressions at ${vp.width}px`);
       await context.close();
     }
