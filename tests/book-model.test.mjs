@@ -398,6 +398,30 @@ test("exploring an example cannot replace the only copy of unsaved personal edit
   assert.equal(result.status, 0, result.stderr);
 });
 
+test("a stale project editor cannot write into a selected restored copy", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import { createElement } from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import { useBook } from './app/book/use-book.ts';
+    import { exampleBudget, editExpense } from './app/book/model.mjs';
+    import { activeBudget, parseLibrary, LIBRARY_KEY } from './app/book/library-model.mjs';
+    const map = new Map();
+    globalThis.localStorage = {getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value)};
+    let book;
+    renderToStaticMarkup(createElement(function Probe() {book = useBook(); return null;}));
+    const original = {...exampleBudget(), sample: false, id: 'original'};
+    book.setBudget(original);
+    const copy = {...structuredClone(original), id: 'restored-copy'};
+    book.libraryAction({type: 'book', name: 'Restored', project: copy});
+    const before = map.get(LIBRARY_KEY);
+    assert.equal(book.setBudget(budget => editExpense(budget, original.expenses[0].id, {amount: 999}), original.id), false);
+    assert.equal(map.get(LIBRARY_KEY), before, 'A stale editor cannot modify either project');
+    assert.deepEqual(activeBudget(parseLibrary(before)), copy);
+  `], {encoding: 'utf8'});
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test("unconfirmed ideas affect forecast but never approved headroom or paid spend", () => {
   const b = blankBudget();
   b.total = 1000;

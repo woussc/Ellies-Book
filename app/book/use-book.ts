@@ -161,8 +161,9 @@ function libraryAction(action: LibraryAction) {
   return saveLibrary(changeLibrary(prev.library, action));
 }
 
-function setBudget(next: SetStateAction<Budget>) {
+function setBudget(next: SetStateAction<Budget>, projectId?: string) {
   const prev = getSnapshot();
+  if (projectId && prev.budget.id !== projectId) return false;
   const budget = typeof next === "function" ? next(prev.budget) : next;
   if (budget.sample && !prev.budget.sample)
     return libraryAction({ type: "example" });

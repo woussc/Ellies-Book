@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type InputHTMLAttributes,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import {
   advanceExpense,
@@ -174,8 +175,14 @@ function CategoryInput({
   );
 }
 export default function BudgetApp() {
-  const { budget, library, libraryAction, restoreBooks, setBudget, removeExample, status, error, legacy, recovery } =
-    useBook();
+  const book = useBook();
+  return <ProjectWorkspace key={book.budget.id} book={book} />;
+}
+function ProjectWorkspace({book}: {book: ReturnType<typeof useBook>}) {
+  const { budget, library, libraryAction, restoreBooks, setBudget: saveBudget, removeExample, status, error, legacy, recovery } = book;
+  function setBudget(next: SetStateAction<Budget>) {
+    return saveBudget(next, budget.id);
+  }
   const [setupBookId, setSetupBookId] = useState<string | null>(null);
   const [editingLayout, setEditingLayout] = useState(false);
   const [activePage, setPage] = useState<Page | null>(null);
