@@ -14,6 +14,7 @@ import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
+import { activeBudget, parseLibrary } from "../app/book/library-model.mjs";
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000/";
 const OUT_DIR = process.env.SCREENSHOT_OUT || "artifacts/screenshots";
@@ -79,8 +80,10 @@ async function checkSkipLink(page) {
 // Exercise the public editing/activity seam in each reviewed viewport. Typing
 // the final amount must not turn its intermediate digits into audit events.
 async function checkCategoryEdit(page) {
+  await page.getByRole("textbox", {name: "Book name", exact: true}).fill("Example book");
+  await page.getByRole("button", {name: /^Continue/}).click();
   await page.getByRole("button", { name: /Explore an example/ }).click();
-  await navigate(page, "Where I stand", "Board");
+  await navigate(page, "Your board", "Board");
   await page.getByText("No changes recorded yet.", { exact: true }).waitFor();
   await navigate(page, "Plan by category", "Plan");
   const amount = page.getByRole("spinbutton", {
@@ -89,7 +92,7 @@ async function checkCategoryEdit(page) {
   await amount.fill("");
   await amount.pressSequentially("375");
   await amount.press("Enter");
-  await navigate(page, "Where I stand", "Board");
+  await navigate(page, "Your board", "Board");
   await page.locator(".audit summary").click();
   const edits = () => page.locator(".audit p").evaluateAll((rows) =>
       rows.map((row) => row.firstChild.textContent)
@@ -98,7 +101,7 @@ async function checkCategoryEdit(page) {
   const expected = ["Home & bills: amount 2000 → 375"];
   assert.deepEqual(await edits(), expected);
   await page.reload({ waitUntil: "networkidle" });
-  await navigate(page, "Where I stand", "Board");
+  await navigate(page, "Your board", "Board");
   await page.locator(".audit summary").click();
   assert.deepEqual(await edits(), expected, "Saved activity must survive reload");
 
@@ -125,7 +128,7 @@ async function checkCategoryEdit(page) {
   await navigate(page, "Plan by category", "Plan");
   assert.equal(await amount.inputValue(), "375");
   assert.equal(await zeroAmount.inputValue(), "");
-  await navigate(page, "Where I stand", "Board");
+  await navigate(page, "Your board", "Board");
   await page.locator(".audit summary").click();
   assert.deepEqual(await edits(), expected);
   const zeroEdits = await page.locator(".audit p").evaluateAll((rows) =>
@@ -137,53 +140,61 @@ async function checkCategoryEdit(page) {
 
 async function checkNoteModes(page) {
   const note = "# Home repairs\nKeep this edit.";
-  const editor = page.getByRole("textbox", { name: "Budget notes", exact: true });
-  const preview = page.getByRole("region", { name: "Budget notes preview", exact: true });
-  await page.getByRole("button", { name: "Edit note", exact: true }).click();
+  await page.getByRole("button", { name: "Find", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Find by name, entry ID or note tag", exact: true }).fill("Notes");
+  await page.locator(".canvas-find").getByRole("button", {name: /Notes & connections/}).click();
+  const detail = page.locator(".node-detail");
+  await detail.getByRole("button", {name: "Edit notes", exact: true}).click();
+  const editor = detail.getByRole("textbox", {name: "Markdown notes", exact: true});
   await editor.fill(note);
-  await page.getByRole("button", { name: "Read note", exact: true }).click();
-  await preview.waitFor();
+  await detail.getByRole("button", {name: "Save notes", exact: true}).click();
   assert.equal(await editor.count(), 0);
-  assert.equal(await preview.getByRole("heading", { name: "Home repairs", exact: true }).count(), 1);
-  await page.getByRole("button", { name: "Edit note", exact: true }).click();
+  assert.equal(await detail.getByRole("heading", {name: "Home repairs", exact: true}).count(), 1);
+  await detail.getByRole("button", {name: "Edit notes", exact: true}).click();
   assert.equal(await editor.inputValue(), note);
-  assert.equal(await preview.count(), 0);
+  await detail.getByRole("button", {name: "Cancel", exact: true}).click();
+  await detail.getByRole("button", {name: "Close", exact: true}).click();
 }
 
 async function checkRemovedCategory(page) {
-  const picker = page.getByRole("combobox", { name: /^Follow a category/ });
-  await picker.selectOption({ label: "A little extra" });
   await navigate(page, "Plan by category", "Plan");
   await page.getByRole("button", { name: "Remove A little extra", exact: true }).click();
-  await navigate(page, "Where I stand", "Board");
-  assert.equal(await picker.locator("option:checked").textContent(), "All connections");
-  assert.equal(await picker.getByRole("option", { name: "A little extra", exact: true }).count(), 0);
-  assert.equal(await page.locator(".module-budget .node-summary").first().textContent(), "Home & bills$375+");
-  assert.equal(await page.locator(".module-paid .node-summary").allTextContents().then(names => names.some(name => name.includes("November rent"))), true);
+  await navigate(page, "Your board", "Board");
+  await page.getByRole("button", {name: "List", exact: true}).click();
+  assert.equal(await page.getByRole("button", {name: "Open A little extra", exact: true}).count(), 0);
+  assert.equal(await page.getByRole("button", {name: "Open November rent", exact: true}).count(), 1);
+  await page.getByRole("button", {name: "Open Home & bills", exact: true}).click();
+  assert.match(await page.locator(".detail-metrics").innerText(), /\$375/);
+  await page.locator(".node-detail").getByRole("button", {name: "Close", exact: true}).click();
 }
 
 async function checkBoardLayout(page) {
-  const stored = () => page.evaluate(() => {
-    const raw = localStorage.getItem("ellies-book:example:v1.md");
-    return JSON.parse(raw.split("\ndata: ")[1].split("\n---")[0]);
-  });
+  const stored = async () => activeBudget(parseLibrary(await page.evaluate(() => localStorage.getItem("ellies-book:library:v1.md"))));
   const before = await stored();
-  await page.getByRole("button", { name: "Arrange board", exact: true }).click();
-  await page.getByRole("button", { name: "Enlarge Committed", exact: true }).click();
-  await page.getByRole("button", { name: "Move Committed earlier", exact: true }).click();
-  await page.getByRole("button", { name: "Done arranging", exact: true }).click();
-  assert.equal(await page.locator("[data-board-module]").first().getAttribute("data-board-module"), "committed");
-  assert.equal(await page.locator(".module-committed.size-wide").count(), 1);
+  const clipped = await page.locator(".canvas-node .node-money-facts dd").evaluateAll(elements => elements.filter(element => {
+    const content = element.closest(".node-content").getBoundingClientRect(), rect = element.getBoundingClientRect();
+    return rect.bottom > content.bottom + 1 || rect.top < content.top - 1;
+  }).map(element => element.textContent));
+  assert.deepEqual(clipped, [], "Essential amounts must fit inside Medium nodes");
+  await page.getByRole("button", {name: "Arrange", exact: true}).click();
+  await page.getByRole("button", {name: "Size Budget", exact: true}).click();
+  const sizes = page.locator(".size-dialog");
+  assert.equal(await sizes.getByRole("button", {name: /^Small/}).isDisabled(), true);
+  await sizes.getByRole("button", {name: /^Large/}).click();
+  await sizes.getByRole("button", {name: "Apply size", exact: true}).click();
+  await page.getByRole("button", {name: "Drag or select Budget", exact: true}).press("ArrowRight");
+  await page.getByRole("button", {name: "Done", exact: true}).click();
   const after = await stored();
+  assert.equal(after.board.canvas.sizes.budget, "large");
+  assert.ok(after.board.canvas.positions.budget.x > 0);
   delete before.board;
   delete after.board;
   assert.deepEqual(after, before, "Layout edits must not alter financial records, notes, or audit history");
-  await page.reload({ waitUntil: "networkidle" });
-  assert.equal(await page.locator("[data-board-module]").first().getAttribute("data-board-module"), "committed");
-  assert.equal(await page.locator(".module-committed.size-wide").count(), 1);
-  await page.getByRole("button", { name: "Arrange board", exact: true }).click();
-  await page.getByRole("button", { name: "Reset layout", exact: true }).click();
-  await page.getByRole("button", { name: "Done arranging", exact: true }).click();
+  await page.reload({waitUntil: "networkidle"});
+  assert.equal((await stored()).board.canvas.sizes.budget, "large");
+  await page.getByRole("button", {name: "Auto-arrange", exact: true}).click();
+  await page.getByRole("button", {name: "Done", exact: true}).click();
+  assert.deepEqual((await stored()).board.canvas.positions, {});
 }
 
 async function main() {
