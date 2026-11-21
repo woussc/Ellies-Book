@@ -83,7 +83,7 @@ for(const engine of engines){
     if(!visible(select))continue;
     const style=getComputedStyle(select),height=select.getBoundingClientRect().height;
     const contentHeight=height-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom)-parseFloat(style.borderTopWidth)-parseFloat(style.borderBottomWidth);
-    if(contentHeight<parseFloat(style.lineHeight)-1||style.appearance!=='none')spacingIssues.push('Native select text clearance');
+    if(contentHeight<parseFloat(style.lineHeight)-1||style.appearance!=='none'||parseFloat(style.fontSize)<16)spacingIssues.push('Native select text clearance');
    }
    if(state==='entries-action-clearance'){
     const nav=document.querySelector('.mobile-nav'),remove=document.querySelector('.remove-entry');
