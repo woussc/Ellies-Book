@@ -15,7 +15,7 @@ export async function shareAiPack(pack: string) {
     return { method: "native", offerDownload: false };
   }
   if (navigator.share) {
-    const data: ShareData = { title: "Ellie's Book · Ask AI", text: pack };
+    const data: ShareData = { title: "Fennuma · Ask AI", text: pack };
     const file = new File([pack], "ellies-book-ai.md", { type: "text/markdown" });
     if (navigator.canShare?.({ files: [file] })) data.files = [file];
     try {

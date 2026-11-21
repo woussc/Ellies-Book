@@ -258,7 +258,7 @@ test("budget detail edits retain prior funding and descriptive values after a Ma
   const event = parseBook(serializeBook(updated)).events.at(-1);
   assert.deepEqual(event.before, { name: "December", total: 1200, profile: "Household", period: "December 2026" });
   assert.deepEqual(event.after, { name: "Holiday", total: 1500, profile: "Team", period: "January 2027" });
-  assert.match(event.text, /Budget total: \$1,200 → \$1,500/);
+  assert.match(event.text, /Budget total: \$1,200\.00 → \$1,500\.00/);
   assert.match(event.text, /Name: December → Holiday/);
   assert.match(event.text, /Period: December 2026 → January 2027/);
   assert.match(event.text, /Profile: Household → Team/);
@@ -366,7 +366,8 @@ test("exploring an example cannot replace the only copy of unsaved personal edit
     import { createElement } from 'react';
     import { renderToStaticMarkup } from 'react-dom/server';
     import { useBook } from './app/book/use-book.ts';
-    import { blankBudget, exampleBudget, parseBook, STORAGE_KEY, SAMPLE_STORAGE_KEY } from './app/book/model.mjs';
+    import { blankBudget, exampleBudget, STORAGE_KEY, SAMPLE_STORAGE_KEY } from './app/book/model.mjs';
+    import { activeBudget, parseLibrary, LIBRARY_KEY } from './app/book/library-model.mjs';
     const map = new Map();
     let failWrites = false;
     globalThis.localStorage = {
@@ -385,14 +386,63 @@ test("exploring an example cannot replace the only copy of unsaved personal edit
     let retained;
     book.setBudget(budget => { retained = budget; return budget; });
     assert.deepEqual(retained, unsaved, 'The downloadable in-memory book must retain every unsaved edit');
-    assert.equal(parseBook(map.get(STORAGE_KEY)).notes, 'Original note');
+    assert.equal(activeBudget(parseLibrary(map.get(LIBRARY_KEY))).notes, 'Original note');
+    assert.equal(map.has(STORAGE_KEY), false, 'The legacy single-book key is not rewritten');
     assert.equal(map.has(SAMPLE_STORAGE_KEY), false);
     failWrites = false;
     assert.equal(book.setBudget(retained), true);
     assert.equal(book.setBudget(exampleBudget()), true);
     book.removeExample();
-    assert.deepEqual(parseBook(map.get(STORAGE_KEY)), unsaved);
+    assert.deepEqual(activeBudget(parseLibrary(map.get(LIBRARY_KEY))), unsaved);
   `], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("a stale project editor cannot write into a selected restored copy", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import { createElement } from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import { useBook } from './app/book/use-book.ts';
+    import { exampleBudget, editExpense } from './app/book/model.mjs';
+    import { activeBudget, parseLibrary, LIBRARY_KEY } from './app/book/library-model.mjs';
+    const map = new Map();
+    globalThis.localStorage = {getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value)};
+    let book;
+    renderToStaticMarkup(createElement(function Probe() {book = useBook(); return null;}));
+    const original = {...exampleBudget(), sample: false, id: 'original'};
+    book.setBudget(original);
+    const copy = {...structuredClone(original), id: 'restored-copy'};
+    book.libraryAction({type: 'book', name: 'Restored', project: copy});
+    const before = map.get(LIBRARY_KEY);
+    assert.equal(book.setBudget(budget => editExpense(budget, original.expenses[0].id, {amount: 999}), original.id), false);
+    assert.equal(map.get(LIBRARY_KEY), before, 'A stale editor cannot modify either project');
+    assert.deepEqual(activeBudget(parseLibrary(before)), copy);
+  `], {encoding: 'utf8'});
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("an active example can be reopened without treating a new example as an update", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+    import assert from 'node:assert/strict';
+    import {createElement} from 'react';
+    import {renderToStaticMarkup} from 'react-dom/server';
+    import {useBook} from './app/book/use-book.ts';
+    import {exampleBudget} from './app/book/model.mjs';
+    import {activeBudget, parseLibrary, LIBRARY_KEY} from './app/book/library-model.mjs';
+    const map = new Map();
+    globalThis.localStorage = {getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value)};
+    let book;
+    renderToStaticMarkup(createElement(function Probe() {book = useBook(); return null;}));
+    assert.equal(book.setBudget(exampleBudget()), true);
+    const first = activeBudget(parseLibrary(map.get(LIBRARY_KEY)));
+    assert.equal(book.setBudget(exampleBudget()), true);
+    assert.equal(activeBudget(parseLibrary(map.get(LIBRARY_KEY))).sample, true);
+    const selected = activeBudget(parseLibrary(map.get(LIBRARY_KEY)));
+    assert.notEqual(selected.id, first.id);
+    assert.equal(book.setBudget({...selected, notes: 'A sample edit'}), true);
+    assert.equal(activeBudget(parseLibrary(map.get(LIBRARY_KEY))).notes, 'A sample edit');
+  `], {encoding: 'utf8'});
   assert.equal(result.status, 0, result.stderr);
 });
 
@@ -402,4 +452,14 @@ test("unconfirmed ideas affect forecast but never approved headroom or paid spen
   b.categories[0].amount = 100;
   b.expenses = [{ id: "idea", categoryId: b.categories[0].id, amount: 200, status: "planned", history: ["planned"] }];
   assert.deepEqual(totals(b), { plan: 100, spent: 0, committed: 0, left: 1000, forecast: 200 });
+});
+
+test("board view metadata is validated without changing the Markdown or money contracts", () => {
+  const b = exampleBudget();
+  b.board = { order: ["paid", "budget", "committed", "notes"], sizes: { paid: "wide" }, expanded: ["rent"], nodeOrder: ["rent"] };
+  assert.deepEqual(parseBook(serializeBook(b)), b);
+  assert.deepEqual(totals(b), totals(exampleBudget()));
+  for (const board of [null, { ...b.board, order: ["paid", "paid"] }, { ...b.board, sizes: { paid: "enormous" } }, { ...b.board, expanded: [123] }]) {
+    assert.throws(() => serializeBook({ ...b, board }), /board/i);
+  }
 });

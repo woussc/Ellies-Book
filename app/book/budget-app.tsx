@@ -7,10 +7,10 @@ import {
   type FormEvent,
   type InputHTMLAttributes,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import {
   advanceExpense,
-  blankBudget,
   csvText,
   editCategory,
   editBudgetDetails,
@@ -18,8 +18,6 @@ import {
   exampleBudget,
   localDate,
   money,
-  profiles,
-  parseBook,
   serializeBook,
   reportText,
   removeExpense,
@@ -29,17 +27,24 @@ import {
 import { useBook } from "./use-book";
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
+import ProjectGarden from "./project-garden";
+import type {NodeBoardHandle} from "./node-board";
+import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
+import { serializeLibrary } from "./library-model.mjs";
+import "./workspace.css";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
-type Page = "start" | "plan" | "spend" | "home" | "report";
+type Page = "start" | "settings" | "plan" | "spend" | "home" | "report" | "books" | "profile";
 type ToastKind = "success" | "error" | "info";
 const pages: { id: Page; label: string; short: string; icon: string }[] = [
-  { id: "start", label: "My budget", short: "Budget", icon: "book" },
-  { id: "plan", label: "Plan by category", short: "Plan", icon: "plan" },
-  { id: "spend", label: "Log spending", short: "Log", icon: "plus" },
-  { id: "home", label: "Where I stand", short: "Overview", icon: "home" },
-  { id: "report", label: "Share a report", short: "Share", icon: "share" },
+  { id: "home", label: "Your board", short: "Board", icon: "flow" },
+  { id: "spend", label: "Entries", short: "Entries", icon: "plan" },
+  { id: "books", label: "Your books", short: "Books", icon: "book" },
+  { id: "profile", label: "Your profile", short: "Profile", icon: "person" },
 ];
+function BrandMark({ size = 28 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 27Q10 3 18 20" fill="none" stroke="#28352E" strokeWidth="4" strokeLinecap="round"/><path d="M14 28Q23 6 28 27" fill="none" stroke="#C7D5C0" strokeWidth="4" strokeLinecap="round"/><circle cx="18" cy="6" r="3" fill="#C87963"/></svg>;
+}
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
   const paths: Record<string, ReactNode> = {
     book: (
@@ -171,15 +176,32 @@ function CategoryInput({
   );
 }
 export default function BudgetApp() {
-  const { budget, setBudget, removeExample, status, error, legacy, recovery } =
-    useBook();
+  const book = useBook();
   const [activePage, setPage] = useState<Page | null>(null);
+  const [selectedMode, setMode] = useState<Profile | null>(null);
+  const [toast, setToast] = useState<{text: string; kind: ToastKind} | null>(null);
+  return <ProjectWorkspace key={book.budget.id} book={book} mode={selectedMode ?? book.budget.profile} setMode={setMode} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
+}
+function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setToast}: {
+  mode: Profile;
+  setMode: (mode: Profile) => void;
+  book: ReturnType<typeof useBook>;
+  activePage: Page | null;
+  setPage: (page: Page | null) => void;
+  toast: {text: string; kind: ToastKind} | null;
+  setToast: (toast: {text: string; kind: ToastKind} | null) => void;
+}) {
+  const { budget, library, libraryAction, restoreBooks, setBudget: saveBudget, removeExample, status, error, legacy, recovery } = book;
+  function setBudget(next: SetStateAction<Budget>) {
+    return saveBudget(next, budget.id);
+  }
+  const [setupBookId, setSetupBookId] = useState<string | null>(null);
+  const [editingLayout, setEditingLayout] = useState(false);
+  const boardController = useRef<NodeBoardHandle>(null);
+  const boardScroll = useRef(0);
   const page = activePage ?? (budget.created ? "home" : "start");
-  const [toast, setToast] = useState<{ text: string; kind: ToastKind } | null>(null);
   const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
-  const [view, setView] = useState("categories");
-  const [focus, setFocus] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [draft, setDraft] = useState({
     description: "",
@@ -187,9 +209,10 @@ export default function BudgetApp() {
     categoryId: "",
     status: "paid",
     date: localDate(),
+    notes: "",
   });
-  const [showNote, setShowNote] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [entryFilter, setEntryFilter] = useState("all");
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const newEntryDraft = useRef(draft);
   const spendingForm = useRef<HTMLFormElement>(null);
@@ -198,8 +221,6 @@ export default function BudgetApp() {
   const removalHeading = useRef<HTMLHeadingElement>(null);
   const removeTrigger = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const followedCategory =
-    budget.categories.find((category) => category.id === focus) ?? budget.categories[0];
   const t = totals(budget);
   const allocated = budget.categories.reduce((s, c) => s + c.amount, 0);
   const unassigned = round(budget.total - allocated);
@@ -210,7 +231,7 @@ export default function BudgetApp() {
     if (toast.kind === "error") return;
     const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
-  }, [toast]);
+  }, [toast, setToast]);
   function change(next: Budget, action: string) {
     return setBudget({
       ...next,
@@ -218,12 +239,23 @@ export default function BudgetApp() {
     });
   }
   function go(next: Page) {
+    if (editingLayout && next !== "home") {
+      if (!window.confirm("Discard this unsaved arrangement? Choose Cancel to return and use Done to save it.")) return;
+      boardController.current?.cancelArrange();
+      setEditingLayout(false);
+    }
     if (next !== "spend" && editingId) closeExpense(false);
+    if (page === "home") boardScroll.current = window.scrollY;
     setPage(next);
     window.scrollTo({ top: 0 });
-    setTimeout(() => titleRef.current?.focus(), 0);
+    setTimeout(() => {
+      const heading = titleRef.current ?? document.querySelector<HTMLElement>("#main h1");
+      heading?.setAttribute("tabindex", "-1");
+      heading?.focus({preventScroll:true});
+      if (next === "home") window.scrollTo({top: boardScroll.current});
+    }, 0);
   }
-  function openExpense(expense: Expense, trigger: HTMLButtonElement) {
+  function openExpense(expense: Expense, trigger?: HTMLButtonElement) {
     if (editingId === expense.id) {
       spendingForm.current?.scrollIntoView({ block: "start" });
       spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
@@ -231,10 +263,10 @@ export default function BudgetApp() {
     }
     if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
     if (!editingId) newEntryDraft.current = draft;
-    editingTrigger.current = trigger;
+    editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
     setConfirmRemoval(false);
-    setDraft({ ...expense, amount: String(expense.amount) });
+    setDraft({ ...expense, amount: String(expense.amount), notes: expense.notes ?? "" });
     requestAnimationFrame(() => {
       spendingForm.current?.scrollIntoView({ block: "start" });
       spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
@@ -260,36 +292,29 @@ export default function BudgetApp() {
     setBudget((b) => editCategory(b, id, patch));
   }
   function create(
-    details: Pick<Budget, "name" | "total" | "profile" | "period">,
+    details: Pick<Budget, "name" | "total" | "profile" | "period" | "startDate" | "endDate">,
   ) {
     const saved = setBudget(editBudgetDetails(budget, details));
     notify(
       saved
-        ? "Budget details saved. Let’s give it a plan."
+        ? "Budget details saved. Your board is ready."
         : "Budget details are not saved. Download a book backup before leaving.",
       saved ? "success" : "error",
     );
-    go("plan");
+    go("home");
   }
   async function restore(file: File | undefined) {
     if (!file) return;
     try {
       if (file.size > 5_000_000)
         throw new Error("Choose an Ellie’s Book backup smaller than 5 MB.");
-      const restored = parseBook(await file.text());
-      if (
-        (budget.created || recovery) &&
-        !window.confirm(
-          "Restore this book in place of the current one? Download a backup first if you want to keep both.",
-        )
-      )
-        return;
-      const saved = setBudget(restored, true);
-      go(restored.created ? "home" : "start");
+      if (recovery && !window.confirm("Add these books to a recovered library? Download the saved copy first. The unreadable original will also be retained on this device.")) return;
+      const saved = restoreBooks(await file.text());
+      go("books");
       notify(
         saved
-          ? "Book opened. Check the save status before leaving."
-          : "Book opened on this page only. Download a book backup before leaving.",
+          ? "Backup added as new books. Your other projects are unchanged."
+          : "Backup is not saved. Keep this page open and download all books.",
         saved ? "success" : "error",
       );
     } catch (error) {
@@ -300,6 +325,18 @@ export default function BudgetApp() {
     }
   }
   const backup = () => download(serializeBook(budget), "ellies-book.md");
+  const backupAll = () => download(serializeLibrary(library), "ellies-book-library.md");
+  function newBook(bookId: string | null = null) {
+    setSetupBookId(bookId);
+    go("start");
+  }
+  function selectProject(projectId: string) {
+    const saved = libraryAction({ type: "select", id: projectId });
+    setEditingId(null);
+    setDraft({description: "", amount: "", categoryId: "", status: "paid", date: localDate(), notes: ""});
+    go("home");
+    if (!saved) notify("Project is open on this page only. Download all books before leaving.", "error");
+  }
   function addExpense(e: FormEvent) {
     e.preventDefault();
     const amount = round(draft.amount);
@@ -325,6 +362,7 @@ export default function BudgetApp() {
           categoryId,
           status: draft.status as Expense["status"],
           date: draft.date,
+          notes: draft.notes,
         }));
         closeExpense();
         notify(saved ? "Changes saved. Your totals and report are up to date." : "Changes are on this page only. Download a book backup before leaving.");
@@ -345,7 +383,7 @@ export default function BudgetApp() {
       { ...budget, expenses: [...budget.expenses, expense] },
       `Added ${expense.description} · ${expense.status} · ${money(amount)}`,
     );
-    setDraft({ ...draft, description: "", amount: "" });
+    setDraft({ ...draft, description: "", amount: "", notes: "" });
     notify(
       saved
         ? `${expense.description} saved as ${expense.status}.`
@@ -380,35 +418,29 @@ export default function BudgetApp() {
       {action}
     </header>
   );
-  const needsBudget = !budget.created && page !== "start";
+  const needsBudget = (!budget.created || budget.profile !== mode) && !["start", "books", "profile"].includes(page);
+  const modeLibrary = {...library, books: library.books.map(b=>({...b,projects:b.projects.filter(p=>p.profile===mode)})).filter(b=>b.projects.length)};
+  function switchMode(next: Profile) {
+    if (next === mode) return;
+    if (editingId && !window.confirm("Leave this entry without saving?")) return;
+    setMode(next);
+    const project=library.books.flatMap(b=>b.projects).find(p=>p.profile===next);
+    if (project) selectProject(project.id); else go("books");
+  }
+  const currentBook = library.books.find(book => book.projects.some(project => project.id === budget.id));
   return (
-    <div className="app-shell" inert={status === "loading" ? true : undefined}>
+    <div className={`app-shell project-app-shell${page === "home" ? " board-page" : ""}`} inert={status === "loading" ? true : undefined}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <aside className="sidebar">
+      <header className="product-topbar">
         <button
           className="brand"
           onClick={() => go(budget.created ? "home" : "start")}
         >
-          <Icon name="book" size={34} />
-          <span>
-            ellie’s book<span>A little more clarity.</span>
-          </span>
+          <BrandMark size={28} />
+          <span>fennuma</span>
         </button>
-        <div className="workspace">
-          <span className="workspace-mark">
-            {budget.profile === "Team"
-              ? "T"
-              : budget.profile === "Just me"
-                ? "M"
-                : "H"}
-          </span>
-          <div>
-            <strong>{budget.name || "Your next chapter"}</strong>
-            <span>{budget.profile} budget</span>
-          </div>
-        </div>
         <nav aria-label="Main navigation">
           {pages.map((p) => (
             <button
@@ -418,55 +450,28 @@ export default function BudgetApp() {
               onClick={() => go(p.id)}
             >
               <Icon name={p.icon} />
-              <span>{p.label}</span>
-              {page === p.id && <span className="nav-dot" />}
+              <span>{p.short}</span>
             </button>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <Icon name="leaf" size={28} />
-          <p>
-            Make room for
-            <br />
-            <em>what matters.</em>
-          </p>
-          <span>Your budget. Your pace.</span>
-          <small>
-            Saved only in this browser.
-            <br />
-            No bank account connected.
-          </small>
+        <div className="mode-switch" role="group" aria-label="Budget mode">
+          {(["Household","Just me","Team"] as Profile[]).map(m=><button key={m} aria-pressed={mode===m} onClick={()=>switchMode(m)}>{m}</button>)}
         </div>
-      </aside>
+      </header>
       <div className="main-column">
-        <div className="topbar">
-          <span className="mobile-brand">
-            <Icon name="book" size={25} />
-            ellie’s book
-          </span>
-          <span className="desktop-crumb">
-            Your money, a little clearer <span>/</span>{" "}
-            {pages.find((p) => p.id === page)?.label}
-          </span>
-          <span className="save-status">
-            <span />
-            {status === "loading"
-              ? "Opening book…"
-              : storageError
-                ? "Not saved"
-                : "Saved on this device"}
-          </span>
-        </div>
+        {status === "loading" && <p role="status" className="opening-book">Opening book…</p>}
         <main id="main" tabIndex={-1}>
           {budget.sample && (
             <div className="sample-banner">
               <span>
-                You’re exploring an example. It’s not your real budget.
+                Example data, not your budget.
               </span>
               <button
+                aria-label="Remove example"
                 onClick={() => {
                   try {
                     const personal = removeExample();
+                    setMode(personal.profile);
                     go(personal.created ? "home" : "start");
                     notify(
                       "Example removed. Your own budget is right where you left it.",
@@ -479,7 +484,7 @@ export default function BudgetApp() {
                   }
                 }}
               >
-                Remove example <Icon name="close" size={16} />
+                Remove <span className="example-remove-full">example</span> <Icon name="close" size={16} />
               </button>
             </div>
           )}
@@ -489,6 +494,7 @@ export default function BudgetApp() {
               <button className="text-button" onClick={backup}>
                 Download current book
               </button>
+              <button className="text-button" onClick={backupAll}>Download all books</button>
               {recovery && (
                 <button
                   className="text-button"
@@ -505,6 +511,7 @@ export default function BudgetApp() {
               )}
             </div>
           )}
+          {legacy && ["start", "books", "profile"].includes(page) && <div className="legacy-notice"><p>Your earlier Function Budget Studio data stays unchanged on this device.</p><button className="secondary" onClick={() => download(legacy,"ellies-book-legacy-copy.json","application/json")}>Download earlier data</button></div>}
           {needsBudget ? (
             <>
               {header(
@@ -517,15 +524,19 @@ export default function BudgetApp() {
             </>
           ) : (
             <>
-              {page === "start" && (
+              {page === "start" && <BookSetup mode={mode} key={`${mode}:${setupBookId || "new-book"}`} book={modeLibrary.books.find(book => book.id === setupBookId)} onCancel={() => go("books")} onExample={() => { setMode("Household"); setBudget(exampleBudget()); go("home"); }} onCreate={(name, project) => {
+                const saved = libraryAction(setupBookId ? {type:"project",bookId:setupBookId,project} : {type:"book",name,project});
+                setDraft({description:"",amount:"",categoryId:"",status:"paid",date:localDate(),notes:""});
+                go("home");
+                notify(saved ? "Your project is ready. Welcome to your board." : "Project created on this page only. Download all books before leaving.", saved ? "success" : "error");
+              }} />}
+              {page === "books" && <BooksPage library={modeLibrary} onNewBook={() => newBook()} onNewProject={id => newBook(id)} onOpen={selectProject} onRestore={restore} onBackup={backupAll} />}
+              {page === "profile" && <ProfilePage library={library} onName={name => { const saved = libraryAction({type:"profile", name}); notify(saved ? "Local profile saved." : "Profile is not saved. Download all books before leaving.",saved ? "success":"error"); }} onBackup={backupAll} onProjectBackup={backup} onRestore={restore} onSettings={() => go("settings")} hasProject={budget.created} />}
+              {page === "settings" && (
                 <>
                   {header(
-                    budget.created
-                      ? "Make it your own."
-                      : "Good things start with a plan.",
-                    budget.created
-                      ? "Your budget can change as life does."
-                      : "A home for your money. A little space to breathe.",
+                    "Budget settings",
+                    `${budget.name} · Approved limit and budget dates`,
                   )}
                   {legacy && (
                     <div className="legacy-notice">
@@ -555,55 +566,10 @@ export default function BudgetApp() {
                       onSave={create}
                     />
                     <aside className="start-aside">
-                      <div className="intro-note">
-                        <div className="book-art" aria-hidden="true">
-                          <Icon name="book" size={82} />
-                          <span className="book-flower">
-                            <Icon name="leaf" size={32} />
-                          </span>
-                        </div>
-                        <h2>
-                          Life beyond
-                          <br />spreadsheets.
-                        </h2>
-                        <p>
-                          Set a little aside for the everyday.
-                          <br />
-                          Make room for the someday.
-                          <br />
-                          Keep it all in one place.
-                        </p>
-                        <div className="small-rule" />
-                        <p className="note-foot">
-                          Start simple.
-                          <br />
-                          The details can come later.
-                        </p>
-                      </div>
-                      <div className="example-choice">
-                        <div>
-                          <strong>Want to look around first?</strong>
-                          <p>Try a household example. Remove it anytime.</p>
-                        </div>
-                        <button
-                          className="text-button"
-                          onClick={() => {
-                            if (!setBudget(exampleBudget())) {
-                              notify(
-                                "Could not open the example. Keep this page open and download a book backup before leaving.",
-                                "error",
-                              );
-                              return;
-                            }
-                            go("home");
-                            notify(
-                              "Example loaded. You can remove it at the top.",
-                            );
-                          }}
-                        >
-                          Explore an example <Icon name="arrow" size={18} />
-                        </button>
-                      </div>
+                      <h2>Category allocations</h2>
+                      <p>Allocate this project’s approved limit without creating a second budget.</p>
+                      <button className="secondary" onClick={()=>go("plan")}>Edit category allocations</button>
+                      {budget.notes && <details className="book-backup"><summary>Earlier project notes</summary><p>Preserved from your existing book. Copy relevant details into an entry’s note; nothing has been assigned or removed automatically.</p><div className="markdown-preview">{renderMarkdownDocument(budget.notes)}</div></details>}
                     </aside>
                   </div>
                   <details className="book-backup">
@@ -633,8 +599,8 @@ export default function BudgetApp() {
               {page === "plan" && (
                 <>
                   {header(
-                    "A place for every plan.",
-                    "Give each category one amount. You can adjust it anytime.",
+                    "Category allocations",
+                    "Divide the approved budget across categories. Planned spending is entered in Entries.",
                   )}
                   <div className="content-grid">
                     <section className="paper plan-paper">
@@ -644,7 +610,7 @@ export default function BudgetApp() {
                       </div>
                       <div className="plan-col-head">
                         <span>What’s it for?</span>
-                        <span>Planned amount</span>
+                        <span>Allocation</span>
                       </div>
                       {budget.categories.map((c, i) => (
                         <div className="category-editor" key={c.id}>
@@ -689,7 +655,7 @@ export default function BudgetApp() {
                                 min="0"
                                 max="1000000000"
                                 step="0.01"
-                                aria-label={`${c.name} planned amount`}
+                                aria-label={`${c.name} allocation`}
                                 defaultValue={c.amount || ""}
                                 placeholder="0"
                                 onCommit={(value) =>
@@ -803,7 +769,7 @@ export default function BudgetApp() {
                         </button>
                       </form>
                       <div className="plan-total">
-                        <span>Total planned</span>
+                        <span>Total allocated</span>
                         <strong>{money(allocated)}</strong>
                       </div>
                       <button
@@ -819,13 +785,13 @@ export default function BudgetApp() {
                           go("home");
                         }}
                       >
-                        Save my plan
+                        Save allocations
                         <Icon name="check" size={19} />
                       </button>
                     </section>
                     <aside className="summary-aside">
-                      <h2>A little breathing room.</h2>
-                      <p>Your total budget</p>
+                      <h2>Allocation summary</h2>
+                      <p>Approved Budget</p>
                       <strong className="aside-total">
                         {money(budget.total)}
                       </strong>
@@ -837,7 +803,7 @@ export default function BudgetApp() {
                         />
                       </div>
                       <div className="split-line">
-                        <span>Planned so far</span>
+                        <span>Allocated so far</span>
                         <strong>{money(allocated)}</strong>
                       </div>
                       <div
@@ -857,7 +823,7 @@ export default function BudgetApp() {
                       </p>
                       <button
                         className="text-button"
-                        onClick={() => go("start")}
+                        onClick={() => go("settings")}
                       >
                         Edit total budget <Icon name="arrow" size={17} />
                       </button>
@@ -868,13 +834,13 @@ export default function BudgetApp() {
               {page === "spend" && (
                 <>
                   {header(
-                    "The little things add up.",
-                    "An idea, a bill, or a payment. Keep it all in one simple place.",
+                    "Entries",
+                    `${budget.name} · Add, correct or change the stage of one entry.`,
                   )}
                   <div className="content-grid spend-grid">
                     <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">
-                        <h2>{editingId ? "Edit spending" : "Log spending"}</h2>
+                        <h2>{editingId ? "Edit entry" : "Add entry"}</h2>
                         {editingId && <button type="button" className="text-button" onClick={() => closeExpense()}>Cancel</button>}
                       </div>
                       {editingId && <p className="hint editing-hint">Correct this entry below. Your totals update when you save.</p>}
@@ -988,6 +954,9 @@ export default function BudgetApp() {
                           }
                         />
                       </label>
+                      <label className="field">Entry note (Markdown)
+                        <textarea maxLength={50000} rows={5} value={draft.notes} onChange={e=>setDraft({...draft, notes:e.target.value})} placeholder="Details, receipt reference or [[related entry]]" />
+                      </label>
                       {!budget.categories.length && (
                         <p className="error">
                           Add a category in your plan before logging spending.
@@ -998,7 +967,7 @@ export default function BudgetApp() {
                         disabled={!budget.categories.length}
                         type="submit"
                       >
-                        {editingId ? "Save changes" : "Save spending"} <Icon name="check" size={19} />
+                        {editingId ? "Save changes" : "Save entry"} <Icon name="check" size={19} />
                       </button>
                       {editingId && (
                         confirmRemoval ? (
@@ -1022,6 +991,7 @@ export default function BudgetApp() {
                       )}
                     </form>
                     <section className="recent-spending">
+                      <div className="entry-filters" role="group" aria-label="Filter entries">{["all","planned","committed","paid"].map(s=><button key={s} className="outline-button" aria-pressed={entryFilter===s} onClick={()=>setEntryFilter(s)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div>
                       <div className="section-heading">
                         <h2 ref={entriesHeading} tabIndex={-1}>In your book</h2>
                         <span>
@@ -1039,7 +1009,7 @@ export default function BudgetApp() {
                           </p>
                         </div>
                       ) : (
-                        [...budget.expenses].reverse().map((e) => (
+                        [...budget.expenses].reverse().filter(e=>entryFilter==="all" || e.status===entryFilter).map((e) => (
                           <article className="expense-row" key={e.id}>
                             <button
                               type="button"
@@ -1101,348 +1071,38 @@ export default function BudgetApp() {
                   </div>
                 </>
               )}
-              {page === "home" && (
-                <>
-                  {header(
-                    "Room for what matters.",
-                    `${budget.name} · ${budget.period}`,
-                    <button
-                      className="primary heading-action"
-                      onClick={() => go("spend")}
-                    >
-                      <Icon name="plus" size={19} />
-                      Log spending
+              {budget.created && (
+                <section hidden={page !== "home"}>
+                  {page === "home" && header(
+                    "Board",
+                    `${currentBook ? `${currentBook.name} / ` : ""}${budget.name} · ${budget.period}`,
+                    <button className="primary heading-action canvas-add-entry" onClick={() => go("spend")}>
+                      <Icon name="plus" size={19} /> Add entry
                     </button>,
                   )}
-                  <section className="overview-summary">
-                    <div className="left-amount">
-                      <span>
-                        {t.left < 0 ? "Over budget" : "Left to spend"}
-                      </span>
-                      <strong className={t.left < 0 ? "negative" : ""}>
-                        {money(Math.abs(t.left))}
-                        <span>USD</span>
-                      </strong>
-                      <p>After what you’ve paid and what’s still to pay.</p>
-                    </div>
-                    <div className="overview-numbers">
-                      <div>
-                        <span>Total budget</span>
-                        <strong>{money(budget.total)}</strong>
-                      </div>
-                      <div>
-                        <span>Planned</span>
-                        <strong>{money(t.plan)}</strong>
-                      </div>
-                      <div>
-                        <span>
-                          Spent <small>· paid</small>
-                        </span>
-                        <strong>{money(t.spent)}</strong>
-                      </div>
-                      <div>
-                        <span>Still to pay</span>
-                        <strong>{money(t.committed)}</strong>
-                      </div>
-                    </div>
-                  </section>
-                  <div className="overview-grid">
-                    <section className="paper category-overview">
-                      <div className="section-heading">
-                        <h2>Your money, at a glance</h2>
-                        <button
-                          className="text-button"
-                          onClick={() => go("plan")}
-                        >
-                          Edit plan <Icon name="arrow" size={16} />
-                        </button>
-                      </div>
-                      <div className="segmented" aria-label="Overview view">
-                        <button
-                          aria-pressed={view === "categories"}
-                          className={view === "categories" ? "selected" : ""}
-                          onClick={() => setView("categories")}
-                        >
-                          <Icon name="plan" size={17} />
-                          By category
-                        </button>
-                        <button
-                          aria-pressed={view === "flow"}
-                          className={view === "flow" ? "selected" : ""}
-                          onClick={() => setView("flow")}
-                        >
-                          <Icon name="flow" size={18} />
-                          Money flow
-                        </button>
-                      </div>
-                      {view === "categories" ? (
-                        <div className="category-list">
-                          {budget.categories.map((c) => {
-                            const s = totals(budget, c.id);
-                            return (
-                              <article key={c.id} className="category-budget">
-                                <div className="category-budget-head">
-                                  <strong>{c.name}</strong>
-                                  <span
-                                    className={s.left < 0 ? "negative" : ""}
-                                  >
-                                    {money(s.left)} left
-                                  </span>
-                                </div>
-                                <div className="category-track">
-                                  <span
-                                    className="paid-fill"
-                                    style={{
-                                      width: `${Math.min(100, (s.spent / (c.amount || 1)) * 100)}%`,
-                                    }}
-                                  />
-                                  <span
-                                    className="committed-fill"
-                                    style={{
-                                      width: `${Math.min(Math.max(0, 100 - (s.spent / (c.amount || 1)) * 100), (s.committed / (c.amount || 1)) * 100)}%`,
-                                    }}
-                                  />
-                                </div>
-                                <div className="category-values">
-                                  <span>
-                                    Planned <strong>{money(c.amount)}</strong>
-                                  </span>
-                                  <span>
-                                    Spent <strong>{money(s.spent)}</strong>
-                                  </span>
-                                  <span>
-                                    Still to pay{" "}
-                                    <strong>{money(s.committed)}</strong>
-                                  </span>
-                                </div>
-                              </article>
-                            );
-                          })}
-                          <div className="chart-key">
-                            <span>
-                              <i className="paid-key" />
-                              Paid
-                            </span>
-                            <span>
-                              <i className="committed-key" />
-                              Still to pay
-                            </span>
-                            <span>
-                              <i />
-                              Available
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="money-flow">
-                          <label className="field">
-                            Follow a category
-                            <select
-                              value={followedCategory?.id ?? ""}
-                              onChange={(e) => setFocus(e.target.value)}
-                            >
-                              {budget.categories.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <div className="flow-root">
-                            <Icon name="book" size={22} />
-                            <div>
-                              <small>Budget</small>
-                              <strong>{budget.name}</strong>
-                            </div>
-                            <b>{money(budget.total)}</b>
-                          </div>
-                          <div className="flow-branch">
-                            <span className="edge-label">contains</span>
-                            {budget.categories
-                              .filter(
-                                (c) =>
-                                  c.id === followedCategory?.id,
-                              )
-                              .map((c) => (
-                                <div key={c.id}>
-                                  <div className="flow-category">
-                                    <span>
-                                      <small>Category plan</small>
-                                      <strong>{c.name}</strong>
-                                    </span>
-                                    <b>{money(c.amount)}</b>
-                                  </div>
-                                  <div className="flow-expenses">
-                                    {budget.expenses
-                                      .filter((e) => e.categoryId === c.id)
-                                      .map((e) => (
-                                        <div className="flow-leaf" key={e.id}>
-                                          <span className="edge-label">
-                                            {e.history.length > 1
-                                              ? e.history.join(" → ")
-                                              : "attributed to"}
-                                          </span>
-                                          <div>
-                                            <span>
-                                              <strong>{e.description}</strong>
-                                              <small>
-                                                {e.status === "committed"
-                                                  ? "Invoice · unpaid"
-                                                  : e.status === "paid"
-                                                    ? "Actual · paid"
-                                                    : "Purchase item · planned"}
-                                              </small>
-                                            </span>
-                                            <b>{money(e.amount)}</b>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    {!budget.expenses.some(
-                                      (e) => e.categoryId === c.id,
-                                    ) && (
-                                      <p className="hint">
-                                        No spending here yet. Your plan is
-                                        ready.
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                          <p className="hint">
-                            One connected trail, the same numbers. Paid entries
-                            replace unpaid commitments — they’re never counted
-                            twice.
-                          </p>
-                        </div>
-                      )}
-                    </section>
-                    <aside className="overview-aside">
-                      <section className="notes-panel">
-                        <div className="section-heading">
-                          <h2>A note for later</h2>
-                          <Icon name="leaf" size={22} />
-                        </div>
-                        <p>The why behind the numbers.</p>
-                        {!showNote && (
-                          <>
-                            <label className="sr-only" htmlFor="budget-note">
-                              Budget notes
-                            </label>
-                            <textarea
-                              id="budget-note"
-                              placeholder="A reminder, an intention, a decision…"
-                              value={budget.notes}
-                              onChange={(e) =>
-                                setBudget({ ...budget, notes: e.target.value })
-                              }
-                              rows={7}
-                            />
-                          </>
-                        )}
-                        {showNote && (
-                          <div
-                            className="markdown-preview"
-                            role="region"
-                            aria-label="Budget notes preview"
-                          >
-                            {budget.notes ? (
-                              renderMarkdownDocument(budget.notes, {
-                                onWikilink: (target) => {
-                                  const category = budget.categories.find(
-                                    (c) =>
-                                      c.id === target ||
-                                      c.name.toLowerCase() ===
-                                        target.toLowerCase(),
-                                  );
-                                  const expense = budget.expenses.find(
-                                    (e) =>
-                                      e.id === target ||
-                                      e.description.toLowerCase() ===
-                                        target.toLowerCase(),
-                                  );
-                                  if (category || expense) {
-                                    setFocus(
-                                      category?.id ?? expense!.categoryId,
-                                    );
-                                    setView("flow");
-                                  } else
-                                    notify(
-                                      `No category or spending entry named “${target}” yet.`,
-                                      "info",
-                                    );
-                                },
-                                onTag: (tag) =>
-                                  notify(`This note is tagged #${tag}.`, "info"),
-                              })
-                            ) : (
-                              <p>No note yet.</p>
-                            )}
-                          </div>
-                        )}
-                        <div className="notes-bottom">
-                          <span>
-                            {storageError
-                              ? "Not saved"
-                              : "Saved on this device"}
-                          </span>
-                          <button
-                            className="text-button"
-                            onClick={() => {
-                              setShowNote(!showNote);
-                              if (showNote) {
-                                setTimeout(
-                                  () => document.getElementById("budget-note")?.focus(),
-                                  0,
-                                );
-                              }
-                            }}
-                          >
-                            {showNote ? "Edit note" : "Preview"}
-                          </button>
-                        </div>
-                        <button
-                          className="text-button note-download"
-                          onClick={() =>
-                            download(
-                              `---\nbudget: ${JSON.stringify(budget.name)}\nprofile: ${budget.profile}\n---\n\n${budget.notes}`,
-                              "budget-notes.md",
-                            )
-                          }
-                        >
-                          Save Markdown copy <Icon name="download" size={16} />
-                        </button>
-                      </section>
-                      <section className="quiet-next">
-                        <h3>A good plan is a living thing.</h3>
-                        <p>
-                          Check in, make a change, and keep going. Your budget
-                          is here to help, not to judge.
-                        </p>
-                        <button
-                          className="text-button"
-                          onClick={() => go("report")}
-                        >
-                          Share where you stand
-                          <Icon name="arrow" size={17} />
-                        </button>
-                      </section>
-                      <details className="audit" open={!budget.events.length}>
-                        <summary>Activity & audit trail</summary>
-                        {budget.events.length ? (
-                          [...budget.events].reverse().map((ev, i) => (
-                            <p key={i}>
-                              {ev.text}
-                              <small>{new Date(ev.at).toLocaleString()}</small>
-                            </p>
-                          ))
-                        ) : (
-                          <p>No changes recorded yet.</p>
-                        )}
-                      </details>
-                    </aside>
-                  </div>
-                </>
+                  <ProjectGarden
+                    scope={`${currentBook?.name ? `${currentBook.name} / ` : ""}${budget.name}`}
+                    key={budget.id}
+                    budget={budget}
+                    setBudget={setBudget}
+                    storageError={storageError}
+                    onPlan={() => go("plan")}
+                    onSettings={() => go("settings")}
+                    onSpend={(categoryId) => {
+                      if (categoryId) setDraft(d => ({ ...d, categoryId }));
+                      go("spend");
+                    }}
+                    onExpense={(expense) => { go("spend"); openExpense(expense); }}
+                    onReport={() => go("report")}
+                    onBackup={backup}
+                  />
+                  <details className="audit board-audit" open={!budget.events.length}>
+                    <summary>Activity & audit trail</summary>
+                    {budget.events.length ? [...budget.events].reverse().map((ev, i) => (
+                      <p key={i}>{ev.text}<small>{new Date(ev.at).toLocaleString()}</small></p>
+                    )) : <p>No changes recorded yet.</p>}
+                  </details>
+                </section>
               )}
               {page === "report" && (
                 <>
@@ -1457,12 +1117,12 @@ export default function BudgetApp() {
                   <div className="report-layout">
                     <article className="paper report-paper">
                       <div className="report-brand">
-                        <Icon name="book" size={24} />
-                        ellie’s book<span>Budget check-in</span>
+                        <BrandMark size={24} />
+                        fennuma<span>Budget check-in</span>
                       </div>
                       <h2>{budget.name}</h2>
                       <p className="report-period">
-                        {budget.period} · {budget.profile}
+                        {budget.period} · {budget.profile}{budget.startDate && <> · {budget.startDate} — {budget.endDate}</>}
                       </p>
                       <p className="report-story">
                         We’re working with{" "}
@@ -1484,12 +1144,13 @@ export default function BudgetApp() {
                         </span>
                       </div>
                       <h3>Here’s how it breaks down</h3>
-                      <div className="report-table-wrap">
+                      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard access to the scrollable table. */}
+                      <div className="report-table-wrap" role="region" aria-label="Category budget breakdown" tabIndex={0}>
                         <table>
                           <thead>
                             <tr>
                               <th>Category</th>
-                              <th>Planned</th>
+                              <th>Allocation</th>
                               <th>Spent</th>
                               <th>Left</th>
                             </tr>
@@ -1515,9 +1176,13 @@ export default function BudgetApp() {
                         Spent means paid. Left includes bills still to pay.{" "}
                         {money(Math.abs(unassigned))}{" "}
                         {unassigned < 0
-                          ? "is planned above the total budget."
+                          ? "is allocated above the approved budget."
                           : "of the total budget is not assigned to categories."}
                       </p>
+                      <h3>Entry notes</h3>
+                      <div className="report-entry-notes">
+                        {budget.expenses.some(e=>e.notes) ? budget.expenses.filter(e=>e.notes).map(e=><section key={e.id} className="report-notes"><h4>{e.description}</h4>{renderMarkdownDocument(e.notes!)}</section>) : <p>No entry notes yet.</p>}
+                      </div>
                       <h3>What we want to remember</h3>
                       <div className="report-notes">
                         {budget.notes
@@ -1527,7 +1192,7 @@ export default function BudgetApp() {
                       <footer>
                         Left = budget − paid − still to pay.
                         <br />
-                        Prepared with Ellie’s Book · Saved locally, shared by
+                        Prepared with Fennuma · Saved locally, shared by
                         you.
                       </footer>
                     </article>
@@ -1566,7 +1231,7 @@ export default function BudgetApp() {
                           commitments.
                         </p>
                         <button
-                          className="text-button"
+                          className="outline-button"
                           onClick={() => {
                             download(
                               csvText(budget),
@@ -1585,7 +1250,7 @@ export default function BudgetApp() {
                           A Markdown backup includes every entry, its history
                           and your notes. Restore it from My budget.
                         </p>
-                        <button className="text-button" onClick={backup}>
+                        <button className="secondary" onClick={backup}>
                           Download book backup{" "}
                           <Icon name="download" size={17} />
                         </button>
@@ -1600,10 +1265,6 @@ export default function BudgetApp() {
               )}
             </>
           )}
-          <footer className="app-footer">
-            <span>Small steps. A clearer picture.</span>
-            <span>Ellie’s Book</span>
-          </footer>
         </main>
       </div>
       <nav className="mobile-nav" aria-label="Mobile navigation">
@@ -1645,7 +1306,7 @@ function BudgetForm({
 }: {
   initialBudget: Budget;
   onSave: (
-    details: Pick<Budget, "name" | "total" | "period" | "profile">,
+    details: Pick<Budget, "name" | "total" | "period" | "profile" | "startDate" | "endDate">,
   ) => void;
 }) {
   // Editing details is a draft: only the explicit Save confirms the baseline.
@@ -1657,6 +1318,8 @@ function BudgetForm({
       total: budget.total,
       period: budget.period.trim(),
       profile: budget.profile,
+      startDate: budget.startDate,
+      endDate: budget.endDate,
     });
   }
   return (
@@ -1664,35 +1327,6 @@ function BudgetForm({
       <h2>
         {budget.created ? "Your budget details" : "Let’s start your budget"}
       </h2>
-      <fieldset className="profile-field">
-        <legend>Who are you planning for?</legend>
-        <div className="profile-options">
-          {(Object.keys(profiles) as Profile[]).map((p, i) => (
-            <label
-              key={p}
-              className={budget.profile === p ? "profile selected" : "profile"}
-            >
-              <input
-                type="radio"
-                name="profile"
-                value={p}
-                checked={budget.profile === p}
-                onChange={() =>
-                  setBudget((b) => ({
-                    ...b,
-                    profile: p,
-                    categories: b.created
-                      ? b.categories
-                      : blankBudget(p).categories,
-                  }))
-                }
-              />
-              <Icon name={["home", "person", "people"][i]} />
-              <span>{p}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
       <label className="field">
         Give your budget a name
         <input
@@ -1740,6 +1374,10 @@ function BudgetForm({
             onChange={(e) => setBudget({ ...budget, period: e.target.value })}
           />
         </label>
+      </div>
+      <div className="form-pair budget-dates">
+        <label className="field">Start date<input required type="date" value={budget.startDate ?? ""} onChange={e=>setBudget({...budget,startDate:e.target.value})} /></label>
+        <label className="field">End date<input required type="date" min={budget.startDate} value={budget.endDate ?? ""} onChange={e=>setBudget({...budget,endDate:e.target.value})} /></label>
       </div>
       <p className="hint">
         This is the amount you’re happy to work within. You’re in charge.

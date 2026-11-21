@@ -14,19 +14,43 @@ export type Expense = {
   status: "planned" | "committed" | "paid";
   date: string;
   history: string[];
+  notes?: string;
 };
 export type Budget = {
+  board?: BoardLayout;
   id: string;
   name: string;
   profile: Profile;
   total: number;
   period: string;
+  startDate?: string;
+  endDate?: string;
   created: boolean;
   sample: boolean;
   categories: Category[];
   expenses: Expense[];
   notes: string;
   events: { text: string; at: string; before?: unknown; after?: unknown }[];
+};
+export type BoardModule = "budget" | "committed" | "paid" | "notes";
+export type BoardSize = "compact" | "regular" | "wide";
+export type NodeSize = "small" | "medium" | "large";
+export type CanvasLayout = {
+  positions: Record<string, { x: number; y: number }>;
+  sizes: Record<string, NodeSize>;
+  viewport: { x: number; y: number; zoom: number };
+  dimensions?: Record<string, { width: number; height: number }>;
+  scenes?: Partial<Record<"overview" | "budget" | "committed" | "paid" | "notes", {
+    positions: Record<string, { x: number; y: number }>;
+    viewport: { x: number; y: number; zoom: number };
+  }>>;
+};
+export type BoardLayout = {
+  canvas?: CanvasLayout;
+  order: BoardModule[];
+  sizes: Partial<Record<BoardModule, BoardSize>>;
+  expanded: string[];
+  nodeOrder: string[];
 };
 export const STORAGE_KEY: string;
 export const SAMPLE_STORAGE_KEY: string;
@@ -46,12 +70,12 @@ export function advanceExpense(budget: Budget, id: string): Budget;
 export function editExpense(
   budget: Budget,
   id: string,
-  patch: Partial<Pick<Expense, "description" | "amount" | "categoryId" | "status" | "date">>,
+  patch: Partial<Pick<Expense, "description" | "amount" | "categoryId" | "status" | "date" | "notes">>,
 ): Budget;
 export function removeExpense(budget: Budget, id: string): Budget;
 export function editBudgetDetails(
   budget: Budget,
-  details: Pick<Budget, "name" | "total" | "profile" | "period">,
+  details: Pick<Budget, "name" | "total" | "profile" | "period" | "startDate" | "endDate">,
 ): Budget;
 export function editCategory(
   budget: Budget,

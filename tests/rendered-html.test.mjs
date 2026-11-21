@@ -12,30 +12,29 @@ async function render() {
   );
 }
 
-test("the real app renders blank onboarding and the five approved flows", async () => {
+test("the real app renders Book-first onboarding and the approved navigation", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   for (const text of [
-    "Ellie",
-    "Create my budget",
+    "fennuma",
+    "Create a book",
+    "Book name",
     "Household",
     "Just me",
     "Team",
-    "Budget period",
-    "Plan by category",
-    "Log spending",
-    "Where I stand",
-    "Share a report",
-    "Explore an example",
-    "Restore a book",
+    "Continue",
+    "Entries",
+    "Board",
+    "Books",
+    "Profile",
     "Skip to content",
   ])
     assert.ok(html.includes(text), text);
   assert.doesNotMatch(
     html,
-    /Function Budget Studio|classicStudioSlot|SEED_PROJECTS|Look A ·|Design preview|codex-preview|react-loading-skeleton/i,
+    /Make room for|Your budget\. Your pace|No bank account connected|Saved only in this browser|>Plan by category<|>Log spending<|Function Budget Studio|classicStudioSlot|SEED_PROJECTS|Look A ·|Design preview|codex-preview|react-loading-skeleton/i,
   );
 });
 
