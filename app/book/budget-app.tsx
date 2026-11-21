@@ -471,6 +471,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                 onClick={() => {
                   try {
                     const personal = removeExample();
+                    setMode(personal.profile);
                     go(personal.created ? "home" : "start");
                     notify(
                       "Example removed. Your own budget is right where you left it.",
