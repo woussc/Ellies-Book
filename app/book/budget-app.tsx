@@ -1122,7 +1122,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       </div>
                       <h2>{budget.name}</h2>
                       <p className="report-period">
-                        {budget.period} · {budget.profile}
+                        {budget.period} · {budget.profile}{budget.startDate && <> · {budget.startDate} — {budget.endDate}</>}
                       </p>
                       <p className="report-story">
                         We’re working with{" "}
@@ -1178,6 +1178,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           ? "is allocated above the approved budget."
                           : "of the total budget is not assigned to categories."}
                       </p>
+                      <h3>Entry notes</h3>
+                      <div className="report-entry-notes">
+                        {budget.expenses.some(e=>e.notes) ? budget.expenses.filter(e=>e.notes).map(e=><section key={e.id} className="report-notes"><h4>{e.description}</h4>{renderMarkdownDocument(e.notes!)}</section>) : <p>No entry notes yet.</p>}
+                      </div>
                       <h3>What we want to remember</h3>
                       <div className="report-notes">
                         {budget.notes
