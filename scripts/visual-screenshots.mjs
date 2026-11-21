@@ -142,8 +142,8 @@ async function checkCategoryEdit(page) {
 async function openAllocations(page) {
   await navigate(page, "Your board", "Board");
   await page.getByRole("button", {name: "Open budget details", exact: true}).click();
-  await page.getByRole("button", {name: "Budget settings", exact: true}).click();
-  await page.getByRole("button", {name: "Edit category allocations", exact: true}).click();
+  await navigate(page, "Budget settings", "Budget settings");
+  await navigate(page, "Edit category allocations", "Edit category allocations");
   await page.getByRole("heading", {name: "Category allocations", exact: true}).waitFor();
 }
 
