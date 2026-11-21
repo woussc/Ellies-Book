@@ -324,18 +324,17 @@ export function totals(budget, categoryId) {
   const expenses = budget.expenses.filter(
     (e) => !categoryId || e.categoryId === categoryId,
   );
-  const plan = categoryId
+  const allocation = categoryId
     ? budget.categories.find((c) => c.id === categoryId)?.amount || 0
     : budget.categories.reduce((s, c) => s + c.amount, 0);
-  const baseline = categoryId ? plan : budget.total;
+  const baseline = categoryId ? allocation : budget.total;
   const lineage = computeBudgetSummary({
     ...lifecycle(expenses),
     approvedBudget: baseline,
-    plannedTotal: plan,
     uncommittedProposedCost: expenses.filter((e) => e.status === "planned").reduce((s, e) => s + e.amount, 0),
   });
   return {
-    plan: round(plan),
+    plan: round(allocation),
     spent: round(lineage.actualTotal),
     committed: round(lineage.openCommitmentTotal),
     left: round(lineage.availableToCommit),

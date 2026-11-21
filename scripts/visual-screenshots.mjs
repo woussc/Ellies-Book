@@ -194,6 +194,9 @@ async function checkReportAndAudit(page) {
   await page.locator(".ai-sheet").getByRole("button",{name:"Close",exact:true}).click();
   await page.emulateMedia({media:"print"});
   assert.equal(await page.locator(".report-entry-notes").isVisible(),true);
+  for (const selector of [".product-topbar", ".mobile-nav", ".page-heading", ".report-actions"]) {
+    assert.equal(await page.locator(selector).isVisible(), false, `${selector} must not consume space on the first printed page`);
+  }
   await page.emulateMedia({media:"screen"});
   await navigate(page,"Your board","Board");
   if(page.viewportSize().width<=640) {
@@ -241,6 +244,7 @@ async function checkBoardLayout(page) {
   assert.equal(await category.getAttribute("aria-expanded"),"true","Entries round trip preserves selected category");
   await page.waitForFunction(y => Math.abs(window.scrollY - y) <= 1, scroll);
   await page.getByRole("button", {name:"Open budget details",exact:true}).click();
+  assert.match(await page.locator(".garden-dialog").innerText(), /Forecast Spend \$1,971\.50 · Projected Headroom \$3,028\.50/);
   await page.getByRole("button", {name:"Budget settings",exact:true}).click();
   await page.waitForFunction(() => !document.querySelector("dialog[open]") && document.body.style.overflow !== "hidden");
   await navigate(page, "Your board", "Board");
