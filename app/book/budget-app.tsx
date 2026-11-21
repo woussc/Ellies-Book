@@ -1144,7 +1144,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                         </span>
                       </div>
                       <h3>Here’s how it breaks down</h3>
-                      <div className="report-table-wrap">
+                      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard access to the scrollable table. */}
+                      <div className="report-table-wrap" role="region" aria-label="Category budget breakdown" tabIndex={0}>
                         <table>
                           <thead>
                             <tr>
