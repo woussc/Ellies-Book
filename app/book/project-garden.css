@@ -135,7 +135,7 @@
 @media(max-width:1000px) and (min-width:641px) {.product-topbar .brand span {display:none}.app-shell .product-topbar {padding:16px;gap:12px}.product-topbar .nav-item {padding:10px}.product-topbar .nav-item svg {display:none}.garden-branches {grid-template-columns:repeat(2,minmax(0,1fr));gap:40px 24px}.garden-branch:nth-child(3n) {padding-top:0}.garden-branch:nth-child(even) {padding-top:32px}.app-shell main {padding:24px}}
 @media(max-width:640px) {
   .project-app-shell .report-left strong {font-size:24px;overflow-wrap:anywhere}
-  .project-app-shell .form-pair.budget-dates {grid-template-columns:minmax(0,1fr);gap:20px}
+  .project-app-shell .form-pair.budget-dates,.project-app-shell .spending-form .form-pair {grid-template-columns:minmax(0,1fr);gap:20px}
   .app-shell.project-app-shell.board-page main {padding-bottom:calc(104px + env(safe-area-inset-bottom))}
   .app-shell .product-topbar {padding:12px 16px;gap:12px;flex-wrap:wrap;min-height:80px}
   .product-topbar .brand {font-size:19px;gap:6px}

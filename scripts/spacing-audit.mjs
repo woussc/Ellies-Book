@@ -79,6 +79,14 @@ for(const engine of engines){
    }
    const fills=[...document.querySelectorAll('.garden-entry-open,.mode-switch button')].filter(visible).map(e=>({name:text(e),background:getComputedStyle(e).backgroundColor,appearance:getComputedStyle(e).appearance}));
    const spacingIssues=[];
+   const context=document.createElement('canvas').getContext('2d');
+   for(const input of document.querySelectorAll('.input-wrap input[type=number]')){
+    if(!visible(input))continue;
+    const style=getComputedStyle(input);
+    context.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const contentWidth=input.getBoundingClientRect().width-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight)-parseFloat(style.borderLeftWidth)-parseFloat(style.borderRightWidth);
+    if(contentWidth<context.measureText('0.00').width+16)spacingIssues.push('Currency input text clearance');
+   }
    for(const select of document.querySelectorAll('select')){
     if(!visible(select))continue;
     const style=getComputedStyle(select),height=select.getBoundingClientRect().height;
