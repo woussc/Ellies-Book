@@ -26,7 +26,7 @@ export function gardenLinks(rects, categoryIds, entries) {
     const ax=a.x+a.w/2,ay=a.y+a.h,bx=b.x+b.w/2;
     const path=entry
       ? `M${ax} ${ay}V${ay+20}H${b.x-20}V${b.y+b.h/2}H${b.x}`
-      : to.startsWith('category:') && categoryIds.length>1
+      : to.startsWith('category:')
         ? `M${ax} ${ay}V${ay+24}H4V${(b.rowY??b.y)-20}H${bx}V${b.y}`
         : `M${ax} ${ay}V${ay+24}H${bx}V${b.y}`;
     links.push({key:from+'>'+to,path});

@@ -1374,7 +1374,7 @@ function BudgetForm({
           />
         </label>
       </div>
-      <div className="form-pair">
+      <div className="form-pair budget-dates">
         <label className="field">Start date<input required type="date" value={budget.startDate ?? ""} onChange={e=>setBudget({...budget,startDate:e.target.value})} /></label>
         <label className="field">End date<input required type="date" min={budget.startDate} value={budget.endDate ?? ""} onChange={e=>setBudget({...budget,endDate:e.target.value})} /></label>
       </div>

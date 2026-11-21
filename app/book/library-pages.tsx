@@ -203,7 +203,7 @@ export function BookSetup({
                   onChange={(e) => setPeriod(e.target.value)}
                 />
               </label>
-              <div className="form-pair">
+              <div className="form-pair budget-dates">
                 <label>Start date<input type="date" required value={startDate} onChange={e=>setStartDate(e.target.value)} /></label>
                 <label>End date<input type="date" required min={startDate} value={endDate} onChange={e=>setEndDate(e.target.value)} /></label>
               </div>

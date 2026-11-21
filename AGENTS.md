@@ -80,6 +80,10 @@ All agents operating in this repository must use the vendored skills in `.agent/
 
 ---
 
+## UI spacing and alignment gate
+
+Every UI change must follow [`docs/UI-QUALITY.md`](docs/UI-QUALITY.md): review every reachable page and mode, not only the changed card. Run the Chromium/WebKit spacing matrix at 320/390/430/768/1440px, inspect screenshots, and check empty, populated, long-content, selected and dialog states. Keep 44px targets, 8px minimum related-action gaps, 16px curved-card text insets, contained native date fields, aligned peer controls and fixed-navigation clearance. Geometry alone is not visual approval; Linux WebKit is not physical Safari evidence.
+
 ## 4. Telegram Bot Notification Policy (`@Hydrateh_bot`)
 
 > [!IMPORTANT]

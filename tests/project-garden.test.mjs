@@ -67,3 +67,9 @@ test('allocation links use row rails above staggered categories, never another c
     }
   }
 });
+
+test('a focused category keeps the allocation connector off the central trail heading', () => {
+  const rects={budget:{x:0,y:0,w:296,h:400},'category:one':{x:46,y:520,w:204,h:204,rowY:520}};
+  const [link]=gardenLinks(rects,['category:one'],[]);
+  assert.equal(link.path,'M148 400V424H4V500H148V520');
+});
