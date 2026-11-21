@@ -174,7 +174,7 @@ for(const engine of engines){
    await click('Cancel');
    await p.locator('.entry-filters').getByRole('button',{name:'Committed',exact:true}).click();await snap('entries-filter',md,w,{shot:shots});
    await nav('Books');await snap('books',md,w,{shot:shots});
-   await click('+ New project');await snap('new-project',md,w,{shot:shots});await click('Cancel');
+   await p.locator('.library-book').filter({has:p.getByRole('button',{name:'Open '+md+' November project',exact:true})}).getByRole('button',{name:'+ New project',exact:true}).click();await snap('new-project',md,w,{shot:shots});await click('Cancel');
    await nav('Books');await click('+ New book');await snap('setup-book',md,w,{shot:shots});
    await p.getByRole('textbox',{name:'Book name',exact:true}).fill('Spacing review book');await p.getByRole('button',{name:/^Continue/}).click();
    await snap('setup-project',md,w,{shot:shots});
