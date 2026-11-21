@@ -1,5 +1,13 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS8 visual CI focus handoff
+
+- [Fact] Starting HEAD `78468a4` on `devin/1795084058-ios-capacitor`. PR 24 job 136727159452 (Lint, build & test) passed; visual job 136727273698 failed with `Screenshot capture failed`. The log tool truncates the middle, so its original assertion is unavailable. No infrastructure retry was used.
+- [Fact] Ran the full screenshot script against both PR HEAD and fetched main `d82390c` in a separate worktree. Both failed at checkCategoryEdit line 103 on tablet: actual activity `2000 → 0` then `0 → 375`, rather than one `2000 → 375` edit. Logs: `/Users/devin/pr24-ci-repro.log` and `/Users/devin/pr24-main-repro.log`. Main's last CI was green; this is a timing-dependent failure, not an invariably broken main build.
+- [Fact] `go()` defers heading focus with setTimeout. openAllocations clicked settings and allocation navigation without the focus handoff already used by navigate(). Changed those two clicks to navigate() so the test waits before clearing/typing. No application behavior, assertion, workflow, dependency or lockfile change. Existing category-edit regression is the public test seam.
+- [Fact] Fixed screenshot script passes at 1440, 768 and 390px (`/Users/devin/pr24-ci-fixed.log`); lint and diff whitespace checks exit 0. Reused unchanged IOS7 application gates: 108 Node tests, production/rendered HTML, Pages/iOS/Xcode builds and 900-state spacing audit; only the screenshot driver changed. Current CI will independently rerun the workflow's application gates and screenshot/spacing scripts.
+- [Inference] The reproduced focus race explains the visual CI failure; the exact original CI assertion cannot be confirmed from truncated logs. Push the separate fix and watch PR 24 with wait_mode all; final CI result is reported in the session completion message. Suggested follow-up skill: tdd for any newly exposed regression.
+
 ## Latest checkpoint — IOS7 PR 25 integration complete
 
 - [Fact] Merge commit `8a25852a3773ca6944ebc37209c4eef4895bb83d` preserves main's redesign and native adapter wiring. The follow-up CSS fix is in the commit containing this checkpoint. Only `app/book/budget-app.tsx` conflicted; main's ProjectWorkspace UI won, with native startup at BudgetApp and native share/export/print calls inside ProjectWorkspace retained.

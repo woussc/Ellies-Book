@@ -1,0 +1,6 @@
+# IOS8 — PR 24 visual CI focus handoff
+
+- [Fact] Current CI reports build-and-test passed and visual-screenshots failed. The log API truncates the middle of the visual log, including the originating assertion; the visible failure is `Screenshot capture failed`.
+- [Fact] Reproduced the category-edit audit assertion on PR HEAD 78468a4 and on fetched main d82390c in a separate worktree: tablet input clearing commits 2000 → 0 before typing commits 0 → 375. Both scripts fail at checkCategoryEdit line 103.
+- Scope: use the existing navigation focus-handoff helper when opening budget settings and allocations. Preserve all assertions and application behavior. Verify the existing visual regression seam across three viewports, plus Node tests, lint, build/rendered HTML, and the Chromium/WebKit spacing audit. Push a separate fix and watch CI to completion.
+- [Fact] Replaced both direct navigation clicks with navigate(). Full screenshot script passes at 1440/768/390px; lint and whitespace checks exit 0. Application/build/spacing inputs are unchanged, so prior IOS7 gates are reused locally; CI reruns them after push. Detailed evidence and limits are in the IOS8 handoff checkpoint.
