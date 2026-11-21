@@ -1,5 +1,14 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS9 dialog safe areas / IOS10 keyboard layout
+
+- [Fact] Starting HEAD `cc571ee9c9bd6fd76e7ea37883577b6ef2c2719e` on `devin/1795084058-ios-capacitor`. User requested two separate local commits and no push. IOS9 CSS is in the commit containing this checkpoint; IOS10 adapter/tests are verified and will be committed separately. No unrelated UI or financial changes.
+- [Fact] Native Ask AI/size dialogs are centered within top/bottom safe insets with a reduced maximum height. Added legacy full-screen node-detail to the existing native garden-dialog top inset. Current garden dialog verified on screen; legacy node-detail/size routes checked in code only. Expanded Ask AI's border/Close clear status icons; Close retains its existing >=44px target and pressing it dismisses the expanded sheet.
+- [Fact] Reproduced category submission moving the focused name input under the keyboard, because category insertion changes layout without another focus event. Native startup now observes body layout and window resize while the keyboard is visible, reusing existing field scrolling. Disposes both new subscriptions. Regression covers resize/layout, missing focus, hidden keyboard and cleanup; web startup remains unchanged.
+- [Fact] Final 108 Node tests pass, lint exits 0, production build completes, rendered HTML passes 2/2, native sync finishes in 0.078s, Xcode reports `** BUILD SUCCEEDED **`. Restored app SPM to iOS 15.4 after sync. Reinstalled/relaunched on iOS 26.5 iPhone 17 (PID 10982). Logs: `/Users/devin/ios9-10-{tests,lint,build,rendered,ios,xcode}.log`. Chromium/WebKit spacing audit: 450 states each, zero failures (`/Users/devin/ios9-10-spacing.log`, ledgers in `/Users/devin/ios9-10-spacing/`).
+- [Fact] Captured and opened `/Users/devin/ios-shots/fix-askai-safearea.png`, `fix-category-keyboard.png`, `fix-garden-safearea.png`, and category baseline `fix-category-keyboard-before.png`. Category screenshot follows submission with software keyboard still up and no manual scroll: focused New category name, Add category and Save allocations are visible. Simulator was paused while the parallel Safari check used it, then resumed on release. No commits pushed.
+- [Unknown] Physical-device/iOS 15.4 and landscape appearance remain unverified. Suggested follow-up skill: uiux-congress for further native visual changes. Existing CI fixes through cc571ee were green; these local changes have not been sent to CI.
+
 ## Latest checkpoint — IOS8 visual CI focus handoff
 
 - [Fact] Starting HEAD `78468a4` on `devin/1795084058-ios-capacitor`. PR 24 job 136727159452 (Lint, build & test) passed; visual job 136727273698 failed with `Screenshot capture failed`. The log tool truncates the middle, so its original assertion is unavailable. No infrastructure retry was used.

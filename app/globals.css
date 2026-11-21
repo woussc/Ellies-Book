@@ -2943,7 +2943,15 @@ body::before {
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.native-app .garden-dialog {
+.native-app .ai-sheet,
+.native-app .size-dialog {
+  top: env(safe-area-inset-top, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px);
+  margin-block: auto;
+}
+.native-app .garden-dialog,
+.native-app .node-detail {
   top: env(safe-area-inset-top, 0px);
   height: calc(100dvh - env(safe-area-inset-top, 0px));
   max-height: calc(100dvh - env(safe-area-inset-top, 0px));
