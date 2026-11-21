@@ -158,9 +158,9 @@ async function checkNoteModes(page) {
   await page.locator('[data-garden-node="category:category-0"]').click();
   await page.locator(".garden-entry-open").filter({hasText:"November rent"}).click();
   const detail = page.locator(".garden-dialog");
-  assert.equal(await detail.getByRole("heading", {name:"Home repairs",exact:true}).count(),1);
+  await detail.getByRole("heading", {name:"Home repairs",exact:true}).waitFor({state:"visible"});
   await detail.getByRole("button", {name:"[[Home & bills]]",exact:true}).click();
-  assert.equal(await detail.getByRole("heading", {name:"Home & bills",exact:true}).count(),1);
+  await detail.getByRole("heading", {name:"Home & bills",exact:true}).waitFor({state:"visible"});
   await detail.getByRole("button", {name:"Close",exact:true}).click();
   await navigate(page, "Entries", "Entries");
   await page.getByRole("button", {name:/^Edit November rent,/}).click();
