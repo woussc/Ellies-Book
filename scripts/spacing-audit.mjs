@@ -112,7 +112,8 @@ for(const engine of engines){
    const select=document.querySelector('.spending-form .form-pair select');
    if(amount&&select&&visible(amount)&&visible(select)){
     const a=rr(amount),b=rr(select);
-    if(Math.abs(a.h-b.h)>1||Math.abs(a.bottom-b.bottom)>1)spacingIssues.push('Amount/category alignment');
+    const shareRow=Math.min(a.bottom,b.bottom)-Math.max(a.y,b.y)>1;
+    if(Math.abs(a.h-b.h)>1||(shareRow&&Math.abs(a.bottom-b.bottom)>1))spacingIssues.push('Amount/category alignment');
    }
    for(const [first,last,gap] of [['.empty-library p','.empty-library button',24],['.profile-person button','.profile-person .safe-note',16]]){
     const a=document.querySelector(first),b=document.querySelector(last);

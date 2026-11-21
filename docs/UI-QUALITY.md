@@ -22,12 +22,13 @@ Check Board, Arrange, legend, project/budget/category/entry details, folded and 
 - Keep related controls at least 8px apart; prefer 12px in action groups.
 - Keep curved-card text at least 16px inside its safe boundary.
 - Prefer 24px between cards; distinguish grouping from accidental whitespace.
-- Use 44px minimum action targets; align peer control tops and bottoms.
+- Use 44px minimum action targets; align peer tops and bottoms on shared rows.
+- Stack phone fields when their contents cannot fit; never truncate money defaults.
 - Keep dates readable, fully inside fields, and stack paired phone dates.
 - Inspect long titles, large/negative amounts, notes, empty and populated states.
 - Check every dialog, expanded section, error and removal confirmation.
 - Scroll to the last action: fixed navigation must not cover it.
-- Check native date glyphs and text visually; DOM bounds cannot prove them.
+- Check native date/select glyphs and currency text visually; matched outer boxes cannot prove internal readability.
 - Keep layout actions financially inert, including notes and stage history.
 
 Review the generated screenshots at phone, tablet and desktop widths using the UI/UX Congress app-screen gate. Record focused interaction acceptance after fixes. Do not hide overflow, shrink text, skip a mode, or exclude a failing state to make the gate pass. New reachable surfaces must be added to the matrix and this inventory in the same change.
