@@ -86,9 +86,9 @@ async function checkCategoryEdit(page) {
   await page.getByRole("button", { name: /Explore an example/ }).click();
   await navigate(page, "Your board", "Board");
   await page.getByText("No changes recorded yet.", { exact: true }).waitFor();
-  await navigate(page, "Plan by category", "Plan");
+  await openAllocations(page);
   const amount = page.getByRole("spinbutton", {
-    name: "Home & bills planned amount", exact: true,
+    name: "Home & bills allocation", exact: true,
   });
   await amount.fill("");
   await amount.pressSequentially("375");
@@ -106,9 +106,9 @@ async function checkCategoryEdit(page) {
   await page.locator(".audit summary").click();
   assert.deepEqual(await edits(), expected, "Saved activity must survive reload");
 
-  await navigate(page, "Plan by category", "Plan");
+  await openAllocations(page);
   const zeroAmount = page.getByRole("spinbutton", {
-    name: "Food & groceries planned amount", exact: true,
+    name: "Food & groceries allocation", exact: true,
   });
   await zeroAmount.fill("0");
   await zeroAmount.press("Tab");
@@ -126,7 +126,7 @@ async function checkCategoryEdit(page) {
   await amount.press("Enter");
   assert.equal(await amount.inputValue(), "375", "Unchanged rounded amounts must replace the draft");
   await page.reload({ waitUntil: "networkidle" });
-  await navigate(page, "Plan by category", "Plan");
+  await openAllocations(page);
   assert.equal(await amount.inputValue(), "375");
   assert.equal(await zeroAmount.inputValue(), "");
   await navigate(page, "Your board", "Board");
@@ -139,98 +139,106 @@ async function checkCategoryEdit(page) {
   assert.deepEqual(zeroEdits, ["Food & groceries: amount 900 → 0"], "Normalized no-ops must not create audit events");
 }
 
+async function openAllocations(page) {
+  await navigate(page, "Your board", "Board");
+  await page.getByRole("button", {name: "Open budget details", exact: true}).click();
+  await page.getByRole("button", {name: "Budget settings", exact: true}).click();
+  await page.getByRole("button", {name: "Edit category allocations", exact: true}).click();
+  await page.getByRole("heading", {name: "Category allocations", exact: true}).waitFor();
+}
+
 async function checkNoteModes(page) {
-  const note = "# Home repairs\nKeep this edit.";
-  await page.getByRole("button", { name: "Find", exact: true }).click();
-  await page.getByRole("textbox", { name: "Find a node", exact: true }).fill("Notes");
-  await page.locator(".canvas-find").getByRole("button", {name: "Open Notes", exact: true}).click();
-  const detail = page.locator(".node-detail");
-  await detail.getByRole("button", {name: "Edit notes", exact: true}).click();
-  const editor = detail.getByRole("textbox", {name: "Markdown notes", exact: true});
+  const note = "# Home repairs\nKeep this edit. [[Home & bills]]";
+  await navigate(page, "Entries", "Entries");
+  await page.getByRole("button", {name: /^Edit November rent,/}).click();
+  const editor = page.getByRole("textbox", {name: "Entry note (Markdown)", exact: true});
   await editor.fill(note);
-  await detail.getByRole("button", {name: "Save notes", exact: true}).click();
-  assert.equal(await editor.count(), 0);
-  assert.equal(await detail.getByRole("heading", {name: "Home repairs", exact: true}).count(), 1);
-  await detail.getByRole("button", {name: "Edit notes", exact: true}).click();
-  assert.equal(await editor.inputValue(), note);
-  await detail.getByRole("button", {name: "Cancel", exact: true}).click();
-  await detail.getByRole("button", {name: "Close ×", exact: true}).click();
+  await page.getByRole("button", {name: "Save changes", exact: true}).click();
+  await navigate(page, "Your board", "Board");
+  await page.locator('[data-garden-node="category:category-0"]').click();
+  await page.locator(".garden-entry-open").filter({hasText:"November rent"}).click();
+  const detail = page.locator(".garden-dialog");
+  assert.equal(await detail.getByRole("heading", {name:"Home repairs",exact:true}).count(),1);
+  await detail.getByRole("button", {name:"[[Home & bills]]",exact:true}).click();
+  assert.equal(await detail.getByRole("heading", {name:"Home & bills",exact:true}).count(),1);
+  await detail.getByRole("button", {name:"Close",exact:true}).click();
+  await navigate(page, "Entries", "Entries");
+  await page.getByRole("button", {name:/^Edit November rent,/}).click();
+  assert.equal(await editor.inputValue(),note);
+  await page.locator(".spending-form").getByRole("button", {name:"Cancel",exact:true}).click();
+  await navigate(page, "Your board", "Board");
 }
 
 async function checkRemovedCategory(page) {
-  await navigate(page, "Plan by category", "Plan");
+  await openAllocations(page);
   await page.getByRole("button", { name: "Remove A little extra", exact: true }).click();
   await navigate(page, "Your board", "Board");
-  await page.getByRole("button", {name: "Board tools", exact: true}).click();
-  await page.getByRole("button", {name: "List", exact: true}).click();
-  assert.equal(await page.getByRole("button", {name: "Open A little extra", exact: true}).count(), 0);
-  assert.equal(await page.getByRole("button", {name: "Open November rent", exact: true}).count(), 1);
-  await page.getByRole("button", {name: "Open Home & bills", exact: true}).click();
-  assert.match(await page.locator(".detail-metrics").innerText(), /\$375/);
-  await page.locator(".node-detail").getByRole("button", {name: "Close ×", exact: true}).click();
+  assert.equal(await page.locator('[data-garden-node="category:category-4"]').count(),0);
+  assert.equal(await page.locator(".garden-entry-open").filter({hasText:"November rent"}).count(),1);
+  await page.locator('[data-garden-node="category:category-0"]').click();
+  assert.match(await page.locator(".garden-detail-metrics").innerText(), /\$375\.00/);
+  await page.locator(".garden-dialog").getByRole("button", {name:"Close",exact:true}).click();
+}
+
+async function checkReportAndAudit(page) {
+  const budget=activeBudget(parseLibrary(await page.evaluate(()=>localStorage.getItem("ellies-book:library:v1.md"))));
+  await page.getByRole("button",{name:"Report",exact:true}).click();
+  assert.ok((await page.locator(".report-period").innerText()).includes(budget.startDate));
+  assert.ok((await page.locator(".report-period").innerText()).includes(budget.endDate));
+  assert.match(await page.locator(".report-entry-notes").innerText(),/November rent[\s\S]*Home repairs[\s\S]*Keep this edit/);
+  await page.emulateMedia({media:"print"});
+  assert.equal(await page.locator(".report-entry-notes").isVisible(),true);
+  await page.emulateMedia({media:"screen"});
+  await navigate(page,"Your board","Board");
+  if(page.viewportSize().width<=640) {
+    const audit=page.locator(".audit");
+    if(await audit.getAttribute("open")!==null) await audit.locator("summary").click();
+    await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
+    const summary=await audit.locator("summary").boundingBox(),nav=await page.locator(".mobile-nav").boundingBox();
+    assert.ok(summary.y+summary.height<=nav.y,"Collapsed audit must be above fixed phone navigation at maximum scroll");
+    await audit.locator("summary").click();
+  }
 }
 
 async function checkBoardLayout(page) {
-  assert.equal(await page.locator(".widget-toolbar > select").inputValue(), "overview", "Financial overview is home at every viewport");
+  await page.locator(".project-garden").waitFor();
   const stored = async () => activeBudget(parseLibrary(await page.evaluate(() => localStorage.getItem("ellies-book:library:v1.md"))));
   const before = await stored();
-  const clipped = await page.locator(".canvas-node .widget-value").evaluateAll(elements => elements.filter(element => {
-    const content = element.closest(".widget-surface").getBoundingClientRect(), rect = element.getBoundingClientRect();
-    return rect.bottom > content.bottom + 1 || rect.top < content.top - 1;
+  const clipped = await page.locator(".garden-node .money").evaluateAll(elements => elements.filter(element => {
+    const content = element.closest(".garden-node").getBoundingClientRect(), rect = element.getBoundingClientRect();
+    return rect.left < content.left || rect.right > content.right || rect.bottom > content.bottom || rect.top < content.top;
   }).map(element => element.textContent));
-  assert.deepEqual(clipped, [], "Essential amounts must fit inside compact widgets");
+  assert.deepEqual(clipped, [], "Exact amounts must fit inside their own node");
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth));
   await page.getByRole("button", {name: "Arrange", exact: true}).click();
-  await page.getByRole("button", {name: "Size", exact: true}).click();
-  const sizes = page.locator(".size-dialog");
-  assert.equal(await sizes.getByRole("button", {name: /^Small/}).isDisabled(), true);
-  await sizes.getByRole("button", {name: /^Large/}).click();
-  await sizes.getByRole("button", {name: "Apply size", exact: true}).click();
-  await page.getByRole("button", {name: "Drag or select Budget", exact: true}).press("ArrowRight");
-  await page.getByRole("button", {name: "Done", exact: true}).click();
+  await page.locator(".garden-budget-block").getByRole("button", {name:"Resize budget",exact:true}).click();
+  const secondCategory = before.categories[1].id;
+  await page.locator(`[data-category-id="${secondCategory}"]`).getByRole("button",{name:"Move category earlier",exact:true}).click();
+  await page.getByRole("button", {name: "Done arranging", exact: true}).click();
   const after = await stored();
   assert.equal(after.board.canvas.sizes.budget, "large");
-  assert.ok(after.board.canvas.scenes.overview.positions.budget.x > 0);
+  assert.equal(after.board.nodeOrder[0],secondCategory);
   delete before.board;
   delete after.board;
   assert.deepEqual(after, before, "Layout edits must not alter financial records, notes, or audit history");
   await page.reload({waitUntil: "networkidle"});
   assert.equal((await stored()).board.canvas.sizes.budget, "large");
-  await page.getByRole("button", {name: "Arrange", exact: true}).click();
-  await page.getByRole("button", {name: "Balance cluster", exact: true}).click();
-  await page.getByRole("button", {name: "Done", exact: true}).click();
-  assert.deepEqual((await stored()).board.canvas.scenes.overview.positions, {});
-  const budgetFace = page.getByRole("button", {name: "Select Budget", exact: true});
-  if (await budgetFace.getAttribute("aria-pressed") !== "true") await budgetFace.click();
-  await page.waitForTimeout(650);
-  const canvasTop = (await page.locator(".canvas-window").boundingBox()).y;
-  const beforeDrag = await page.evaluate(() => ({scroll: window.scrollY, toolbar: document.querySelector(".widget-toolbar").getBoundingClientRect().height}));
-  const face = await budgetFace.boundingBox();
-  await page.mouse.move(face.x + face.width / 2, face.y + face.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(face.x + face.width / 2 + 32, face.y + face.height / 2 + 32, {steps: 6});
-  await page.getByRole("button", {name: "Cancel", exact: true}).waitFor();
-  await page.waitForTimeout(100);
-  const afterTop = (await page.locator(".canvas-window").boundingBox()).y;
-  const afterDrag = await page.evaluate(() => ({scroll: window.scrollY, toolbar: document.querySelector(".widget-toolbar").getBoundingClientRect().height}));
-  assert.ok(Math.abs(afterTop - canvasTop) <= 1, `automatic Arrange keeps the canvas under the pointer: ${JSON.stringify({canvasTop,afterTop,beforeDrag,afterDrag})}`);
-  const heldFace = await page.getByRole("button", {name: "Drag or select Budget", exact: true}).boundingBox();
-  assert.ok(Math.abs(heldFace.x - face.x - 32) <= 2 && Math.abs(heldFace.y - face.y - 32) <= 2, `the grabbed widget follows the pointer through automatic Arrange: ${JSON.stringify({face,heldFace})}`);
-  await page.mouse.up();
-  await page.getByRole("button", {name: "Cancel", exact: true}).click();
-  await page.getByRole("button", {name: "Board tools", exact: true}).click();
-  await page.getByRole("button", {name: "Zoom in", exact: true}).click();
-  await page.waitForTimeout(300);
-  const camera = await page.locator(".canvas-world").getAttribute("style");
+  assert.equal((await stored()).board.nodeOrder[0],secondCategory);
+  const category=page.locator(`[data-garden-node="category:${secondCategory}"]`);
+  await category.click();
+  await page.locator(".garden-trail").waitFor();
+  // Desktop navigation is in document flow; phones keep a fixed bottom bar.
+  await page.getByRole("button",{name:"Entries",exact:true}).scrollIntoViewIfNeeded();
   const scroll = await page.evaluate(() => window.scrollY);
-  await navigate(page, "Plan by category", "Plan");
+  await navigate(page, "Entries", "Entries");
   await navigate(page, "Your board", "Board");
-  assert.equal(await page.locator(".canvas-world").getAttribute("style"), camera, "Plan round trip preserves the live camera");
-  assert.equal(await page.getByRole("button", {name: "Select Budget", exact: true}).getAttribute("aria-pressed"), "true");
+  assert.equal(await category.getAttribute("aria-expanded"),"true","Entries round trip preserves selected category");
   await page.waitForFunction(y => Math.abs(window.scrollY - y) <= 1, scroll);
-  await page.locator(".widget-inspector").getByRole("button", {name: "Open Budget", exact: true}).click();
-  await page.getByRole("button", {name: "Edit plan", exact: true}).click();
+  await page.getByRole("button", {name:"Open budget details",exact:true}).click();
+  await page.getByRole("button", {name:"Budget settings",exact:true}).click();
   await page.waitForFunction(() => !document.querySelector("dialog[open]") && document.body.style.overflow !== "hidden");
   await navigate(page, "Your board", "Board");
+  await page.getByRole("button",{name:"Show categories",exact:true}).click();
 }
 
 async function checkRestoreFeedback(page) {
@@ -270,6 +278,7 @@ async function main() {
       await checkBoardLayout(page);
       await page.screenshot({ path: `${OUT_DIR}/${vp.label}-board.png`, fullPage: true });
       await checkNoteModes(page);
+      await checkReportAndAudit(page);
       await checkRemovedCategory(page);
       await checkRestoreFeedback(page);
       console.log(`Passed keyboard, category-edit, note-mode and removed-category regressions at ${vp.width}px`);
