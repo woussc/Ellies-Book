@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {exampleBudget, serializeBook, parseBook, editExpense, editBudgetDetails, totals, money, validateBudget} from '../app/book/model.mjs';
-import {gardenView,resizeGarden} from '../app/book/garden-model.mjs';
+import {gardenView,resizeGarden,gardenLinks} from '../app/book/garden-model.mjs';
 import {changeBoard} from '../app/book/board-model.mjs';
 
 test('project-first summary separates planned estimates from category allocation', () => {
@@ -47,4 +47,23 @@ test('explicit budget dates validate and legacy undated budgets remain readable'
   assert.throws(()=>validateBudget({...next,startDate:'2026-02-30'}));
   const legacy={...b};delete legacy.startDate;delete legacy.endDate;
   assert.equal(parseBook(serializeBook(legacy)).startDate, undefined);
+});
+
+test('allocation links use row rails above staggered categories, never another category interior', () => {
+  const rects={project:{x:350,y:0,w:210,h:210},budget:{x:200,y:280,w:480,h:400}};
+  const categories=Array.from({length:5},(_,i)=>'category:'+i);
+  categories.forEach((id,i)=>{rects[id]={x:50+(i%3)*300,y:800+Math.floor(i/3)*350+(i%3)*32,w:210,h:210,rowY:800+Math.floor(i/3)*350};});
+  for(const {key,path} of gardenLinks(rects,categories,[])) {
+    const points=[];let x=0,y=0;
+    for(const part of path.matchAll(/([MHV])([\d.]+)(?: ([\d.]+))?/g)) {
+      if(part[1]==='M'){x=Number(part[2]);y=Number(part[3]);}
+      else {const nx=part[1]==='H'?Number(part[2]):x,ny=part[1]==='V'?Number(part[2]):y;points.push([x,y,nx,ny]);x=nx;y=ny;}
+    }
+    for(const id of categories.filter(id=>!key.endsWith('>'+id))) {
+      const r=rects[id];
+      for(const [x1,y1,x2,y2] of points) {
+        assert.equal(x1===x2?x1>r.x&&x1<r.x+r.w&&Math.max(y1,y2)>r.y&&Math.min(y1,y2)<r.y+r.h:y1>r.y&&y1<r.y+r.h&&Math.max(x1,x2)>r.x&&Math.min(x1,x2)<r.x+r.w,false,`${key} must avoid ${id}: ${path}`);
+      }
+    }
+  }
 });

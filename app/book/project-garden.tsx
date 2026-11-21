@@ -3,7 +3,7 @@
 import {useEffect, useRef, useState, type SetStateAction, type ReactNode} from "react";
 import {money, totals, type Budget, type Expense} from "./model.mjs";
 import {changeBoard, resolveNoteLink} from "./board-model.mjs";
-import {gardenView, resizeGarden} from "./garden-model.mjs";
+import {gardenView, resizeGarden, gardenLinks, type GardenRect} from "./garden-model.mjs";
 import {renderMarkdownDocument} from "../markdown-render";
 import "./project-garden.css";
 
@@ -84,22 +84,12 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
     const root=canvas.current;if(!root)return;
     function measure() {
       if(!root)return;const origin=root.getBoundingClientRect();
-      const rect=(id:string)=>{
-        const el=Array.from(root.querySelectorAll<HTMLElement>('[data-garden-node]')).find(n=>n.dataset.gardenNode===id);
-        if(!el)return null;const r=el.getBoundingClientRect();
-        return {x:r.x-origin.x+root.scrollLeft,y:r.y-origin.y+root.scrollTop,w:r.width,h:r.height};
-      };
-      const edges:{key:string;path:string}[]=[];
-      function link(from:string,to:string,entry=false) {
-        const a=rect(from),b=rect(to);if(!a||!b)return;
-        const ax=a.x+a.w/2, ay=a.y+a.h, bx=b.x+b.w/2;
-        const path=entry?`M${ax} ${ay}V${ay+20}H${b.x-20}V${b.y+b.h/2}H${b.x}`:to.startsWith('category:')?`M${ax} ${ay}V${ay+24}H4V${b.y+b.h/2}H${b.x}`:`M${ax} ${ay}V${ay+24}H${bx}V${b.y}`;
-        edges.push({key:from+'>'+to,path});
-      }
-      link('project','budget');
-      displayed.forEach(c=>link('budget','category:'+c.id));
-      view.entries.forEach(e=>link('category:'+e.categoryId,'entry:'+e.id,true));
-      setLines(edges);
+      const rects:Record<string,GardenRect>={};
+      root.querySelectorAll<HTMLElement>('[data-garden-node]').forEach(el=>{
+        const r=el.getBoundingClientRect(),branch=el.closest('.garden-branch')?.getBoundingClientRect();
+        rects[el.dataset.gardenNode!]={x:r.x-origin.x+root.scrollLeft,y:r.y-origin.y+root.scrollTop,w:r.width,h:r.height,rowY:branch?branch.y-origin.y+root.scrollTop:undefined};
+      });
+      setLines(gardenLinks(rects,displayed.map(c=>'category:'+c.id),view.entries));
     }
     const ro=new ResizeObserver(measure);ro.observe(root);root.querySelectorAll('[data-garden-node]').forEach(n=>ro.observe(n));
     let alive=true;void document.fonts.ready.then(()=>{if(alive)measure();});measure();
