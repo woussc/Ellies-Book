@@ -75,7 +75,10 @@ export function watchNativeKeyboard(registerShare: typeof registerNativeShare) {
     });
   };
   const focus = () => { if (keyboardVisible) scrollField(); };
+  const layout = new ResizeObserver(focus);
+  layout.observe(document.body);
   document.addEventListener("focusin", focus);
+  window.addEventListener("resize", focus);
   const listeners = [
     Keyboard.addListener("keyboardDidShow", () => {
       keyboardVisible = true;
@@ -90,7 +93,9 @@ export function watchNativeKeyboard(registerShare: typeof registerNativeShare) {
   return () => {
     registerShare();
     cancelAnimationFrame(frame);
+    layout.disconnect();
     document.removeEventListener("focusin", focus);
+    window.removeEventListener("resize", focus);
     document.documentElement.classList.remove("native-keyboard-open");
     for (const listener of listeners) void listener.then((handle) => handle.remove());
   };

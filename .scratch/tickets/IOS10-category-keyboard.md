@@ -1,0 +1,7 @@
+# IOS10 — Native category keyboard scrolling
+
+- Scope: re-scroll the focused field when native keyboard resize finishes, including new category entry and switching fields with the keyboard already shown. Preserve web behavior and cleanup listeners.
+- Verification: keyboard adapter regression for resize after keyboardDidShow, missing focus, hidden keyboard and cleanup; requested gates and inspected software-keyboard screenshot `/Users/devin/ios-shots/fix-category-keyboard.png`. Commit separately; do not push.
+- [Fact] Reproduced on the pre-fix app: submit a category with Return while its name field stays focused; inserting the category moves the input below the keyboard without another focus event (`fix-category-keyboard-before.png`). Native keyboardDidShow also precedes the Capacitor plugin's delayed native frame resize in the inspected plugin implementation.
+- [Fact] Native startup now watches body layout and window resize while the keyboard is visible, reusing focused-field scroll scheduling. Cleanup disconnects the observer and removes the resize listener. Regression covers both notifications, absent focus, hidden keyboard and disposal. Web startup remains a no-op.
+- [Fact] After the fix, focused New category name, Add category and Save allocations remain visible after submission without a manual swipe. Opened and inspected `/Users/devin/ios-shots/fix-category-keyboard.png` with the software keyboard and Done toolbar visible. Shared gate results are recorded in IOS9 and HANDOFF-STATE. Do not push these two fixes until SHUAI authorizes it.

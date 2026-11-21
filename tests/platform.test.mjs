@@ -134,10 +134,23 @@ test("native keyboard restores Done and scrolls each focused field after resize"
   native = true;
   const classes = new Set();
   const events = new Map();
+  const viewportEvents = new Map();
+  let layoutChanged;
+  let disconnected = false;
+  globalThis.ResizeObserver = class {
+    constructor(callback) { layoutChanged = callback; }
+    observe(element) { assert.equal(element, document.body); }
+    disconnect() { disconnected = true; }
+  };
+  globalThis.window = {
+    addEventListener: (name, handler) => viewportEvents.set(name, handler),
+    removeEventListener: (name) => viewportEvents.delete(name),
+  };
   globalThis.HTMLElement = class {};
   const field = new HTMLElement();
   field.scrollIntoView = mock.fn();
   globalThis.document = {
+    body: {},
     documentElement: { classList: {
       add: (name) => classes.add(name), remove: (name) => classes.delete(name),
     } },
@@ -166,16 +179,29 @@ test("native keyboard restores Done and scrolls each focused field after resize"
   assert.deepEqual(field.scrollIntoView.mock.calls[0].arguments, [{ block: "center", behavior: "smooth" }]);
   events.get("focusin")();
   assert.equal(field.scrollIntoView.mock.callCount(), 2);
+  viewportEvents.get("resize")();
+  assert.equal(field.scrollIntoView.mock.callCount(), 3);
+  layoutChanged();
+  assert.equal(field.scrollIntoView.mock.callCount(), 4);
   document.activeElement = null;
   events.get("focusin")();
+  viewportEvents.get("resize")();
+  layoutChanged();
+  document.activeElement = field;
   keyboardEvents.get("keyboardDidHide")();
   assert.equal(classes.has("native-keyboard-open"), false);
   events.get("focusin")();
-  assert.equal(field.scrollIntoView.mock.callCount(), 2);
+  viewportEvents.get("resize")();
+  layoutChanged();
+  assert.equal(field.scrollIntoView.mock.callCount(), 4);
   stop();
   await Promise.resolve();
   assert.deepEqual(removedListeners.sort(), ["keyboardDidHide", "keyboardDidShow"]);
   assert.equal(events.size, 0);
+  assert.equal(viewportEvents.size, 0);
+  assert.equal(disconnected, true);
+  delete globalThis.ResizeObserver;
+  delete globalThis.window;
   delete globalThis.document;
   delete globalThis.HTMLElement;
   delete globalThis.requestAnimationFrame;
