@@ -118,6 +118,7 @@
 .project-app-shell .form-pair>label {min-width:0}
 .project-app-shell :where(input:not([type=radio]):not([type=checkbox]):not([type=file])),.project-app-shell select {height:48px;min-height:48px;max-width:100%}
 .project-app-shell .input-wrap>input[type=number] {height:46px;min-height:46px}
+.project-app-shell select {appearance:none;padding:0 40px 0 12px;line-height:1.5;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23536156' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:16px}
 .project-app-shell input[type=date] {appearance:none;display:block;width:100%;min-width:0;box-sizing:border-box}
 .project-app-shell input[type=date]::-webkit-date-and-time-value {text-align:left;min-width:0}
 .project-app-shell .empty-library>p {margin:12px 0 24px}

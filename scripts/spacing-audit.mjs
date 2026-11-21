@@ -79,6 +79,12 @@ for(const engine of engines){
    }
    const fills=[...document.querySelectorAll('.garden-entry-open,.mode-switch button')].filter(visible).map(e=>({name:text(e),background:getComputedStyle(e).backgroundColor,appearance:getComputedStyle(e).appearance}));
    const spacingIssues=[];
+   for(const select of document.querySelectorAll('select')){
+    if(!visible(select))continue;
+    const style=getComputedStyle(select),height=select.getBoundingClientRect().height;
+    const contentHeight=height-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom)-parseFloat(style.borderTopWidth)-parseFloat(style.borderBottomWidth);
+    if(contentHeight<parseFloat(style.lineHeight)-1||style.appearance!=='none')spacingIssues.push('Native select text clearance');
+   }
    if(state==='entries-action-clearance'){
     const nav=document.querySelector('.mobile-nav'),remove=document.querySelector('.remove-entry');
     if(nav&&remove&&visible(nav)&&visible(remove)&&(rr(remove).bottom>rr(nav).y||rr(remove).y<0))spacingIssues.push('Remove action hidden by phone navigation');
