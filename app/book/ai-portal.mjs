@@ -1,4 +1,4 @@
-import { money, reportText, totals, validateBudget } from "./model.mjs";
+import { money, reportText, round, totals, validateBudget } from "./model.mjs";
 
 /** @typedef {import('./model.mjs').Budget} Budget */
 /** @typedef {{json: object, text: string}} ToolResult */
@@ -38,19 +38,20 @@ function checkArgs(args, properties) {
 export function createAiPortal(book) {
   validateBudget(book);
   const budget = structuredClone(book);
+  const planned = (categoryId) => round(budget.expenses.filter(e=>e.status==='planned' && (!categoryId || e.categoryId===categoryId)).reduce((sum,e)=>sum+e.amount,0));
   const summary = () => {
     const t = totals(budget);
-    return { name: budget.name, profile: budget.profile, period: budget.period, currency: "USD", budget: budget.total, planned: t.plan, committed: t.committed, paid: t.spent, remaining: t.left };
+    return { name: budget.name, profile: budget.profile, period: budget.period, currency: "USD", budget: budget.total, allocated: t.plan, planned: planned(), committed: t.committed, paid: t.spent, remaining: t.left };
   };
   const categories = () => budget.categories.map((c) => {
     const t = totals(budget, c.id);
-    return { name: c.name, planned: t.plan, paid: t.spent, committed: t.committed, remaining: t.left, overBudget: t.left < 0 };
+    return { name: c.name, allocated: t.plan, planned: planned(c.id), paid: t.spent, committed: t.committed, remaining: t.left, overBudget: t.left < 0 };
   });
   const statusLines = () => {
     const s = summary();
     return [
       s.remaining < 0 ? `Over budget by ${money(Math.abs(s.remaining))}.` : `Left to spend: ${money(s.remaining)}.`,
-      `Total budget: ${money(s.budget)}. Planned by category: ${money(s.planned)}.`,
+      `Approved Budget: ${money(s.budget)}. Category allocation: ${money(s.allocated)}. Planned estimates: ${money(s.planned)}.`,
       `Spent (paid): ${money(s.paid)}. Still to pay: ${money(s.committed)}.`,
       "Left to spend is after what you have paid and what is still to pay. Planned entries are ideas, not payments.",
     ];
@@ -64,10 +65,10 @@ export function createAiPortal(book) {
     },
   });
   return [
-    tool("get_book_summary", "Read my budget", "Read the book name, period and money totals. Planned means the category plan, not payments.", {}, () => ({ json: summary(), text: `${budget.name} · ${budget.period} · ${budget.profile}\n${statusLines().join("\n")}` })),
+    tool("get_book_summary", "Read my budget", "Read the book name, period and money totals. Planned means uncommitted estimates; allocation divides the approved limit.", {}, () => ({ json: summary(), text: `${budget.name} · ${budget.period} · ${budget.profile}\n${statusLines().join("\n")}` })),
     tool("list_categories", "Read my categories", "Read each category plan, paid spending, still to pay and remaining amount. Over budget means remaining is below zero.", {}, () => {
       const rows = categories();
-      return { json: { categories: rows }, text: rows.map((c) => `${c.name}: ${money(c.planned)} planned, ${money(c.paid)} paid, ${money(c.committed)} still to pay, ${money(c.remaining)} left.${c.overBudget ? " Over budget." : ""}`).join("\n") || "No categories yet." };
+      return { json: { categories: rows }, text: rows.map((c) => `${c.name}: ${money(c.allocated)} allocated, ${money(c.planned)} planned, ${money(c.paid)} paid, ${money(c.committed)} still to pay, ${money(c.remaining)} left.${c.overBudget ? " Over budget." : ""}`).join("\n") || "No categories yet." };
     }),
     tool("list_spending", "Read my spending", "Read spending in book order. Filter by category name, status or inclusive dates. This does not change any entries.", spendingProperties, (args) => {
       const rows = budget.expenses.filter((e) =>
@@ -97,6 +98,7 @@ export function buildAiReadyPack(book) {
     "## Categories", categories.text,
     "## Spending", ["Date | Category | Description | Amount | Status", "--- | --- | --- | --- | ---", ...rows].join("\n"),
     rows.length ? "" : "No spending entries yet.",
+    "## Entry notes", book.expenses.filter(e=>e.notes).map(e=>`### ${e.description}\n${e.notes}`).join('\n\n') || "No entry notes yet.",
     "## Notes", book.notes || "No notes yet.",
   ].join("\n\n");
 }

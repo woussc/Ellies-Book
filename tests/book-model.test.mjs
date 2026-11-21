@@ -258,7 +258,7 @@ test("budget detail edits retain prior funding and descriptive values after a Ma
   const event = parseBook(serializeBook(updated)).events.at(-1);
   assert.deepEqual(event.before, { name: "December", total: 1200, profile: "Household", period: "December 2026" });
   assert.deepEqual(event.after, { name: "Holiday", total: 1500, profile: "Team", period: "January 2027" });
-  assert.match(event.text, /Budget total: \$1,200 → \$1,500/);
+  assert.match(event.text, /Budget total: \$1,200\.00 → \$1,500\.00/);
   assert.match(event.text, /Name: December → Holiday/);
   assert.match(event.text, /Period: December 2026 → January 2027/);
   assert.match(event.text, /Profile: Household → Team/);

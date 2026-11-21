@@ -46,7 +46,7 @@ jobs:
         run: pnpm run lint
 
       - name: Domain gate (dependency-free)
-        run: node --test tests/budget-domain.test.mjs tests/book-model.test.mjs tests/board-model.test.mjs tests/canvas-model.test.mjs tests/library-model.test.mjs tests/markdown-render.test.mjs
+        run: node --test tests/budget-domain.test.mjs tests/book-model.test.mjs tests/board-model.test.mjs tests/canvas-model.test.mjs tests/library-model.test.mjs tests/markdown-render.test.mjs tests/project-garden.test.mjs
 
       - name: Build (vinext / Vite production build)
         run: pnpm run build

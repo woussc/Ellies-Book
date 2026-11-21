@@ -17,20 +17,24 @@ export function BookSetup({
   onCreate,
   onCancel,
   onExample,
+  mode = "Household",
 }: {
   book?: LocalBook;
   onCreate: (bookName: string, project: Budget) => void;
   onCancel: () => void;
   onExample: () => void;
+  mode?: Profile;
 }) {
   const [step, setStep] = useState(book ? 1 : 0);
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>(
-    book?.projects[0].profile ?? "Household",
+    book?.projects[0].profile ?? mode,
   );
   const [projectName, setProjectName] = useState("");
   const [total, setTotal] = useState("");
   const [period, setPeriod] = useState(localDate().slice(0, 7));
+  const [startDate, setStartDate] = useState(localDate());
+  const [endDate, setEndDate] = useState(localDate());
   const [categories, setCategories] = useState(
     profiles[profile].map((name) => ({ name, amount: "" })),
   );
@@ -62,12 +66,15 @@ export function BookSetup({
       setError("Category allocations cannot exceed this project’s budget.");
       return;
     }
+    if (endDate < startDate) { setError("End date must be on or after start date."); return; }
     const project = blankBudget(profile);
     onCreate(book?.name ?? name.trim(), {
       ...project,
       name: projectName.trim() || "General",
       total: round(total),
       period,
+      startDate,
+      endDate,
       created: true,
       categories: categories.map((category, i) => ({
         id: `category-${i}`,
@@ -96,15 +103,12 @@ export function BookSetup({
       </ol>
       <div className="setup-columns">
         <div className="setup-intro">
-          <p className="eyebrow">
-            {book ? `A new project in ${book.name}` : "A fresh chapter"}
-          </p>
           <h1>
             {
               [
-                "A book for your plans.",
-                "Give this project room.",
-                "Make room for what matters.",
+                "Create a book",
+                "Set the project budget",
+                "Allocate categories",
               ][step]
             }
           </h1>
@@ -113,7 +117,7 @@ export function BookSetup({
               [
                 "Keep a part of your life together, with a separate budget for each project.",
                 "One project, one budget. Other projects keep their own totals.",
-                "Choose where this project’s money can go. You can change these later in Plan.",
+                "Choose where this project’s money can go. Change allocations in Budget settings.",
               ][step]
             }
           </p>
@@ -140,9 +144,9 @@ export function BookSetup({
                 />
               </label>
               <fieldset>
-                <legend>Start with a template</legend>
+                <legend>{profile} categories</legend>
                 <div className="template-choices">
-                  {(Object.keys(profiles) as Profile[]).map((item) => (
+                  {([mode] as Profile[]).map((item) => (
                     <button
                       type="button"
                       key={item}
@@ -160,7 +164,7 @@ export function BookSetup({
                   ))}
                 </div>
                 <p className="hint">
-                  A starting set of categories, not an account type.
+                  {mode === "Team" ? "Projects, accountable owners and finance codes." : mode === "Just me" ? "Personal plans and everyday spending." : "Shared bills, household spending and family plans."}
                 </p>
               </fieldset>
             </>
@@ -191,7 +195,7 @@ export function BookSetup({
                 />
               </label>
               <label>
-                Budget period
+                Period name
                 <input
                   required
                   type="month"
@@ -199,6 +203,10 @@ export function BookSetup({
                   onChange={(e) => setPeriod(e.target.value)}
                 />
               </label>
+              <div className="form-pair">
+                <label>Start date<input type="date" required value={startDate} onChange={e=>setStartDate(e.target.value)} /></label>
+                <label>End date<input type="date" required min={startDate} value={endDate} onChange={e=>setEndDate(e.target.value)} /></label>
+              </div>
               <p className="safe-note">
                 This is this project’s budget, not a shared pot for the whole
                 book.

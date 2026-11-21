@@ -71,6 +71,10 @@ export function validateBudget(b) {
   const object = (v) => v && typeof v === "object" && !Array.isArray(v);
   const unique = (rows) => new Set(rows.map((r) => r.id)).size === rows.length;
   const states = ["planned", "committed", "paid"];
+  const validDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+  if ((b?.startDate !== undefined || b?.endDate !== undefined) &&
+      (!validDate(b.startDate) || !validDate(b.endDate) || b.startDate > b.endDate))
+    throw new Error("Choose a valid start and end date. End must not precede start.");
   if (
     !object(b) ||
     !text(b.id) ||
@@ -144,6 +148,7 @@ export function validateBudget(b) {
         text(e.id) &&
         e.id &&
         text(e.description) &&
+        (e.notes === undefined || (text(e.notes) && e.notes.length <= 50000)) &&
         amount(e.amount) &&
         e.amount > 0 &&
         categoryIds.has(e.categoryId) &&
@@ -206,7 +211,8 @@ export const money = (v) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: Number.isInteger(v) ? 0 : 2,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(v);
 export function blankBudget(profile = "Household", initial = {}) {
   return {
@@ -237,6 +243,8 @@ export function exampleBudget() {
   return {
     ...b,
     name: "Our November",
+    startDate: "2026-11-01",
+    endDate: "2026-11-30",
     total: 5000,
     created: true,
     sample: true,
@@ -357,7 +365,7 @@ export function advanceExpense(budget, id) {
 export function editExpense(budget, id, patch) {
   const before = budget.expenses.find((e) => e.id === id);
   if (!before) return budget;
-  const labels = { description: "Description", amount: "Amount", categoryId: "Category", status: "Status", date: "Date" };
+  const labels = { description: "Description", amount: "Amount", categoryId: "Category", status: "Status", date: "Date", notes: "Note" };
   const after = { ...before };
   for (const key of Object.keys(labels)) {
     if (Object.hasOwn(patch, key)) after[key] = patch[key];
@@ -406,13 +414,13 @@ export function removeExpense(budget, id) {
   };
 }
 export function editBudgetDetails(budget, details) {
-  const labels = { name: "Name", total: "Budget total", profile: "Profile", period: "Period" };
-  const before = Object.fromEntries(Object.keys(labels).map((key) => [key, budget[key]]));
-  const after = Object.fromEntries(Object.keys(labels).map((key) => [key, details[key]]));
+  const labels = { name: "Name", total: "Budget total", profile: "Profile", period: "Period", startDate: "Start date", endDate: "End date" };
+  const before = Object.fromEntries(Object.keys(labels).filter(key=>budget[key]!==undefined).map((key) => [key, budget[key]]));
+  const after = Object.fromEntries(Object.keys(labels).map((key) => [key, Object.hasOwn(details, key) ? details[key] : budget[key]]).filter(([,value])=>value!==undefined));
   const changed = Object.keys(labels).filter((key) => before[key] !== after[key]);
   if (budget.created && !changed.length) return budget;
   const value = (key, data) => key === "total" ? money(data[key]) : data[key];
-  return {
+  const next = {
     ...budget,
     ...after,
     categories: !budget.created && budget.profile !== details.profile
@@ -427,6 +435,7 @@ export function editBudgetDetails(budget, details) {
       after,
     }],
   };
+  return validateBudget(next);
 }
 export function editCategory(budget, id, patch) {
   const before = budget.categories.find((c) => c.id === id);
@@ -448,14 +457,14 @@ export function editCategory(budget, id, patch) {
 }
 export function reportText(budget) {
   const t = totals(budget);
-  return `# ${budget.name}\n${budget.period} · ${budget.profile}\n\nOur budget is ${money(budget.total)}. We've planned ${money(t.plan)} by category.\n\nWe've paid ${money(t.spent)}, with ${money(t.committed)} still to pay. That leaves ${money(t.left)} available after those commitments.\n\n## By category\n${budget.categories
+  return `# ${budget.name}\n${budget.period} · ${budget.profile}${budget.startDate ? ` · ${budget.startDate} — ${budget.endDate}` : ''}\n\nOur approved budget is ${money(budget.total)}. We've allocated ${money(t.plan)} by category.\n\nWe've paid ${money(t.spent)}, with ${money(t.committed)} still to pay. That leaves ${money(t.left)} available after those commitments.\n\n## By category\n${budget.categories
     .map((c) => {
       const s = totals(budget, c.id);
-      return `- ${c.name}: ${money(c.amount)} planned, ${money(s.spent)} paid, ${money(s.committed)} still to pay, ${money(s.left)} left.`;
+      return `- ${c.name}: ${money(c.amount)} allocated, ${money(s.spent)} paid, ${money(s.committed)} still to pay, ${money(s.left)} left.`;
     })
     .join(
       "\n",
-    )}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;
+    )}\n\n## Entry notes\n${budget.expenses.filter(e=>e.notes).map(e=>`### ${e.description}\n${e.notes}`).join('\n\n') || 'No entry notes yet.'}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;
 }
 export function csvText(budget) {
   const cell = (v) => {
@@ -466,7 +475,7 @@ export function csvText(budget) {
   return [
     [
       "Category",
-      "Planned USD",
+      "Allocation USD",
       "Paid USD",
       "Open commitments USD",
       "Available USD",

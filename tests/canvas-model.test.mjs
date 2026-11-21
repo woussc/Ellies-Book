@@ -209,7 +209,7 @@ test("semantic Fit keeps the Committed role instead of a squeezed partial label"
   }
 });
 
-test("narrow overview packs its financial summaries without reducing their readable scale", () => {
+test("legacy narrow overview keeps exact cents readable, stacking when needed", () => {
   for (const width of [313, 320]) {
     const nodes = canvasGraph(
       exampleBudget(),
@@ -221,14 +221,15 @@ test("narrow overview packs its financial summaries without reducing their reada
     ).nodes;
     const budget = nodes.find((n) => n.id === "budget");
     const paid = nodes.find((n) => n.id === "paid");
-    assert.ok(Math.abs(budget.y - paid.y) <= 16);
-    assert.ok(paid.x - budget.x - budget.width >= 12);
+    assert.ok(budget.width >= budget.minimumWidth);
+    assert.ok(paid.width >= paid.minimumWidth);
+    assert.ok(paid.y >= budget.y + budget.height + 12 || paid.x >= budget.x + budget.width + 12);
     assert.ok(
       Math.max(
         ...nodes
           .filter((n) => ["budget", "committed", "paid", "left"].includes(n.id))
           .map((n) => n.y + n.height),
-      ) <= 340,
+      ) <= 560,
     );
   }
 });

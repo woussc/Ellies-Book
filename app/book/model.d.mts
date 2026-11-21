@@ -14,6 +14,7 @@ export type Expense = {
   status: "planned" | "committed" | "paid";
   date: string;
   history: string[];
+  notes?: string;
 };
 export type Budget = {
   board?: BoardLayout;
@@ -22,6 +23,8 @@ export type Budget = {
   profile: Profile;
   total: number;
   period: string;
+  startDate?: string;
+  endDate?: string;
   created: boolean;
   sample: boolean;
   categories: Category[];
@@ -67,12 +70,12 @@ export function advanceExpense(budget: Budget, id: string): Budget;
 export function editExpense(
   budget: Budget,
   id: string,
-  patch: Partial<Pick<Expense, "description" | "amount" | "categoryId" | "status" | "date">>,
+  patch: Partial<Pick<Expense, "description" | "amount" | "categoryId" | "status" | "date" | "notes">>,
 ): Budget;
 export function removeExpense(budget: Budget, id: string): Budget;
 export function editBudgetDetails(
   budget: Budget,
-  details: Pick<Budget, "name" | "total" | "profile" | "period">,
+  details: Pick<Budget, "name" | "total" | "profile" | "period" | "startDate" | "endDate">,
 ): Budget;
 export function editCategory(
   budget: Budget,

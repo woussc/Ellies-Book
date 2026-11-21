@@ -11,7 +11,6 @@ import {
 } from "react";
 import {
   advanceExpense,
-  blankBudget,
   csvText,
   editCategory,
   editBudgetDetails,
@@ -19,7 +18,6 @@ import {
   exampleBudget,
   localDate,
   money,
-  profiles,
   serializeBook,
   reportText,
   removeExpense,
@@ -29,7 +27,8 @@ import {
 import { useBook } from "./use-book";
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
-import NodeBoard, {type NodeBoardHandle} from "./node-board";
+import ProjectGarden from "./project-garden";
+import type {NodeBoardHandle} from "./node-board";
 import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
 import { serializeLibrary } from "./library-model.mjs";
 import "./workspace.css";
@@ -39,8 +38,7 @@ type Page = "start" | "settings" | "plan" | "spend" | "home" | "report" | "books
 type ToastKind = "success" | "error" | "info";
 const pages: { id: Page; label: string; short: string; icon: string }[] = [
   { id: "home", label: "Your board", short: "Board", icon: "flow" },
-  { id: "plan", label: "Plan by category", short: "Plan", icon: "plan" },
-  { id: "spend", label: "Log spending", short: "Log", icon: "plus" },
+  { id: "spend", label: "Entries", short: "Entries", icon: "plan" },
   { id: "books", label: "Your books", short: "Books", icon: "book" },
   { id: "profile", label: "Your profile", short: "Profile", icon: "person" },
 ];
@@ -180,10 +178,13 @@ function CategoryInput({
 export default function BudgetApp() {
   const book = useBook();
   const [activePage, setPage] = useState<Page | null>(null);
+  const [selectedMode, setMode] = useState<Profile | null>(null);
   const [toast, setToast] = useState<{text: string; kind: ToastKind} | null>(null);
-  return <ProjectWorkspace key={book.budget.id} book={book} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
+  return <ProjectWorkspace key={book.budget.id} book={book} mode={selectedMode ?? book.budget.profile} setMode={setMode} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
 }
-function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
+function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setToast}: {
+  mode: Profile;
+  setMode: (mode: Profile) => void;
   book: ReturnType<typeof useBook>;
   activePage: Page | null;
   setPage: (page: Page | null) => void;
@@ -208,8 +209,10 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
     categoryId: "",
     status: "paid",
     date: localDate(),
+    notes: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [entryFilter, setEntryFilter] = useState("all");
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const newEntryDraft = useRef(draft);
   const spendingForm = useRef<HTMLFormElement>(null);
@@ -263,7 +266,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
     editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
     setConfirmRemoval(false);
-    setDraft({ ...expense, amount: String(expense.amount) });
+    setDraft({ ...expense, amount: String(expense.amount), notes: expense.notes ?? "" });
     requestAnimationFrame(() => {
       spendingForm.current?.scrollIntoView({ block: "start" });
       spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
@@ -289,7 +292,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
     setBudget((b) => editCategory(b, id, patch));
   }
   function create(
-    details: Pick<Budget, "name" | "total" | "profile" | "period">,
+    details: Pick<Budget, "name" | "total" | "profile" | "period" | "startDate" | "endDate">,
   ) {
     const saved = setBudget(editBudgetDetails(budget, details));
     notify(
@@ -330,7 +333,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
   function selectProject(projectId: string) {
     const saved = libraryAction({ type: "select", id: projectId });
     setEditingId(null);
-    setDraft({description: "", amount: "", categoryId: "", status: "paid", date: localDate()});
+    setDraft({description: "", amount: "", categoryId: "", status: "paid", date: localDate(), notes: ""});
     go("home");
     if (!saved) notify("Project is open on this page only. Download all books before leaving.", "error");
   }
@@ -359,6 +362,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
           categoryId,
           status: draft.status as Expense["status"],
           date: draft.date,
+          notes: draft.notes,
         }));
         closeExpense();
         notify(saved ? "Changes saved. Your totals and report are up to date." : "Changes are on this page only. Download a book backup before leaving.");
@@ -379,7 +383,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
       { ...budget, expenses: [...budget.expenses, expense] },
       `Added ${expense.description} · ${expense.status} · ${money(amount)}`,
     );
-    setDraft({ ...draft, description: "", amount: "" });
+    setDraft({ ...draft, description: "", amount: "", notes: "" });
     notify(
       saved
         ? `${expense.description} saved as ${expense.status}.`
@@ -414,35 +418,28 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
       {action}
     </header>
   );
-  const needsBudget = !budget.created && !["start", "books", "profile"].includes(page);
+  const needsBudget = (!budget.created || budget.profile !== mode) && !["start", "books", "profile"].includes(page);
+  const modeLibrary = {...library, books: library.books.map(b=>({...b,projects:b.projects.filter(p=>p.profile===mode)})).filter(b=>b.projects.length)};
+  function switchMode(next: Profile) {
+    if (next === mode) return;
+    if (editingId && !window.confirm("Leave this entry without saving?")) return;
+    setMode(next);
+    const project=library.books.flatMap(b=>b.projects).find(p=>p.profile===next);
+    if (project) selectProject(project.id); else go("books");
+  }
   const currentBook = library.books.find(book => book.projects.some(project => project.id === budget.id));
   return (
-    <div className={`app-shell${page === "home" ? " board-page" : ""}`} inert={status === "loading" ? true : undefined}>
+    <div className={`app-shell project-app-shell${page === "home" ? " board-page" : ""}`} inert={status === "loading" ? true : undefined}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <aside className="sidebar">
+      <header className="product-topbar">
         <button
           className="brand"
           onClick={() => go(budget.created ? "home" : "start")}
         >
           <BrandMark size={28} />
-          <span>
-            fennuma<span>A little more clarity.</span>
-          </span>
-        </button>
-        <button className="workspace scope-button" onClick={() => go("books")} aria-label="Switch book or project">
-          <span className="workspace-mark">
-            {budget.profile === "Team"
-              ? "T"
-              : budget.profile === "Just me"
-                ? "M"
-                : "H"}
-          </span>
-          <div>
-            <strong>{currentBook?.name || (budget.sample ? "Example book" : "Your next chapter")}</strong>
-            <span>{budget.name || "Choose a project"} ↗</span>
-          </div>
+          <span>fennuma</span>
         </button>
         <nav aria-label="Main navigation">
           {pages.map((p) => (
@@ -453,45 +450,16 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
               onClick={() => go(p.id)}
             >
               <Icon name={p.icon} />
-              <span>{p.label}</span>
-              {page === p.id && <span className="nav-dot" />}
+              <span>{p.short}</span>
             </button>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <Icon name="leaf" size={28} />
-          <p>
-            Make room for
-            <br />
-            <em>what matters.</em>
-          </p>
-          <span>Your budget. Your pace.</span>
-          <small>
-            Saved only in this browser.
-            <br />
-            No bank account connected.
-          </small>
+        <div className="mode-switch" role="group" aria-label="Budget mode">
+          {(["Household","Just me","Team"] as Profile[]).map(m=><button key={m} aria-pressed={mode===m} onClick={()=>switchMode(m)}>{m}</button>)}
         </div>
-      </aside>
+      </header>
       <div className="main-column">
-        <div className="topbar">
-          <span className="mobile-brand">
-            <BrandMark size={26} />
-            fennuma
-          </span>
-          <span className="desktop-crumb">
-            Your money, a little clearer <span>/</span>{" "}
-            {pages.find((p) => p.id === page)?.label}
-          </span>
-          <span className="save-status">
-            <span />
-            {status === "loading"
-              ? "Opening book…"
-              : storageError
-                ? "Not saved"
-                : "Saved on this device"}
-          </span>
-        </div>
+        {status === "loading" && <p role="status" className="opening-book">Opening book…</p>}
         <main id="main" tabIndex={-1}>
           {budget.sample && (
             <div className="sample-banner">
@@ -555,23 +523,19 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
             </>
           ) : (
             <>
-              {page === "start" && <BookSetup key={setupBookId || "new-book"} book={library.books.find(book => book.id === setupBookId)} onCancel={() => go("books")} onExample={() => { setBudget(exampleBudget()); go("home"); }} onCreate={(name, project) => {
+              {page === "start" && <BookSetup mode={mode} key={`${mode}:${setupBookId || "new-book"}`} book={modeLibrary.books.find(book => book.id === setupBookId)} onCancel={() => go("books")} onExample={() => { setMode("Household"); setBudget(exampleBudget()); go("home"); }} onCreate={(name, project) => {
                 const saved = libraryAction(setupBookId ? {type:"project",bookId:setupBookId,project} : {type:"book",name,project});
-                setDraft({description:"",amount:"",categoryId:"",status:"paid",date:localDate()});
+                setDraft({description:"",amount:"",categoryId:"",status:"paid",date:localDate(),notes:""});
                 go("home");
                 notify(saved ? "Your project is ready. Welcome to your board." : "Project created on this page only. Download all books before leaving.", saved ? "success" : "error");
               }} />}
-              {page === "books" && <BooksPage library={library} onNewBook={() => newBook()} onNewProject={id => newBook(id)} onOpen={selectProject} onRestore={restore} onBackup={backupAll} />}
+              {page === "books" && <BooksPage library={modeLibrary} onNewBook={() => newBook()} onNewProject={id => newBook(id)} onOpen={selectProject} onRestore={restore} onBackup={backupAll} />}
               {page === "profile" && <ProfilePage library={library} onName={name => { const saved = libraryAction({type:"profile", name}); notify(saved ? "Local profile saved." : "Profile is not saved. Download all books before leaving.",saved ? "success":"error"); }} onBackup={backupAll} onProjectBackup={backup} onRestore={restore} onSettings={() => go("settings")} hasProject={budget.created} />}
               {page === "settings" && (
                 <>
                   {header(
-                    budget.created
-                      ? "Make it your own."
-                      : "Good things start with a plan.",
-                    budget.created
-                      ? "Your budget can change as life does."
-                      : "A home for your money. A little space to breathe.",
+                    "Budget settings",
+                    `${budget.name} · Approved limit and budget dates`,
                   )}
                   {legacy && (
                     <div className="legacy-notice">
@@ -601,55 +565,10 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                       onSave={create}
                     />
                     <aside className="start-aside">
-                      <div className="intro-note">
-                        <div className="book-art" aria-hidden="true">
-                          <Icon name="book" size={82} />
-                          <span className="book-flower">
-                            <Icon name="leaf" size={32} />
-                          </span>
-                        </div>
-                        <h2>
-                          Life beyond
-                          <br />spreadsheets.
-                        </h2>
-                        <p>
-                          Set a little aside for the everyday.
-                          <br />
-                          Make room for the someday.
-                          <br />
-                          Keep it all in one place.
-                        </p>
-                        <div className="small-rule" />
-                        <p className="note-foot">
-                          Start simple.
-                          <br />
-                          The details can come later.
-                        </p>
-                      </div>
-                      <div className="example-choice">
-                        <div>
-                          <strong>Want to look around first?</strong>
-                          <p>Try a household example. Remove it anytime.</p>
-                        </div>
-                        <button
-                          className="text-button"
-                          onClick={() => {
-                            if (!setBudget(exampleBudget())) {
-                              notify(
-                                "Could not open the example. Keep this page open and download a book backup before leaving.",
-                                "error",
-                              );
-                              return;
-                            }
-                            go("home");
-                            notify(
-                              "Example loaded. You can remove it at the top.",
-                            );
-                          }}
-                        >
-                          Explore an example <Icon name="arrow" size={18} />
-                        </button>
-                      </div>
+                      <h2>Category allocations</h2>
+                      <p>Allocate this project’s approved limit without creating a second budget.</p>
+                      <button className="secondary" onClick={()=>go("plan")}>Edit category allocations</button>
+                      {budget.notes && <details className="book-backup"><summary>Earlier project notes</summary><p>Preserved from your existing book. Copy relevant details into an entry’s note; nothing has been assigned or removed automatically.</p><div className="markdown-preview">{renderMarkdownDocument(budget.notes)}</div></details>}
                     </aside>
                   </div>
                   <details className="book-backup">
@@ -679,8 +598,8 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
               {page === "plan" && (
                 <>
                   {header(
-                    "A place for every plan.",
-                    "Give each category one amount. You can adjust it anytime.",
+                    "Category allocations",
+                    "Divide the approved budget across categories. Planned spending is entered in Entries.",
                   )}
                   <div className="content-grid">
                     <section className="paper plan-paper">
@@ -690,7 +609,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                       </div>
                       <div className="plan-col-head">
                         <span>What’s it for?</span>
-                        <span>Planned amount</span>
+                        <span>Allocation</span>
                       </div>
                       {budget.categories.map((c, i) => (
                         <div className="category-editor" key={c.id}>
@@ -735,7 +654,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                                 min="0"
                                 max="1000000000"
                                 step="0.01"
-                                aria-label={`${c.name} planned amount`}
+                                aria-label={`${c.name} allocation`}
                                 defaultValue={c.amount || ""}
                                 placeholder="0"
                                 onCommit={(value) =>
@@ -849,7 +768,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                         </button>
                       </form>
                       <div className="plan-total">
-                        <span>Total planned</span>
+                        <span>Total allocated</span>
                         <strong>{money(allocated)}</strong>
                       </div>
                       <button
@@ -865,13 +784,13 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                           go("home");
                         }}
                       >
-                        Save my plan
+                        Save allocations
                         <Icon name="check" size={19} />
                       </button>
                     </section>
                     <aside className="summary-aside">
-                      <h2>A little breathing room.</h2>
-                      <p>Your total budget</p>
+                      <h2>Allocation summary</h2>
+                      <p>Approved Budget</p>
                       <strong className="aside-total">
                         {money(budget.total)}
                       </strong>
@@ -883,7 +802,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                         />
                       </div>
                       <div className="split-line">
-                        <span>Planned so far</span>
+                        <span>Allocated so far</span>
                         <strong>{money(allocated)}</strong>
                       </div>
                       <div
@@ -914,13 +833,13 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
               {page === "spend" && (
                 <>
                   {header(
-                    "The little things add up.",
-                    "An idea, a bill, or a payment. Keep it all in one simple place.",
+                    "Entries",
+                    `${budget.name} · Add, correct or change the stage of one entry.`,
                   )}
                   <div className="content-grid spend-grid">
                     <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">
-                        <h2>{editingId ? "Edit spending" : "Log spending"}</h2>
+                        <h2>{editingId ? "Edit entry" : "Add entry"}</h2>
                         {editingId && <button type="button" className="text-button" onClick={() => closeExpense()}>Cancel</button>}
                       </div>
                       {editingId && <p className="hint editing-hint">Correct this entry below. Your totals update when you save.</p>}
@@ -1034,6 +953,9 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                           }
                         />
                       </label>
+                      <label className="field">Entry note (Markdown)
+                        <textarea maxLength={50000} rows={5} value={draft.notes} onChange={e=>setDraft({...draft, notes:e.target.value})} placeholder="Details, receipt reference or [[related entry]]" />
+                      </label>
                       {!budget.categories.length && (
                         <p className="error">
                           Add a category in your plan before logging spending.
@@ -1044,7 +966,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                         disabled={!budget.categories.length}
                         type="submit"
                       >
-                        {editingId ? "Save changes" : "Save spending"} <Icon name="check" size={19} />
+                        {editingId ? "Save changes" : "Save entry"} <Icon name="check" size={19} />
                       </button>
                       {editingId && (
                         confirmRemoval ? (
@@ -1068,6 +990,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                       )}
                     </form>
                     <section className="recent-spending">
+                      <div className="entry-filters" role="group" aria-label="Filter entries">{["all","planned","committed","paid"].map(s=><button key={s} className="outline-button" aria-pressed={entryFilter===s} onClick={()=>setEntryFilter(s)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div>
                       <div className="section-heading">
                         <h2 ref={entriesHeading} tabIndex={-1}>In your book</h2>
                         <span>
@@ -1085,7 +1008,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                           </p>
                         </div>
                       ) : (
-                        [...budget.expenses].reverse().map((e) => (
+                        [...budget.expenses].reverse().filter(e=>entryFilter==="all" || e.status===entryFilter).map((e) => (
                           <article className="expense-row" key={e.id}>
                             <button
                               type="button"
@@ -1150,21 +1073,20 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
               {budget.created && (
                 <section hidden={page !== "home"}>
                   {page === "home" && header(
-                    "Your board",
+                    "Board",
                     `${currentBook ? `${currentBook.name} / ` : ""}${budget.name} · ${budget.period}`,
                     <button className="primary heading-action canvas-add-entry" onClick={() => go("spend")}>
                       <Icon name="plus" size={19} /> Add entry
                     </button>,
                   )}
-                  <NodeBoard
-                    controller={boardController}
+                  <ProjectGarden
                     scope={`${currentBook?.name ? `${currentBook.name} / ` : ""}${budget.name}`}
                     key={budget.id}
-                    onEditingChange={setEditingLayout}
                     budget={budget}
                     setBudget={setBudget}
                     storageError={storageError}
                     onPlan={() => go("plan")}
+                    onSettings={() => go("settings")}
                     onSpend={(categoryId) => {
                       if (categoryId) setDraft(d => ({ ...d, categoryId }));
                       go("spend");
@@ -1226,7 +1148,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                           <thead>
                             <tr>
                               <th>Category</th>
-                              <th>Planned</th>
+                              <th>Allocation</th>
                               <th>Spent</th>
                               <th>Left</th>
                             </tr>
@@ -1252,7 +1174,7 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
                         Spent means paid. Left includes bills still to pay.{" "}
                         {money(Math.abs(unassigned))}{" "}
                         {unassigned < 0
-                          ? "is planned above the total budget."
+                          ? "is allocated above the approved budget."
                           : "of the total budget is not assigned to categories."}
                       </p>
                       <h3>What we want to remember</h3>
@@ -1337,10 +1259,6 @@ function ProjectWorkspace({book, activePage, setPage, toast, setToast}: {
               )}
             </>
           )}
-          <footer className="app-footer">
-            <span>Small steps. A clearer picture.</span>
-            <span>Fennuma</span>
-          </footer>
         </main>
       </div>
       <nav className="mobile-nav" aria-label="Mobile navigation">
@@ -1382,7 +1300,7 @@ function BudgetForm({
 }: {
   initialBudget: Budget;
   onSave: (
-    details: Pick<Budget, "name" | "total" | "period" | "profile">,
+    details: Pick<Budget, "name" | "total" | "period" | "profile" | "startDate" | "endDate">,
   ) => void;
 }) {
   // Editing details is a draft: only the explicit Save confirms the baseline.
@@ -1394,6 +1312,8 @@ function BudgetForm({
       total: budget.total,
       period: budget.period.trim(),
       profile: budget.profile,
+      startDate: budget.startDate,
+      endDate: budget.endDate,
     });
   }
   return (
@@ -1401,35 +1321,6 @@ function BudgetForm({
       <h2>
         {budget.created ? "Your budget details" : "Let’s start your budget"}
       </h2>
-      <fieldset className="profile-field">
-        <legend>Who are you planning for?</legend>
-        <div className="profile-options">
-          {(Object.keys(profiles) as Profile[]).map((p, i) => (
-            <label
-              key={p}
-              className={budget.profile === p ? "profile selected" : "profile"}
-            >
-              <input
-                type="radio"
-                name="profile"
-                value={p}
-                checked={budget.profile === p}
-                onChange={() =>
-                  setBudget((b) => ({
-                    ...b,
-                    profile: p,
-                    categories: b.created
-                      ? b.categories
-                      : blankBudget(p).categories,
-                  }))
-                }
-              />
-              <Icon name={["home", "person", "people"][i]} />
-              <span>{p}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
       <label className="field">
         Give your budget a name
         <input
@@ -1477,6 +1368,10 @@ function BudgetForm({
             onChange={(e) => setBudget({ ...budget, period: e.target.value })}
           />
         </label>
+      </div>
+      <div className="form-pair">
+        <label className="field">Start date<input required type="date" value={budget.startDate ?? ""} onChange={e=>setBudget({...budget,startDate:e.target.value})} /></label>
+        <label className="field">End date<input required type="date" min={budget.startDate} value={budget.endDate ?? ""} onChange={e=>setBudget({...budget,endDate:e.target.value})} /></label>
       </div>
       <p className="hint">
         This is the amount you’re happy to work within. You’re in charge.
