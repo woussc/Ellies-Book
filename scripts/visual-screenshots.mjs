@@ -186,6 +186,12 @@ async function checkReportAndAudit(page) {
   assert.ok((await page.locator(".report-period").innerText()).includes(budget.startDate));
   assert.ok((await page.locator(".report-period").innerText()).includes(budget.endDate));
   assert.match(await page.locator(".report-entry-notes").innerText(),/November rent[\s\S]*Home repairs[\s\S]*Keep this edit/);
+  await page.getByRole("button",{name:"Ask AI",exact:true}).click();
+  const entryNoteCount=budget.expenses.filter(entry=>entry.notes).length;
+  assert.equal(await page.locator(".ai-share-contents").getByText(`${entryNoteCount} entry ${entryNoteCount===1?"note":"notes"}`,{exact:true}).count(),1,"Sharing disclosure must count entry-owned notes, not only project notes");
+  await page.locator(".ai-exact-copy summary").click();
+  assert.match(await page.getByRole("textbox",{name:"Exact copy",exact:true}).inputValue(),/Home repairs[\s\S]*Keep this edit/);
+  await page.locator(".ai-sheet").getByRole("button",{name:"Close",exact:true}).click();
   await page.emulateMedia({media:"print"});
   assert.equal(await page.locator(".report-entry-notes").isVisible(),true);
   await page.emulateMedia({media:"screen"});

@@ -9,6 +9,7 @@ export default function AskAiSheet({ pack, book, onClose }: { pack: string; book
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [offerDownload, setOfferDownload] = useState(false);
+  const entryNotes = book.expenses.filter(entry => entry.notes).length;
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -41,7 +42,8 @@ export default function AskAiSheet({ pack, book, onClose }: { pack: string; book
           <li>Budget totals</li>
           <li>{book.categories.length} {book.categories.length === 1 ? "category" : "categories"}</li>
           <li>{book.expenses.length} spending {book.expenses.length === 1 ? "entry" : "entries"}</li>
-          <li>{book.notes.trim() ? "Your notes" : "Notes (none added yet)"}</li>
+          <li>{entryNotes} entry {entryNotes === 1 ? "note" : "notes"}</li>
+          <li>{book.notes.trim() ? "Project notes" : "Project notes (none added yet)"}</li>
         </ul>
       </section>
       <section className="ai-questions" aria-labelledby="ai-questions-title">
