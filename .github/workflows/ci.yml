@@ -111,11 +111,20 @@ jobs:
           pnpm run start &
           SERVER_PID=$!
           echo "Started vinext start (pid $SERVER_PID)"
+          READY_DEADLINE=$((SECONDS + 60))
+          until curl --fail --silent --max-time 2 "$BASE_URL" > /dev/null; do
+            if (( SECONDS >= READY_DEADLINE )); then
+              echo "Server did not become ready at $BASE_URL within 60s"
+              kill "$SERVER_PID" 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
           CAPTURE_FAILED=0
           # The script waits for the server to be ready, then captures each
           # viewport. It resolves `playwright` from the local node_modules.
-          node scripts/visual-screenshots.mjs || CAPTURE_FAILED=1
           node scripts/spacing-audit.mjs || CAPTURE_FAILED=1
+          node scripts/visual-screenshots.mjs || CAPTURE_FAILED=1
           # Always stop the server.
           kill "$SERVER_PID" 2>/dev/null || true
           if [ "$CAPTURE_FAILED" != "0" ]; then

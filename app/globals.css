@@ -232,15 +232,16 @@ body {
 .ai-sheet button { min-height: 44px; }
 .ai-sheet h3 { margin: 0 0 8px; font: 600 16px var(--font); }
 .ai-share-contents, .ai-questions { margin: 20px 0; }
-.ai-share-contents ul { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+.ai-share-contents ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 32px; }
 .ai-sheet ul { margin: 0; padding-left: 20px; }
-.ai-questions li + li { margin-top: 6px; }
+.ai-questions li + li { margin-top: 12px; }
 .ai-exact-copy { margin-top: 16px; border-top: 1px solid var(--border); }
 .ai-exact-copy summary { min-height: 44px; padding: 12px 0; cursor: pointer; }
 .ai-sheet .ai-pack-preview { min-height: 180px; height: 26dvh; resize: vertical; font: 14px/1.5 var(--font); }
 .ai-sheet [role="status"]:empty { display: none; }
 @media (max-width: 600px) {
   .ai-sheet { padding: 20px; margin-bottom: 16px; }
+  .ai-share-contents ul { grid-template-columns: minmax(0, 1fr); }
   .ai-sheet-actions { flex-direction: column; align-items: stretch; }
 }
 
@@ -1017,21 +1018,22 @@ main {
   margin-bottom: 10px;
 }
 .add-category {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 12px;
   margin: 18px 0;
 }
 .add-category input {
   border-color: transparent;
   background: var(--bg);
   font-size: 13px;
-  flex: 1;
-  width: 0;
+  padding: 12px 16px;
 }
 .add-category button {
   white-space: nowrap;
-  padding: 8px 0;
+  padding: 12px 16px;
+  min-height: 48px;
   font-size: 12px;
 }
 .plan-total {
@@ -2461,7 +2463,7 @@ tbody th {
     font-size: 14px;
   }
   .add-category input {
-    padding: 12px 10px;
+    padding: 12px 16px;
     font-size: 12px;
   }
   .add-category button {
@@ -2869,6 +2871,9 @@ button {
   min-height: 44px;
 }
 @media (max-width: 760px) {
+  .add-category {
+    grid-template-columns: minmax(0, 1fr);
+  }
   input,
   select,
   textarea,
@@ -2918,12 +2923,70 @@ button {
     font-size: 12px;
   }
 }
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--bg);
+  z-index: 101;
+  pointer-events: none;
+}
+.native-app.native-keyboard-open .app-shell .mobile-nav {
+  display: none;
+}
+.native-app .topbar {
+  height: calc(68px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: max(22px, env(safe-area-inset-left));
+  padding-right: max(22px, env(safe-area-inset-right));
+}
+.native-app .app-shell .product-topbar {
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.native-app .ai-sheet,
+.native-app .size-dialog {
+  top: env(safe-area-inset-top, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px);
+  margin-block: auto;
+}
+.native-app .garden-dialog,
+.native-app .node-detail {
+  top: env(safe-area-inset-top, 0px);
+  height: calc(100dvh - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+}
+.native-app .garden-drag,
+.native-app .garden-branch.is-dragging {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.native-app button {
+  -webkit-touch-callout: none;
+}
+.native-app input,
+.native-app select,
+.native-app textarea {
+  font-size: max(16px, 1em);
+  scroll-margin-block: 90px;
+}
+
 @media print {
+  body::before {
+    display: none;
+  }
   body {
     background: var(--white);
   }
   .sidebar,
   .topbar,
+  .product-topbar,
   .mobile-nav,
   .page-heading,
   .report-actions,

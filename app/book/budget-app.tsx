@@ -25,8 +25,10 @@ import {
   totals,
 } from "./model.mjs";
 import { useBook } from "./use-book";
+import { printReport, saveFile, shareReport, watchNativeKeyboard } from "./platform";
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
+import { registerNativeShare } from "./ai-share";
 import ProjectGarden from "./project-garden";
 import type {NodeBoardHandle} from "./node-board";
 import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
@@ -138,14 +140,6 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     </svg>
   );
 }
-function download(content: string, name: string, type = "text/markdown") {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 function CategoryInput({
   defaultValue = "",
   onCommit,
@@ -176,6 +170,7 @@ function CategoryInput({
   );
 }
 export default function BudgetApp() {
+  useEffect(() => watchNativeKeyboard(registerNativeShare), []);
   const book = useBook();
   const [activePage, setPage] = useState<Page | null>(null);
   const [selectedMode, setMode] = useState<Profile | null>(null);
@@ -200,6 +195,17 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const boardController = useRef<NodeBoardHandle>(null);
   const boardScroll = useRef(0);
   const page = activePage ?? (budget.created ? "home" : "start");
+  async function download(content: string, name: string, type = "text/markdown") {
+    try {
+      await saveFile(content, name, type);
+      return true;
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError")) {
+        notify("Could not export this file. Please try again.", "error");
+      }
+      return false;
+    }
+  }
   const [aiPack, setAiPack] = useState<string | null>(null);
   const storageError = status === "error";
   const [newCategory, setNewCategory] = useState("");
@@ -393,7 +399,9 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   }
   async function share() {
     try {
-      if (navigator.share) {
+      if (await shareReport(budget.name, reportText(budget))) {
+        notify("Report shared.");
+      } else if (navigator.share) {
         await navigator.share({ title: budget.name, text: reportText(budget) });
         notify("Report shared.");
       } else {
@@ -402,8 +410,9 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       }
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
-        download(reportText(budget), "budget-report.md");
-        notify("Your report was downloaded instead.");
+        if (await download(reportText(budget), "budget-report.md")) {
+          notify("Your report export is ready instead.");
+        }
       }
     }
   }
@@ -1207,8 +1216,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       </button>
                       <button
                         className="secondary full"
-                        onClick={() => {
-                          window.print();
+                        onClick={async () => {
+                          try {
+                            await printReport();
+                          } catch {
+                            notify("Could not open printing. Please try again.", "error");
+                          }
                         }}
                       >
                         Print / save as PDF
@@ -1216,9 +1229,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       </button>
                       <button
                         className="secondary full"
-                        onClick={() => {
-                          download(reportText(budget), "budget-report.md");
-                          notify("Report downloaded.");
+                        onClick={async () => {
+                          if (await download(reportText(budget), "budget-report.md")) {
+                            notify("Report export ready.");
+                          }
                         }}
                       >
                         Download report
@@ -1232,13 +1246,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                         </p>
                         <button
                           className="outline-button"
-                          onClick={() => {
-                            download(
+                          onClick={async () => {
+                            if (await download(
                               csvText(budget),
                               "budget-finance.csv",
                               "text/csv;charset=utf-8",
-                            );
-                            notify("Finance CSV exported.");
+                            )) notify("Finance CSV exported.");
                           }}
                         >
                           Export for finance <Icon name="download" size={17} />
