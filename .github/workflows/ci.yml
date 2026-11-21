@@ -114,8 +114,8 @@ jobs:
           CAPTURE_FAILED=0
           # The script waits for the server to be ready, then captures each
           # viewport. It resolves `playwright` from the local node_modules.
-          node scripts/visual-screenshots.mjs || CAPTURE_FAILED=1
           node scripts/spacing-audit.mjs || CAPTURE_FAILED=1
+          node scripts/visual-screenshots.mjs || CAPTURE_FAILED=1
           # Always stop the server.
           kill "$SERVER_PID" 2>/dev/null || true
           if [ "$CAPTURE_FAILED" != "0" ]; then
