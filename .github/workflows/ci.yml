@@ -46,7 +46,7 @@ jobs:
         run: pnpm run lint
 
       - name: Domain gate (dependency-free)
-        run: node --test tests/budget-domain.test.mjs tests/book-model.test.mjs tests/markdown-render.test.mjs
+        run: node --test tests/budget-domain.test.mjs tests/book-model.test.mjs tests/board-model.test.mjs tests/canvas-model.test.mjs tests/library-model.test.mjs tests/markdown-render.test.mjs tests/project-garden.test.mjs tests/ai-portal.test.mjs tests/ai-share.test.mjs tests/ai-ui.test.mjs
 
       - name: Build (vinext / Vite production build)
         run: pnpm run build
@@ -92,8 +92,8 @@ jobs:
         # already validated the frozen lockfile.
         run: pnpm add -D -w playwright@1
 
-      - name: Install Playwright Chromium + OS deps
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Chromium, WebKit and OS dependencies
+        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Build the app
         run: pnpm run build
@@ -104,6 +104,7 @@ jobs:
           PORT: "3000"
           BASE_URL: http://localhost:3000/
           SCREENSHOT_OUT: artifacts/screenshots
+          SPACING_OUT: artifacts/spacing
         run: |
           set -euo pipefail
           # Start the built app in the background.
@@ -114,6 +115,7 @@ jobs:
           # The script waits for the server to be ready, then captures each
           # viewport. It resolves `playwright` from the local node_modules.
           node scripts/visual-screenshots.mjs || CAPTURE_FAILED=1
+          node scripts/spacing-audit.mjs || CAPTURE_FAILED=1
           # Always stop the server.
           kill "$SERVER_PID" 2>/dev/null || true
           if [ "$CAPTURE_FAILED" != "0" ]; then
@@ -126,5 +128,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: visual-screenshots
-          path: artifacts/screenshots
+          path: artifacts/
           if-no-files-found: warn

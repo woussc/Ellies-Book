@@ -1,5 +1,11 @@
 # Context Checkpoint & Handoff State - Ellie's Book
 
+## Latest checkpoint — IOS7 PR 25 integration (walkthrough pending)
+
+- [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `314ae227d20e4410c0d40083cb6ea6b0e037fc60`; merged main at `d82390c`. Only `app/book/budget-app.tsx` conflicted: retained main's workspace/components and outline CSV button; retained native registration once at BudgetApp startup and async export/share/print inside ProjectWorkspace. Ask AI branding auto-merged with native cancellation intact. CSS auto-merged. Main's domain/library/CI changes are merge content, not additional native edits.
+- [Fact] All 108 Node tests (including rendered HTML), lint, production build, Pages and iOS build/sync passed. Restored the app SPM minimum to 15.4 after sync. Gate logs are `/Users/devin/pr25-*.log`.
+- [Fact] Upstream font-license files have existing CRLF/trailing whitespace; left them unchanged. Native touch, keyboard, safe-area and OS-sheet walkthrough remains in progress and will be recorded in a follow-up fix/checkpoint commit.
+
 ## Latest checkpoint — IOS6 PR 21 merge
 
 - [Fact] Branch `devin/1795084058-ios-capacitor`, starting commit `ac1a139efa484984e222dd482d6891310c6b25a8`; merged `origin/main` at `2e98ff0` without rebasing. IOS6 completes in the merge commit containing this checkpoint. Only `app/book/budget-app.tsx` conflicted. Kept PR 21 category draft commits, typed notifications, note modes, activity and Money flow recovery with native startup, report sharing, async file export and print. CSS auto-merged and retains safe-area coverage, 16px native fields and 44px targets. Ask AI native registration and cancellation remain intact.

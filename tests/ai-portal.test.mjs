@@ -27,14 +27,14 @@ test("summary and category money match the existing domain-backed calculation", 
   const t = totals(book);
   assert.deepEqual(call(book, "get_book_summary"), {
     name: book.name, profile: book.profile, period: book.period, currency: "USD", budget: book.total,
-    planned: t.plan, committed: t.committed, paid: t.spent, remaining: t.left,
+    allocated: t.plan, planned: 180, committed: t.committed, paid: t.spent, remaining: t.left,
   });
   assert.equal(t.spent, 1726.5);
   assert.equal(t.left, 3208.5);
   const rows = call(book, "list_categories").categories;
   book.categories.forEach((category, i) => {
     const s = totals(book, category.id);
-    assert.deepEqual(rows[i], { name: category.name, planned: s.plan, paid: s.spent, committed: s.committed, remaining: s.left, overBudget: s.left < 0 });
+    assert.deepEqual(rows[i], { name: category.name, allocated: s.plan, planned: category.id===book.expenses.find(e=>e.status==='planned').categoryId ? 180 : 0, paid: s.spent, committed: s.committed, remaining: s.left, overBudget: s.left < 0 });
   });
   const over = sample();
   over.total = 1;

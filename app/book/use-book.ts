@@ -2,16 +2,25 @@
 
 import { useSyncExternalStore, type SetStateAction } from "react";
 import {
-  blankBudget,
   legacyBackup,
-  persistBudget,
-  readStoredBudget,
   STORAGE_KEY,
   SAMPLE_STORAGE_KEY,
   type Budget,
 } from "./model.mjs";
+import {
+  activeBudget,
+  changeLibrary,
+  emptyLibrary,
+  initialProject,
+  LIBRARY_KEY,
+  readLibrary,
+  restoreLibrary,
+  serializeLibrary,
+} from "./library-model.mjs";
+import type { Library, LibraryAction } from "./library-model.mjs";
 
 type Snapshot = {
+  library: Library;
   budget: Budget;
   status: "loading" | "saved" | "error";
   error: string;
@@ -25,7 +34,8 @@ type Snapshot = {
 const serverSnapshot: Snapshot = {
   // Worker modules load outside request scope: no randomness or clock reads.
   // Browser hydration replaces this inert placeholder with a real book.
-  budget: blankBudget("Household", { id: "opening-book", period: "" }),
+  library: emptyLibrary(),
+  budget: initialProject(),
   status: "loading",
   error: "",
   legacy: "",
@@ -39,8 +49,10 @@ const emit = () => listeners.forEach((listener) => listener());
 function getSnapshot(): Snapshot {
   if (current) return current;
   try {
+    const library = readLibrary(localStorage);
     current = {
-      budget: readStoredBudget(localStorage),
+      library,
+      budget: activeBudget(library) ?? initialProject(),
       status: "saved",
       error: "",
       legacy: legacyBackup(localStorage),
@@ -53,6 +65,7 @@ function getSnapshot(): Snapshot {
       recovery = JSON.stringify(
         Object.fromEntries(
           [
+            LIBRARY_KEY,
             STORAGE_KEY,
             SAMPLE_STORAGE_KEY,
             "ellies-book:look-a:v1",
@@ -93,27 +106,29 @@ function subscribe(listener: () => void) {
   };
 }
 
-function setBudget(next: SetStateAction<Budget>, restore = false) {
+function saveLibrary(library: Library, recover = false) {
   const prev = getSnapshot();
-  const budget = typeof next === "function" ? next(prev.budget) : next;
-  if (prev.status === "error" && !prev.budget.sample && budget.sample) {
-    // The personal snapshot may be the only copy of failed writes. Never
-    // exchange it for disposable example data, even if storage recovers.
+  if (prev.blocked && !recover) {
     current = {
       ...prev,
-      error: "Your personal changes are not saved. Download a book backup and save your changes before opening the example.",
+      error:
+        "The saved library is protected. Download the saved copy before restoring books.",
     };
     emit();
     return false;
   }
+  const budget = activeBudget(library) ?? initialProject();
   try {
-    if (prev.blocked && !restore)
-      throw new Error(
-        "The saved book is protected. Download it before restoring another book.",
-      );
-    persistBudget(localStorage, budget);
+    const markdown = serializeLibrary(library);
+    if (prev.blocked && recover) {
+      const raw = localStorage.getItem(LIBRARY_KEY);
+      if (raw !== null)
+        localStorage.setItem(`${LIBRARY_KEY}:recovery:${Date.now()}`, raw);
+    }
+    localStorage.setItem(LIBRARY_KEY, markdown);
     current = {
       ...prev,
+      library,
       budget,
       status: "saved",
       error: "",
@@ -123,23 +138,47 @@ function setBudget(next: SetStateAction<Budget>, restore = false) {
   } catch (error) {
     current = {
       ...prev,
-      budget,
+      ...(!prev.blocked ? { library, budget } : {}),
       status: "error",
       error:
         error instanceof Error && prev.blocked
           ? error.message
-          : "This browser could not save your changes. Keep this page open and download a book backup before leaving.",
+          : "Changes are on this page only. Device storage is full or unavailable. Download all books before leaving.",
     };
   }
   emit();
   return current.status === "saved";
 }
 
+function libraryAction(action: LibraryAction) {
+  const prev = getSnapshot();
+  if (
+    prev.status === "error" &&
+    !prev.budget.sample &&
+    action.type === "example"
+  )
+    return false;
+  return saveLibrary(changeLibrary(prev.library, action));
+}
+
+function setBudget(next: SetStateAction<Budget>, projectId?: string) {
+  const prev = getSnapshot();
+  if (projectId && prev.budget.id !== projectId) return false;
+  const budget = typeof next === "function" ? next(prev.budget) : next;
+  if (budget.sample && (!prev.budget.sample || budget.id !== prev.budget.id))
+    return libraryAction({ type: "example" });
+  if (!activeBudget(prev.library))
+    return libraryAction({
+      type: "book",
+      name: budget.name || "My book",
+      project: budget,
+    });
+  return libraryAction({ type: "update", project: budget });
+}
+
 function removeExample() {
-  // Read first. A malformed personal book must never be silently replaced.
-  const personal = readStoredBudget(localStorage, false);
-  setBudget(personal);
-  return personal;
+  libraryAction({ type: "remove-example" });
+  return getSnapshot().budget;
 }
 
 export function useBook() {
@@ -148,5 +187,14 @@ export function useBook() {
     getSnapshot,
     () => serverSnapshot,
   );
-  return { ...snapshot, setBudget, removeExample };
+  return {
+    ...snapshot,
+    setBudget,
+    removeExample,
+    libraryAction,
+    restoreBooks: (markdown: string) => {
+      const prev = getSnapshot();
+      return saveLibrary(restoreLibrary(prev.library, markdown), prev.blocked);
+    },
+  };
 }
