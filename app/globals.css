@@ -2929,7 +2929,7 @@ body::before {
   z-index: 101;
   pointer-events: none;
 }
-.native-keyboard-open .mobile-nav {
+.native-app.native-keyboard-open .app-shell .mobile-nav {
   display: none;
 }
 .native-app .topbar {
@@ -2937,6 +2937,22 @@ body::before {
   padding-top: env(safe-area-inset-top);
   padding-left: max(22px, env(safe-area-inset-left));
   padding-right: max(22px, env(safe-area-inset-right));
+}
+.native-app .app-shell .product-topbar {
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.native-app .garden-dialog {
+  top: env(safe-area-inset-top, 0px);
+  height: calc(100dvh - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+}
+.native-app .garden-drag,
+.native-app .garden-branch.is-dragging {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .native-app button {
   -webkit-touch-callout: none;
@@ -2957,6 +2973,7 @@ body::before {
   }
   .sidebar,
   .topbar,
+  .product-topbar,
   .mobile-nav,
   .page-heading,
   .report-actions,
