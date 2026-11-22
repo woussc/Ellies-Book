@@ -233,10 +233,10 @@ for(const engine of engines){
    await p.getByLabel('End repeat',{exact:true}).selectOption('date');await p.getByLabel('Last bill date',{exact:true}).fill('2027-03-01');await snap('repeat-end-date',md,w,{shot:shots});
    await p.getByLabel('Repeat',{exact:true}).selectOption('none');
    await p.locator('.expense-edit').first().click();await snap('entries-edit',md,w,{shot:shots});
+   await p.waitForFunction(()=>document.activeElement===document.querySelector('.spending-form input'));
    await p.getByLabel('Apply changes to',{exact:true}).selectOption('future');await snap('repeat-edit-future',md,w,{shot:shots});
    await click('Stop repeating');await snap('repeat-stop-confirm',md,w,{shot:shots});await click('Keep repeating');
    await p.getByLabel('Apply changes to',{exact:true}).selectOption('this');
-   await p.waitForFunction(()=>document.activeElement===document.querySelector('.spending-form input'));
    await p.locator('.remove-entry').evaluate(el=>el.scrollIntoView({block:'center'}));await snap('entries-action-clearance',md,w,{shot:shots});
    await click('Remove entry');await snap('entries-remove-confirm',md,w,{shot:shots});await click('Keep entry');
    await click('Cancel');

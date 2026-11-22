@@ -26,12 +26,12 @@ export function RepeatEditor({value,onChange,date,rule}:{value:RepeatOptions;onC
     nextDate=repeatDates(preview,date,'9999-12-31',2).find(d=>d>date);
   }
   return <fieldset className="repeat-editor"><legend>Repeat this entry</legend>
-    {rule&&<label className="field">Apply changes to<select value={value.scope??'this'} onChange={e=>onChange({...value,scope:e.target.value as 'this'|'future'})}><option value="this">This entry only</option><option value="future">This and future repeats</option></select></label>}
+    {rule&&<label className="field">Apply changes to<select aria-label="Apply changes to" value={value.scope??'this'} onChange={e=>onChange({...value,scope:e.target.value as 'this'|'future'})}><option value="this">This entry only</option><option value="future">This and future repeats</option></select></label>}
     {locked?<p className="hint">Repeats {rule.frequency}. Changes here affect this entry only. Choose “This and future repeats” to change the amount or schedule going forward.</p>:<>
-      <div className="form-pair repeat-pair"><label className="field">Repeat<select value={value.frequency} onChange={e=>onChange({...value,frequency:e.target.value as RepeatOptions['frequency']})}>
+      <div className="form-pair repeat-pair"><label className="field">Repeat<select aria-label="Repeat" value={value.frequency} onChange={e=>onChange({...value,frequency:e.target.value as RepeatOptions['frequency']})}>
         {!rule&&<option value="none">Does not repeat</option>}<option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option>
       </select></label>
-      {value.frequency!=='none'&&<label className="field">End repeat<select value={value.endDate===undefined?'date':value.endDate?'date':'never'} onChange={e=>onChange({...value,endDate:e.target.value==='never'?'':undefined})}><option value="never">No end date</option><option value="date">On a date</option></select></label>}</div>
+      {value.frequency!=='none'&&<label className="field">End repeat<select aria-label="End repeat" value={value.endDate===undefined?'date':value.endDate?'date':'never'} onChange={e=>onChange({...value,endDate:e.target.value==='never'?'':undefined})}><option value="never">No end date</option><option value="date">On a date</option></select></label>}</div>
       {value.frequency!=='none'&&value.endDate!==''&&<label className="field repeat-end-date">Last bill date<input required type="date" min={date} value={value.endDate??''} onChange={e=>onChange({...value,endDate:e.target.value})}/></label>}
       {value.frequency!=='none'&&<div className="repeat-preview"><strong>{nextDate?`Next: ${displayDate(nextDate)} · Planned`:'No further bills after this entry.'}</strong><p>The amount starts on this entry’s date. Future repeats start as Planned, not Paid. Each period has its own budget to confirm. Receipt notes stay with this entry.</p></div>}
     </>}
