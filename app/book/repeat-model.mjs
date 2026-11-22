@@ -121,9 +121,17 @@ export function saveRepeatingEntry(budget,entry,options={frequency:'none'}) {
     ...(options.endDate?{endDate:options.endDate}:{}),description:entry.description.trim(),amount:entry.amount,categoryId:entry.categoryId,
     skipped:old?[...new Set((next.repeatRules??[]).filter(r=>(r.seriesId??r.id)===series).flatMap(r=>r.skipped??[]).filter(d=>d>=startDate))]:[]};
   next={...next,repeatRules:[...(next.repeatRules??[]).map(r=>replaced.has(r.id)?{...r,endDate:dayAfter(cutoff,-1)}:r),rule]};
-  if(old)next=mapPeriods(next,p=>({...p,expenses:p.expenses.filter(e=>e.id===entry.id||!replaced.has(e.repeatId)||e.status!=='planned'||e.occurrenceDate<cutoff)}));
+  const changedOccurrences=[];
+  if(old)next=mapPeriods(next,p=>({...p,expenses:p.expenses.flatMap(e=>{
+    if(e.id===entry.id||!replaced.has(e.repeatId)||e.status!=='planned'||e.occurrenceDate<cutoff)return [e];
+    changedOccurrences.push(e);
+    // Keep occurrence identity and its own receipt note when the date survives.
+    // Removed schedule dates remain recoverable in this edit's audit snapshot.
+    return repeatDates(rule,e.occurrenceDate,e.occurrenceDate).length
+      ?[{...e,repeatId:id,description:rule.description,amount:rule.amount,categoryId:rule.categoryId}]:[];
+  })}));
   next={...next,expenses:next.expenses.map(e=>e.id===entry.id?{...e,repeatId:id,occurrenceDate:startDate}:e)};
-  return prepareRepeats(audit(next,old?`Updated ${entry.description}: this and future repeats. Earlier records and Committed/Paid entries kept.`:`Repeating ${entry.description} ${rule.frequency}. Future entries start Planned.`,old??null,rule));
+  return prepareRepeats(audit(next,old?`Updated ${entry.description}: this and future repeats. Earlier records and Committed/Paid entries kept.`:`Repeating ${entry.description} ${rule.frequency}. Future entries start Planned.`,old?{rule:old,occurrences:changedOccurrences}:null,rule));
 }
 export function skipOccurrence(budget,id) {
   const entry=budget.expenses.find(e=>e.id===id);

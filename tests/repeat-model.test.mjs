@@ -65,3 +65,10 @@ test('legacy Markdown books are unchanged and malformed repeat backups are rejec
     const invalid=structuredClone(saved);mutate(invalid);assert.throws(()=>serializeBook(invalid));
   }
 });
+test('changing future amounts preserves occurrence-owned notes and records removed schedule dates in the audit',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next=openPeriod(next,'2027-01');const january=next.expenses[0];
+  next=saveRepeatingEntry(next,{...january,notes:'January receipt [[Rent]] #home'},{frequency:'monthly'});
+  next=openPeriod(next,'2026-12');next=saveRepeatingEntry(next,{...next.expenses[0],amount:1600},{frequency:'monthly',scope:'future'});
+  const changed=openPeriod(next,'2027-01');assert.equal(changed.expenses[0].id,january.id);assert.equal(changed.expenses[0].amount,1600);assert.equal(changed.expenses[0].notes,'January receipt [[Rent]] #home');
+});
