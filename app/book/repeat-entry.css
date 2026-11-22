@@ -1,0 +1,35 @@
+.repeat-timing {display:grid;gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-weight:400;color:var(--text);text-align:left;min-width:0;width:100%;}
+.repeat-cadence {display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;}
+.repeat-cadence svg {flex:none;}
+.repeat-dates {display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:12px 16px;}
+.repeat-dates>span {display:grid;gap:4px;min-width:0;font-size:14px;line-height:1.5;}
+.repeat-dates small {font-size:12px;color:var(--muted);font-weight:500;}
+.repeat-dates time {font-size:14px;white-space:normal;}
+.repeat-editor {min-width:0;border:0;border-top:1px solid var(--border);padding:20px 0 0;margin:0 0 24px;}
+.repeat-editor legend {font-size:16px;font-weight:700;padding:0 12px 0 0;}
+.repeat-editor .field {margin:12px 0 16px;}
+.repeat-editor .form-pair {margin:0;}
+.repeat-editor .repeat-pair>.field {min-width:0;}
+.repeat-preview {padding:16px;background:var(--soft);border-radius:12px;font-size:14px;line-height:1.6;}
+.repeat-preview p {margin:8px 0 0;color:var(--muted);font-size:14px;}
+.repeat-editor .hint {margin:8px 0 0;line-height:1.6;}
+.repeat-actions {display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;}
+.repeat-stop-confirmation {display:grid;gap:16px;padding:16px;border:1px solid var(--border);border-radius:12px;margin-bottom:24px;}
+.repeat-stop-confirmation h3,.repeat-stop-confirmation p {margin:0;}
+.period-switcher {margin:0 0 24px;}
+.period-controls {display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+.period-controls>.field {display:grid;gap:8px;min-width:0;flex:1 1 190px;max-width:330px;margin:0;}
+.period-controls select {min-height:48px;width:100%;min-width:0;}
+.period-controls>button {min-height:48px;gap:12px;}
+.period-budget-notice {display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin-top:16px;padding:16px;border:1px solid var(--border);border-radius:12px;}
+.period-budget-notice p {flex:1 1 260px;margin:0;line-height:1.6;font-size:14px;}
+.repeat-period-dialog .garden-dialog-body {display:grid;gap:20px;}
+.repeat-period-dialog .garden-dialog-body p,.repeat-period-dialog .field {margin:0;}
+.garden-entry .repeat-timing {margin-top:12px;padding-top:12px;}
+.garden-entry .repeat-dates {grid-template-columns:1fr;gap:8px;}
+.garden-entry .repeat-dates>span {display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;}
+@media(max-width:640px) {
+  .repeat-editor .repeat-pair {grid-template-columns:1fr;gap:0;}
+  .period-controls>.field {max-width:none;}
+  .period-controls>button {flex:1 1 130px;justify-content:center;}
+}

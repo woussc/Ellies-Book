@@ -379,7 +379,7 @@ export function BooksPage({
                 <dl>
                   <div>
                     <dt>Budget</dt>
-                    <dd>{money(project.total)}</dd>
+                    <dd>{project.budgetSet===false?'Not set':money(project.total)}</dd>
                   </div>
                   <div>
                     <dt>In use</dt>
@@ -387,7 +387,7 @@ export function BooksPage({
                   </div>
                   <div>
                     <dt>Left to commit</dt>
-                    <dd>{money(t.left)}</dd>
+                    <dd>{project.budgetSet===false?'Set budget first':money(t.left)}</dd>
                   </div>
                 </dl>
                 <button

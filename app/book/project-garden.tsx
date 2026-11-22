@@ -5,6 +5,7 @@ import {money, totals, type Budget, type Expense} from "./model.mjs";
 import {changeBoard, resolveNoteLink} from "./board-model.mjs";
 import {gardenView, resizeGarden, gardenLinks, type GardenRect} from "./garden-model.mjs";
 import {renderMarkdownDocument} from "../markdown-render";
+import {RepeatTiming} from './repeat-entry';
 import "./project-garden.css";
 
 const marks: Record<string,ReactNode> = {
@@ -30,12 +31,12 @@ function BudgetStatus({budget}:{budget:Budget}) {
   return <>
     <h2><NodeGlyph kind="budget"/>Budget status</h2>
     <p className="garden-period">{budget.startDate && budget.endDate ? `${budget.startDate} — ${budget.endDate}` : `${budget.period} · Dates need confirmation`}<span>USD</span></p>
-    <div className="garden-approved"><span>Approved Budget</span><strong className="money">{money(budget.total)}</strong></div>
+    <div className="garden-approved"><span>Approved Budget</span><strong className={budget.budgetSet===false?'':'money'}>{budget.budgetSet===false?'Not set yet':money(budget.total)}</strong></div>
     <dl className={`garden-metrics${large?' has-large-money':''}`}>
       <div><dt><Stage value="planned"/></dt><dd className="money">{money(t.planned)}</dd></div>
       <div><dt><Stage value="paid"/></dt><dd className="money">{money(t.spent)}</dd></div>
       <div><dt><Stage value="committed"/></dt><dd className="money">{money(t.committed)}</dd></div>
-      <div className={t.left<0?'negative':''}><dt><NodeGlyph kind={t.left<0?'alert':'budget'}/>{t.left<0?'Over by':'Room left'}</dt><dd className="money">{money(Math.abs(t.left))}</dd></div>
+      <div className={budget.budgetSet!==false&&t.left<0?'negative':''}><dt><NodeGlyph kind={budget.budgetSet!==false&&t.left<0?'alert':'budget'}/>{budget.budgetSet!==false&&t.left<0?'Over by':'Room left'}</dt><dd className={budget.budgetSet===false?'':'money'}>{budget.budgetSet===false?'Set budget first':money(Math.abs(t.left))}</dd></div>
     </dl>
   </>;
 }
@@ -138,6 +139,7 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
                   <button className="garden-entry-open" onClick={()=>setDetail('entry:'+e.id)}>
                     <h3><NodeGlyph kind="entry"/>{e.description}</h3><strong className="money">{money(e.amount)}</strong>
                     <span className="garden-entry-meta"><Stage value={e.status}/><time>{e.date}</time></span>
+                    <RepeatTiming budget={budget} entry={e}/>
                     {e.notes && <span className="garden-note-mark"><NodeGlyph kind="note"/>Attached note</span>}
                   </button>
                   {arrange && localControls('entry:'+e.id)}
@@ -162,7 +164,7 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
     {detail && <GardenDialog key={detail} title={detail==='project'?budget.name:detail==='budget'?'Budget details':detail.startsWith('entry:')?budget.expenses.find(e=>e.id===detail.slice(6))?.description??'Entry':budget.categories.find(c=>c.id===detail.slice(9))?.name??'Category'} onClose={()=>setDetail(null)}>
       {detail.startsWith('entry:')?(()=>{
         const e=budget.expenses.find(x=>x.id===detail.slice(6));if(!e)return <p>This entry is no longer available.</p>;
-        return <><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/><p>{budget.categories.find(c=>c.id===e.categoryId)?.name} · {e.date}</p><button className="primary" onClick={()=>{setDetail(null);onExpense(e);}}>Edit entry</button><h2>Entry note</h2>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
+        return <><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/><p>{budget.categories.find(c=>c.id===e.categoryId)?.name} · {e.date}</p><RepeatTiming budget={budget} entry={e}/><button className="primary" onClick={()=>{setDetail(null);onExpense(e);}}>Edit entry</button><h2>Entry note</h2>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
           const record=resolveNoteLink(budget,target);if(record)setDetail((budget.categories.some(c=>c.id===record.id)?'category:':'entry:')+record.id);else setMessage(`No record named “${target}” in this project.`);
         },onTag:(tag)=>setMessage(`Tag: #${tag}. This note stays attached to its entry.`)})}</div>:<p>No note attached. Add one in Edit entry.</p>}<h2>Stage history</h2><p>{e.history.join(' → ')}</p><p role="status">{message}</p></>;
       })():detail.startsWith('category:')?(()=>{

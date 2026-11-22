@@ -7,6 +7,8 @@ export type Category = {
   glCode: string;
 };
 export type Expense = {
+  repeatId?: string;
+  occurrenceDate?: string;
   id: string;
   categoryId: string;
   description: string;
@@ -17,6 +19,11 @@ export type Expense = {
   notes?: string;
 };
 export type Budget = {
+  periodId?: string;
+  periodConfirmed?: boolean;
+  budgetSet?: boolean;
+  periods?: import('./repeat-model.mjs').BudgetPeriod[];
+  repeatRules?: import('./repeat-model.mjs').RepeatRule[];
   board?: BoardLayout;
   id: string;
   name: string;
