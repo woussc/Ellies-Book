@@ -155,7 +155,10 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
           })}
         </div>
       </section>
-      {view.category && <section className="garden-folded" aria-label="Other category allocations"><h2>Other category allocations</h2>{view.categories.filter(c=>c.id!==view.category?.id).map(c=><button key={c.id} className="outline-button" onClick={()=>focus(c.id)}><NodeGlyph kind="category"/><span>{c.name}<small>Allocation <span className="money">{money(c.amount)}</span> · {budget.expenses.filter(e=>e.categoryId===c.id).length} entries</small></span><span aria-hidden="true">→</span></button>)}</section>}
+      {view.category && <section className="garden-folded" aria-label="Other category allocations"><h2>Other category allocations</h2>{view.categories.filter(c=>c.id!==view.category?.id).map(c=>{
+        const count=budget.expenses.filter(e=>e.categoryId===c.id).length;
+        return <button key={c.id} className="outline-button" onClick={()=>focus(c.id)}><NodeGlyph kind="category"/><span>{c.name}<small>Allocation <span className="money">{money(c.amount)}</span> · {count} {count===1?'entry':'entries'}</small></span><span aria-hidden="true">→</span></button>;
+      })}</section>}
       {!view.categories.length && <button className="outline-button" onClick={onPlan}>Add category allocations</button>}
     </div>
     {storageError && <p className="error" role="alert">Changes are not saved. Download a backup before leaving.</p>}

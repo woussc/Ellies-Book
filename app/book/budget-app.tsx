@@ -1128,7 +1128,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   <details className="audit board-audit" open={!budget.events.length}>
                     <summary>Activity & audit trail</summary>
                     {budget.events.length ? [...budget.events].reverse().map((ev, i) => (
-                      <p key={i}>{ev.text}<small>{new Date(ev.at).toLocaleString()}</small></p>
+                      <p key={i}>{ev.text.split(/(-?\$[\d,]+\.\d{2})/g).map((part,index)=>index%2?<span className="money" key={index}>{part}</span>:part)}<small>{new Date(ev.at).toLocaleString()}</small></p>
                     )) : <p>No changes recorded yet.</p>}
                   </details>
                 </section>

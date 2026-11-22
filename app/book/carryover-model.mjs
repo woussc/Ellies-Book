@@ -1,5 +1,5 @@
 // Budget approval provenance only. Carryover is never a spending line or income.
-import {localDate,round,totals,validateBudget} from './model.mjs';
+import {localDate,money,round,totals,validateBudget} from './model.mjs';
 import {periodId,validRepeatDate} from './repeat-model.mjs';
 
 const sum=values=>round(values.reduce((a,b)=>a+b,0));
@@ -65,7 +65,7 @@ export function confirmBudgetStart(budget,draft,today=localDate()) {
  const source=preview.source,at=new Date().toISOString();
  const approval={id:crypto.randomUUID(),at,source:{periodId:periodId(source),period:source.period,startDate:source.startDate,endDate:source.endDate,total:source.total,signature:sourceSignature(source)},baseTotal:draft.baseTotal,total,rows};
  const next={...budget,total,budgetSet:true,categories:preview.rows.map((r,i)=>({...r.category,amount:round(rows[i].base+rows[i].carryover)})),
-  budgetOrigins:[...(budget.budgetOrigins??[]),approval],events:[...budget.events,{at,text:`${preview.adjustment?'Approved budget adjustment':'Set budget'} from ${budgetMonth(source)}: base ${draft.baseTotal.toFixed(2)} USD; carryover ${sum(rows.map(r=>r.carryover)).toFixed(2)} USD; Approved Budget ${total.toFixed(2)} USD. Spending entries unchanged.`,after:approval}]};
+  budgetOrigins:[...(budget.budgetOrigins??[]),approval],events:[...budget.events,{at,text:`${preview.adjustment?'Approved budget adjustment':'Set budget'} from ${budgetMonth(source)}: base ${money(draft.baseTotal)}; carryover ${money(sum(rows.map(r=>r.carryover)))}; Approved Budget ${money(total)}. Spending entries unchanged.`,after:approval}]};
  return validateBudget(next);
 }
 
