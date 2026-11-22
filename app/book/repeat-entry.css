@@ -10,6 +10,8 @@
 .repeat-editor .field {margin:12px 0 16px;}
 .repeat-editor .form-pair {margin:0;}
 .repeat-editor .repeat-pair>.field {min-width:0;}
+/* WebKit otherwise lets long native option text widen a 320px Entries page. */
+.spending-form select {overflow:hidden;text-overflow:ellipsis;}
 .repeat-preview {padding:16px;background:var(--soft);border-radius:12px;font-size:14px;line-height:1.6;}
 .repeat-preview p {margin:8px 0 0;color:var(--muted);font-size:14px;}
 .repeat-editor .hint {margin:8px 0 0;line-height:1.6;}
