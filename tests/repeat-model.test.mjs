@@ -81,3 +81,14 @@ test('editing an older occurrence uses the whole series end, not its retired amo
   next=saveRepeatingEntry(next,{...older,amount:1550},{frequency:'monthly',scope:'future',endDate:repeatTiming(next,older).endDate??''});
   assert.equal(openPeriod(next,'2027-01').expenses[0].amount,1550);
 });
+test('confirming a shorter drafted period excludes only generated Planned dates outside its range',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next=openPeriod(next,'2026-12',{startDate:'2026-12-15',endDate:'2026-12-31'});
+  assert.equal(next.expenses.length,0);assert.equal(totals(next).forecast,0);
+  assert.equal(openPeriod(next,'2026-11').expenses[0].status,'paid');
+  assert.equal(openPeriod(next,'2027-01').expenses.length,1);
+  let paid=openPeriod(saveRepeatingEntry(b,rent(b),{frequency:'monthly'}),'2026-12');
+  paid=advanceExpense(advanceExpense(paid,paid.expenses[0].id),paid.expenses[0].id);
+  paid=openPeriod(paid,'2026-11');
+  assert.throws(()=>openPeriod(paid,'2026-12',{startDate:'2026-12-15',endDate:'2026-12-31'}),/outside|Paid|date/i);
+});

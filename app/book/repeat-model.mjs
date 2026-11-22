@@ -88,13 +88,21 @@ export function prepareRepeats(budget) {
 export function openPeriod(budget,id,dates) {
   if(id===periodId(budget))return prepareRepeats(budget);
   let target=budget.periods?.find(p=>periodId(p)===id)??freshPeriod(budget,id);
-  if(dates)target={...target,...dates,periodConfirmed:true};
+  const beforeTarget=target;
+  if(dates) {
+    if(!validRepeatDate(dates.startDate)||!validRepeatDate(dates.endDate)||dates.startDate>dates.endDate)throw new Error('Choose valid period dates. End must not precede start.');
+    const excluded=target.expenses.filter(e=>e.date<dates.startDate||e.date>dates.endDate);
+    if(excluded.some(e=>!e.repeatId||e.status!=='planned'))throw new Error('These dates exclude an existing entry. Keep its date in the period; Committed and Paid records cannot be removed by changing dates.');
+    target={...target,...dates,periodConfirmed:true,expenses:target.expenses.filter(e=>!excluded.includes(e))};
+  }
   const targetRange=bounds(target);
   if(targetRange&&[budget,...(budget.periods??[])].filter(p=>periodId(p)!==id).some(p=>{
     const range=bounds(p);return range&&targetRange.startDate<=range.endDate&&targetRange.endDate>=range.startDate;
   }))throw new Error('These dates overlap another budget period. Choose dates after the previous period ends.');
   const periods=[...(budget.periods??[]).filter(p=>periodId(p)!==id),{...snapshot(budget),periodId:periodId(budget)}];
-  return prepareRepeats(validateBudget({...applyPeriod(budget,target),periods}));
+  let next=validateBudget({...applyPeriod(budget,target),periods});
+  if(dates)next=audit(next,`Confirmed ${target.period} dates: ${dates.startDate} — ${dates.endDate}. Out-of-range Planned drafts kept in the audit trail.`,beforeTarget,target);
+  return prepareRepeats(next);
 }
 const audit=(budget,text,before,after)=>({...budget,events:[...budget.events,{text,at:new Date().toISOString(),before,after}]});
 function mapPeriods(budget,fn) {return {...budget,...fn(snapshot(budget)),periods:(budget.periods??[]).map(fn)};}
