@@ -264,6 +264,7 @@ for(const engine of engines){
    await p.setViewportSize({width:w,height:w<=430?844:900});
    await nav('Board');await snap('future-budget-unset',md,w,{shot:w===390});
    await p.locator('.garden-category').first().click();await snap('future-repeat-card',md,w,{shot:w===390});
+   if(await p.locator('.garden-dialog[open]').count())await p.locator('.garden-dialog[open]').getByRole('button',{name:'Close',exact:true}).click();
    await nav('Entries');await snap('future-planned-entries',md,w,{shot:w===390});
    await p.locator('.expense-edit').first().click();await snap('future-repeat-edit',md,w,{shot:w===390});await click('Cancel');
    await nav('Board');await click('Report');await snap('future-report',md,w,{shot:w===390});
