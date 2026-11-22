@@ -1,7 +1,7 @@
 import type {Budget,Expense} from './model.mjs';
 export type RepeatFrequency='weekly'|'monthly'|'yearly';
 export type RepeatRule={id:string;seriesId?:string;frequency:RepeatFrequency;startDate:string;anchorDate?:string;endDate?:string;description:string;amount:number;categoryId:string;skipped:string[]};
-export type BudgetPeriod=Pick<Budget,'period'|'startDate'|'endDate'|'total'|'categories'|'expenses'|'board'|'budgetSet'|'periodConfirmed'>&{periodId:string};
+export type BudgetPeriod=Pick<Budget,'period'|'startDate'|'endDate'|'total'|'categories'|'expenses'|'board'|'budgetSet'|'periodConfirmed'|'budgetOrigins'>&{periodId:string};
 export type RepeatOptions={frequency:RepeatFrequency|'none';startDate?:string;endDate?:string;scope?:'this'|'future'};
 export function validRepeatDate(value:unknown):boolean;
 export function periodRange(month:string):{startDate:string;endDate:string};

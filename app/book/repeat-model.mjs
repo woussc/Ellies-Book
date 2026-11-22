@@ -3,7 +3,7 @@
 import {editExpense, removeExpense, validateBudget} from './model.mjs';
 
 const frequencies=['weekly','monthly','yearly'];
-const periodFields=['periodId','period','startDate','endDate','total','categories','expenses','board','budgetSet','periodConfirmed'];
+const periodFields=['periodId','period','startDate','endDate','total','categories','expenses','board','budgetSet','periodConfirmed','budgetOrigins'];
 export const validRepeatDate=value=>typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && value>='0001-01-01' && Number.isFinite(Date.parse(value+'T00:00:00Z')) && new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
 const iso=date=>date.toISOString().slice(0,10);
 const dayAfter=(date,days=1)=>{const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return iso(d);};

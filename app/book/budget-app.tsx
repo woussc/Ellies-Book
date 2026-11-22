@@ -30,6 +30,8 @@ import AskAiSheet from "./ask-ai-sheet";
 import { registerNativeShare } from "./ai-share";
 import ProjectGarden, {Stage} from "./project-garden";
 import PeriodSwitcher from './period-switcher';
+import BudgetStartReview from './budget-start-review';
+import {budgetMonth,carryoverStatus,confirmBudgetStart,previousBudgetPeriod} from './carryover-model.mjs';
 import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
 import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
 import type {NodeBoardHandle} from "./node-board";
@@ -38,7 +40,7 @@ import { serializeLibrary } from "./library-model.mjs";
 import "./workspace.css";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
-type Page = "start" | "settings" | "plan" | "spend" | "home" | "report" | "books" | "profile";
+type Page = "start" | "settings" | "plan" | "spend" | "home" | "report" | "books" | "profile" | "carryover";
 type ToastKind = "success" | "error" | "info";
 const pages: { id: Page; label: string; short: string; icon: string }[] = [
   { id: "home", label: "Your board", short: "Board", icon: "flow" },
@@ -197,6 +199,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const boardController = useRef<NodeBoardHandle>(null);
   const boardScroll = useRef(0);
   const page = activePage ?? (budget.created ? "home" : "start");
+  const navigationPage=page==='carryover'?'home':page;
   async function download(content: string, name: string, type = "text/markdown") {
     try {
       await saveFile(content, name, type);
@@ -237,6 +240,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const removeTrigger = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const t = totals(budget);
+  const origin=carryoverStatus(budget),sourcePeriod=previousBudgetPeriod(budget);
   const allocated = budget.categories.reduce((s, c) => s + c.amount, 0);
   const unassigned = round(budget.total - allocated);
   const notify = (text: string, kind: ToastKind = "success") =>
@@ -419,7 +423,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
         <p>{subtitle}</p>
       </div>
       {action}
-    </header>{budget.created&&['home','spend','plan','settings','report'].includes(page)&&<PeriodSwitcher budget={budget} onSettings={()=>go('settings')} onOpen={(id,dates)=>{
+    </header>{budget.created&&['home','spend','plan','settings','report'].includes(page)&&<PeriodSwitcher budget={budget} onSettings={()=>go('settings')} onStart={()=>go('carryover')} onOpen={(id,dates)=>{
       if((editingId||draft.description.trim()||draft.amount||draft.notes.trim())&&!window.confirm('Switch periods and discard these unsaved edits?'))return false;
       try {const saved=setBudget(b=>openPeriod(b,id,dates));if(!saved)notify('This period is open on this page only. Download all books before leaving.','error');return true;}
       catch(error){notify(error instanceof Error?error.message:'Could not open this period.','error');return false;}
@@ -452,8 +456,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
           {pages.map((p) => (
             <button
               key={p.id}
-              className={page === p.id ? "nav-item active" : "nav-item"}
-              aria-current={page === p.id ? "page" : undefined}
+              className={navigationPage === p.id ? "nav-item active" : "nav-item"}
+              aria-current={navigationPage === p.id ? "page" : undefined}
               onClick={() => go(p.id)}
             >
               <Icon name={p.icon} />
@@ -539,6 +543,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
               }} />}
               {page === "books" && <BooksPage library={modeLibrary} onNewBook={() => newBook()} onNewProject={id => newBook(id)} onOpen={selectProject} onRestore={restore} onBackup={backupAll} />}
               {page === "profile" && <ProfilePage library={library} onName={name => { const saved = libraryAction({type:"profile", name}); notify(saved ? "Local profile saved." : "Profile is not saved. Download all books before leaving.",saved ? "success":"error"); }} onBackup={backupAll} onProjectBackup={backup} onRestore={restore} onSettings={() => go("settings")} hasProject={budget.created} />}
+              {page === 'carryover' && <>{header(budget.budgetSet===false?`Start from ${sourcePeriod?budgetMonth(sourcePeriod).replace(/ \d{4}$/,''):'previous month'}`:'Review carryover',`${budget.name} · ${budgetMonth(budget)} · USD`,<button className="outline-button" onClick={()=>go('home')}>Back to board</button>)}<BudgetStartReview budget={budget} onCancel={()=>go('home')} onConfirm={proposal=>{
+                try {const saved=setBudget(b=>confirmBudgetStart(b,proposal));go('home');notify(saved?'Budget approved. Your board is ready.':'Approved on this page only. Download all books before leaving.',saved?'success':'error');return null;}
+                catch(error){return error instanceof Error?error.message:'Could not approve this budget.';}
+              }}/></>}
               {page === "settings" && (
                 <>
                   {header(
@@ -576,6 +584,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       <h2>Category allocations</h2>
                       <p>Allocate this project’s approved limit without creating a second budget.</p>
                       <button className="secondary" onClick={()=>go("plan")}>Edit category allocations</button>
+                      {sourcePeriod&&<div className="carryover-actions"><button className="outline-button" onClick={()=>go('carryover')}>{budget.budgetSet===false?'Start from previous month':'Review carryover'}</button></div>}
+                      {origin&&<p className="carryover-origin">{origin.changed?`${budgetMonth(origin.source)} changed — review carryover. Approved amounts stay unchanged.`:`Includes ${money(origin.amount)} carryover from ${budgetMonth(origin.source)}. This is a budget adjustment, not income or spending.`}</p>}
                       {budget.notes && <details className="book-backup"><summary>Earlier project notes</summary><p>Preserved from your existing book. Copy relevant details into an entry’s note; nothing has been assigned or removed automatically.</p><div className="markdown-preview">{renderMarkdownDocument(budget.notes)}</div></details>}
                     </aside>
                   </div>
@@ -1106,6 +1116,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                     storageError={storageError}
                     onPlan={() => go("plan")}
                     onSettings={() => go("settings")}
+                    onCarryover={() => go('carryover')}
                     onSpend={(categoryId) => {
                       if (categoryId) setDraft(d => ({ ...d, categoryId }));
                       go("spend");
@@ -1117,7 +1128,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   <details className="audit board-audit" open={!budget.events.length}>
                     <summary>Activity & audit trail</summary>
                     {budget.events.length ? [...budget.events].reverse().map((ev, i) => (
-                      <p key={i}>{ev.text}<small>{new Date(ev.at).toLocaleString()}</small></p>
+                      <p key={i}>{ev.text.split(/(-?\$[\d,]+\.\d{2})/g).map((part,index)=>index%2?<span className="money" key={index}>{part}</span>:part)}<small>{new Date(ev.at).toLocaleString()}</small></p>
                     )) : <p>No changes recorded yet.</p>}
                   </details>
                 </section>
@@ -1197,6 +1208,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           : "of the total budget is not assigned to categories."}</>}
                       </p>
                       <h3>Entry notes</h3>
+                      {origin&&<p className="carryover-origin">Approved Budget includes {money(origin.amount)} carryover from {budgetMonth(origin.source)}. This is a budget adjustment, not income or spending.{origin.changed?' The previous month changed; review carryover before relying on it.':''}</p>}
                       <div className="report-entry-notes">
                         {budget.expenses.some(e=>e.notes) ? budget.expenses.filter(e=>e.notes).map(e=><section key={e.id} className="report-notes"><h4>{e.description}</h4>{renderMarkdownDocument(e.notes!)}</section>) : <p>No entry notes yet.</p>}
                       </div>
@@ -1292,8 +1304,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
         {pages.map((p) => (
           <button
             key={p.id}
-            aria-current={page === p.id ? "page" : undefined}
-            className={page === p.id ? "active" : ""}
+            aria-current={navigationPage === p.id ? "page" : undefined}
+            className={navigationPage === p.id ? "active" : ""}
             onClick={() => go(p.id)}
           >
             <Icon name={p.icon} />
