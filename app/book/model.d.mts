@@ -66,6 +66,7 @@ export function parseBook(markdown: string): Budget;
 export function validateBudget(budget: unknown): Budget;
 export function legacyBackup(storage: Storage): string;
 export function localDate(date?: Date): string;
+export function displayDate(date: string): string;
 export function readStoredBudget(storage: Storage, example?: boolean): Budget;
 export function persistBudget(storage: Storage, budget: Budget): void;
 export const profiles: Record<Profile, string[]>;

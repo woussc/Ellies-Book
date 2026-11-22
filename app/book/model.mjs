@@ -1,5 +1,5 @@
 // UI/storage adapter. Financial lineage and headroom belong to the canonical engine.
-import {validateRepeatData,repeatTiming} from './repeat-model.mjs';
+import {validateRepeatData,repeatTiming,validRepeatDate} from './repeat-model.mjs';
 import {
   computeBudgetSummary,
   safeSpreadsheetText,
@@ -15,6 +15,12 @@ const LEGACY_KEYS = [
 ];
 export function localDate(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+export function displayDate(date) {
+  // Legacy backups checked only the shape of entry dates. Keep those records
+  // visible for correction instead of throwing or silently normalizing them.
+  if(!validRepeatDate(date))return 'Date needs correction';
+  return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));
 }
 export function readStoredBudget(storage, example = true) {
   for (const key of example
