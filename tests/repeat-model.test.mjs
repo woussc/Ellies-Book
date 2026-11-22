@@ -72,3 +72,12 @@ test('changing future amounts preserves occurrence-owned notes and records remov
   next=openPeriod(next,'2026-12');next=saveRepeatingEntry(next,{...next.expenses[0],amount:1600},{frequency:'monthly',scope:'future'});
   const changed=openPeriod(next,'2027-01');assert.equal(changed.expenses[0].id,january.id);assert.equal(changed.expenses[0].amount,1600);assert.equal(changed.expenses[0].notes,'January receipt [[Rent]] #home');
 });
+test('editing an older occurrence uses the whole series end, not its retired amount segment',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next=openPeriod(next,'2026-12');next=saveRepeatingEntry(next,{...next.expenses[0],amount:1500},{frequency:'monthly',scope:'future'});
+  next=openPeriod(next,'2026-11');const older=next.expenses[0];
+  assert.equal(repeatTiming(next,older).endDate,null);
+  assert.equal(repeatTiming(next,older).nextDate,'2026-12-01');
+  next=saveRepeatingEntry(next,{...older,amount:1550},{frequency:'monthly',scope:'future',endDate:repeatTiming(next,older).endDate??''});
+  assert.equal(openPeriod(next,'2027-01').expenses[0].amount,1550);
+});

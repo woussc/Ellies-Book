@@ -31,7 +31,7 @@ import { registerNativeShare } from "./ai-share";
 import ProjectGarden from "./project-garden";
 import PeriodSwitcher from './period-switcher';
 import {RepeatEditor,RepeatTiming} from './repeat-entry';
-import {openPeriod,periodId,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
+import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
 import type {NodeBoardHandle} from "./node-board";
 import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
 import { serializeLibrary } from "./library-model.mjs";
@@ -283,7 +283,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     setConfirmRemoval(false);
     setConfirmStop(false);
     const rule=budget.repeatRules?.find(r=>r.id===expense.repeatId);
-    setRepeatDraft({frequency:rule?.frequency??'none',endDate:rule?.endDate??'',scope:'this'});
+    setRepeatDraft({frequency:rule?.frequency??'none',endDate:repeatTiming(budget,expense)?.endDate??'',scope:'this'});
     setDraft({ ...expense, amount: String(expense.amount), notes: expense.notes ?? "" });
     requestAnimationFrame(() => {
       spendingForm.current?.scrollIntoView({ block: "start" });
