@@ -228,7 +228,7 @@ for(const engine of engines){
    await p.locator('.garden-entry-open').first().click();await snap('entry-detail',md,w,{shot:shots});await p.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
    await click('Next 4');await snap('trail-last-page',md,w,{shot:shots});
    await p.locator('.garden-folded>button').first().click();await p.getByText('No entries in this category yet.',{exact:true}).waitFor();await snap('trail-empty',md,w,{shot:shots});
-   await nav('Entries');await snap('entries-add',md,w,{shot:shots});
+   await nav('Entries');await p.locator('.entry-filters').getByRole('button',{name:'All',exact:true}).click();await snap('entries-add',md,w,{shot:shots});
    await p.getByLabel('Repeat',{exact:true}).selectOption('monthly');await snap('repeat-monthly-preview',md,w,{shot:shots});
    await p.getByLabel('End repeat',{exact:true}).selectOption('date');await p.getByLabel('Last bill date',{exact:true}).fill('2027-03-01');await snap('repeat-end-date',md,w,{shot:shots});
    await p.getByLabel('Repeat',{exact:true}).selectOption('none');
