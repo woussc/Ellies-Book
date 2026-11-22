@@ -5,7 +5,7 @@ import {money, totals, type Budget, type Expense} from "./model.mjs";
 import {changeBoard, resolveNoteLink} from "./board-model.mjs";
 import {gardenView, resizeGarden, gardenLinks, type GardenRect} from "./garden-model.mjs";
 import {renderMarkdownDocument} from "../markdown-render";
-import {RepeatTiming} from './repeat-entry';
+import {displayDate,RepeatTiming} from './repeat-entry';
 import "./project-garden.css";
 
 const marks: Record<string,ReactNode> = {
@@ -22,7 +22,7 @@ const marks: Record<string,ReactNode> = {
 export function NodeGlyph({kind}:{kind:string}) {
   return <svg className="node-glyph" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={['planned','paid','committed','alert'].includes(kind)?2:1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{marks[kind]}</svg>;
 }
-function Stage({value}:{value:string}) {
+export function Stage({value}:{value:string}) {
   return <span className={`garden-stage ${value}`}><NodeGlyph kind={value}/>{value[0].toUpperCase()+value.slice(1)}</span>;
 }
 function BudgetStatus({budget}:{budget:Budget}) {
@@ -138,7 +138,7 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
                 {view.entries.map(e=><article className={`garden-entry garden-node ${budget.board?.canvas?.sizes['entry:'+e.id]==='large'?'is-large':''}`} data-garden-node={'entry:'+e.id} key={e.id}>
                   <button className="garden-entry-open" onClick={()=>setDetail('entry:'+e.id)}>
                     <h3><NodeGlyph kind="entry"/>{e.description}</h3><strong className="money">{money(e.amount)}</strong>
-                    <span className="garden-entry-meta"><Stage value={e.status}/><time>{e.date}</time></span>
+                    <span className="garden-entry-meta"><Stage value={e.status}/><time dateTime={e.date}>{displayDate(e.date)}</time></span>
                     <RepeatTiming budget={budget} entry={e}/>
                     {e.notes && <span className="garden-note-mark"><NodeGlyph kind="note"/>Attached note</span>}
                   </button>
@@ -164,7 +164,7 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
     {detail && <GardenDialog key={detail} title={detail==='project'?budget.name:detail==='budget'?'Budget details':detail.startsWith('entry:')?budget.expenses.find(e=>e.id===detail.slice(6))?.description??'Entry':budget.categories.find(c=>c.id===detail.slice(9))?.name??'Category'} onClose={()=>setDetail(null)}>
       {detail.startsWith('entry:')?(()=>{
         const e=budget.expenses.find(x=>x.id===detail.slice(6));if(!e)return <p>This entry is no longer available.</p>;
-        return <><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/><p>{budget.categories.find(c=>c.id===e.categoryId)?.name} · {e.date}</p><RepeatTiming budget={budget} entry={e}/><button className="primary" onClick={()=>{setDetail(null);onExpense(e);}}>Edit entry</button><h2>Entry note</h2>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
+        return <><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/><p>{budget.categories.find(c=>c.id===e.categoryId)?.name} · <time dateTime={e.date}>{displayDate(e.date)}</time></p><RepeatTiming budget={budget} entry={e}/><button className="primary" onClick={()=>{setDetail(null);onExpense(e);}}>Edit entry</button><h2>Entry note</h2>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
           const record=resolveNoteLink(budget,target);if(record)setDetail((budget.categories.some(c=>c.id===record.id)?'category:':'entry:')+record.id);else setMessage(`No record named “${target}” in this project.`);
         },onTag:(tag)=>setMessage(`Tag: #${tag}. This note stays attached to its entry.`)})}</div>:<p>No note attached. Add one in Edit entry.</p>}<h2>Stage history</h2><p>{e.history.join(' → ')}</p><p role="status">{message}</p></>;
       })():detail.startsWith('category:')?(()=>{

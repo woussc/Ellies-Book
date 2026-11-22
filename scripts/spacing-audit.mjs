@@ -88,6 +88,24 @@ for(const engine of engines){
    const fills=[...document.querySelectorAll('.garden-entry-open,.mode-switch button')].filter(visible).map(e=>({name:text(e),background:getComputedStyle(e).backgroundColor,appearance:getComputedStyle(e).appearance}));
    const spacingIssues=[];
    const actionContentInsets=[];
+   for(const button of document.querySelectorAll('.expense-row>.text-button')){
+    if(!visible(button))continue;
+    const b=rr(button),range=document.createRange(),walker=document.createTreeWalker(button,NodeFilter.SHOW_TEXT);
+    const content=[];let node;
+    while((node=walker.nextNode()))if(node.textContent.trim()){range.selectNodeContents(node);content.push(...range.getClientRects());}
+    content.push(...[...button.querySelectorAll('svg')].map(e=>e.getBoundingClientRect()));
+    if(!content.length)continue;
+    const insets={name:text(button),left:Math.min(...content.map(r=>r.left))-b.x,right:b.right-Math.max(...content.map(r=>r.right))};
+    actionContentInsets.push(insets);
+    if(insets.left<15.5||insets.right<15.5)spacingIssues.push('Entry stage action needs 16px text/icon insets');
+   }
+   for(const card of document.querySelectorAll('.expense-row')){
+    if(!visible(card))continue;
+    const style=getComputedStyle(card);
+    if(parseFloat(style.borderTopLeftRadius)<16||parseFloat(style.paddingLeft)<16||parseFloat(style.paddingRight)<16||parseFloat(style.borderTopWidth)<1)spacingIssues.push('Entry needs a rounded bordered card with 16px insets');
+    const stage=card.querySelector('.garden-stage');
+    if(!stage?.querySelector('svg'))spacingIssues.push('Entry stage needs its visible mark');
+   }
    const addCategory=document.querySelector('.add-category');
    if(addCategory&&visible(addCategory)){
     const input=addCategory.querySelector('input'),button=addCategory.querySelector('button');

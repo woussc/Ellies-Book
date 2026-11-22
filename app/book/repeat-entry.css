@@ -12,6 +12,13 @@
 .repeat-editor .repeat-pair>.field {min-width:0;}
 /* WebKit otherwise lets long native option text widen a 320px Entries page. */
 .spending-form select {overflow:hidden;text-overflow:ellipsis;}
+.project-app-shell .expense-row {padding:16px;margin-bottom:16px;border:1px solid var(--border);border-radius:20px;background:var(--surface);}
+.project-app-shell .expense-edit {padding:0;border-radius:12px;}
+.project-app-shell .expense-edit:hover,.project-app-shell .expense-edit.is-editing {background:transparent;}
+.project-app-shell .expense-row:has(.expense-edit:hover),.project-app-shell .expense-row:has(.expense-edit.is-editing) {background:var(--soft);}
+.project-app-shell .expense-meta {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;line-height:1.6;}
+.expense-meta .garden-stage {font-size:12px;line-height:1.6;}
+.project-app-shell .expense-row>.text-button {display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;min-height:44px;margin-top:16px;font-size:13px;line-height:20px;}
 .repeat-preview {padding:16px;background:var(--soft);border-radius:12px;font-size:14px;line-height:1.6;}
 .repeat-preview p {margin:8px 0 0;color:var(--muted);font-size:14px;}
 .repeat-editor .hint {margin:8px 0 0;line-height:1.6;}

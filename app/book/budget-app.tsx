@@ -28,9 +28,9 @@ import { printReport, saveFile, shareReport, watchNativeKeyboard } from "./platf
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
 import { registerNativeShare } from "./ai-share";
-import ProjectGarden from "./project-garden";
+import ProjectGarden, {Stage} from "./project-garden";
 import PeriodSwitcher from './period-switcher';
-import {RepeatEditor,RepeatTiming} from './repeat-entry';
+import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
 import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
 import type {NodeBoardHandle} from "./node-board";
 import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
@@ -1048,11 +1048,9 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                                     (c) => c.id === e.categoryId,
                                   )?.name
                                 }{" "}
-                                · {e.date.slice(5).replace("-", "/")}
+                                · <time dateTime={e.date}>{displayDate(e.date)}</time>
                               </span>
-                              <span className={`status-label ${e.status}`}>
-                                {e.status}
-                              </span>
+                              <Stage value={e.status}/>
                             </span>
                             <RepeatTiming budget={budget} entry={e}/>
                             <span className="expense-edit-label">{editingId === e.id ? "Editing entry" : "Edit entry"}<Icon name="arrow" size={15} /></span>
