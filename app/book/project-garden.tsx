@@ -6,6 +6,7 @@ import {changeBoard, resolveNoteLink} from "./board-model.mjs";
 import {gardenView, resizeGarden, gardenLinks, type GardenRect} from "./garden-model.mjs";
 import {renderMarkdownDocument} from "../markdown-render";
 import {displayDate,RepeatTiming} from './repeat-entry';
+import {budgetMonth,carryoverStatus,previousBudgetPeriod} from './carryover-model.mjs';
 import "./project-garden.css";
 
 const marks: Record<string,ReactNode> = {
@@ -25,8 +26,9 @@ export function NodeGlyph({kind}:{kind:string}) {
 export function Stage({value}:{value:string}) {
   return <span className={`garden-stage ${value}`}><NodeGlyph kind={value}/>{value[0].toUpperCase()+value.slice(1)}</span>;
 }
-function BudgetStatus({budget}:{budget:Budget}) {
+export function BudgetStatus({budget}:{budget:Budget}) {
   const t=gardenView(budget).summary;
+  const origin=carryoverStatus(budget);
   const large=[budget.total,t.planned,t.spent,t.committed,t.left].some(v=>money(v).length>11);
   return <>
     <h2><NodeGlyph kind="budget"/>Budget status</h2>
@@ -38,15 +40,16 @@ function BudgetStatus({budget}:{budget:Budget}) {
       <div><dt><Stage value="committed"/></dt><dd className="money">{money(t.committed)}</dd></div>
       <div className={budget.budgetSet!==false&&t.left<0?'negative':''}><dt><NodeGlyph kind={budget.budgetSet!==false&&t.left<0?'alert':'budget'}/>{budget.budgetSet!==false&&t.left<0?'Over by':'Room left'}</dt><dd className={budget.budgetSet===false?'':'money'}>{budget.budgetSet===false?'Set budget first':money(Math.abs(t.left))}</dd></div>
     </dl>
+    {origin&&<p className="carryover-origin">Includes {origin.amount<0?'−':'+'}{money(Math.abs(origin.amount))} carryover from {budgetMonth(origin.source)}.{origin.changed&&<><br/>{budgetMonth(origin.source)} changed — review carryover. Approved amounts stay unchanged.</>}</p>}
   </>;
 }
 type Props = {
   budget: Budget; scope: string; storageError: boolean;
   setBudget: (next: SetStateAction<Budget>)=>boolean;
-  onPlan:()=>void; onSettings:()=>void; onSpend:(id?:string)=>void;
+  onPlan:()=>void; onSettings:()=>void; onSpend:(id?:string)=>void; onCarryover:()=>void;
   onExpense:(entry:Expense)=>void; onReport:()=>void; onBackup:()=>void;
 };
-export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,onSpend,onExpense,onReport,onBackup,storageError}:Props) {
+export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,onSpend,onExpense,onReport,onBackup,storageError,onCarryover}:Props) {
   const [categoryId,setCategoryId]=useState<string|null>(null), [page,setPage]=useState(0);
   const [detail,setDetail]=useState<string|null>(null), [legend,setLegend]=useState(false);
   const [arrange,setArrange]=useState(false), [message,setMessage]=useState("");
@@ -170,7 +173,7 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
       })():detail.startsWith('category:')?(()=>{
         const c=budget.categories.find(x=>x.id===detail.slice(9));if(!c)return null;const t=totals(budget,c.id);
         return <><dl className="garden-detail-metrics"><div><dt>Allocation</dt><dd className="money">{money(c.amount)}</dd></div><div><dt>Paid</dt><dd className="money">{money(t.spent)}</dd></div><div><dt>Committed</dt><dd className="money">{money(t.committed)}</dd></div><div><dt>{t.left<0?'Over by':'Room left'}</dt><dd className={'money'+(t.left<0?' negative':'')}>{money(Math.abs(t.left))}</dd></div></dl>{budget.profile==='Team' && <p>Owner: {c.owner||'Not assigned'} · GL code: {c.glCode||'Not assigned'}</p>}<div className="garden-detail-actions"><button className="primary" onClick={()=>{setDetail(null);focus(c.id);}}>Explore category</button><button className="outline-button" onClick={()=>{setDetail(null);onPlan();}}>Edit allocation</button></div></>;
-      })():<><BudgetStatus budget={budget}/><p>Planned is uncommitted spending estimates. It is not the approved limit or category allocation.</p><p>Forecast Spend <span className="money">{money(view.summary.forecast)}</span> · Projected Headroom <span className="money">{money(budget.total-view.summary.forecast)}</span></p><div className="garden-toolbar"><button className="primary" onClick={()=>{setDetail(null);onSettings();}}>Budget settings</button><button className="outline-button" onClick={()=>{setDetail(null);onPlan();}}>Category allocations</button></div></>}
+      })():<><BudgetStatus budget={budget}/><p>Planned is uncommitted spending estimates. It is not the approved limit or category allocation.</p><p>Forecast Spend <span className="money">{money(view.summary.forecast)}</span> · Projected Headroom <span className="money">{money(budget.total-view.summary.forecast)}</span></p><div className="garden-toolbar"><button className="primary" onClick={()=>{setDetail(null);onSettings();}}>Budget settings</button><button className="outline-button" onClick={()=>{setDetail(null);onPlan();}}>Category allocations</button>{previousBudgetPeriod(budget)&&<button className="outline-button" onClick={()=>{setDetail(null);onCarryover();}}>{budget.budgetSet===false?'Start from previous month':'Review carryover'}</button>}</div>{!!budget.budgetOrigins?.length&&<details className="carryover-history"><summary>Budget approval history</summary><ol>{budget.budgetOrigins.map(a=><li key={a.id}>{displayDate(a.at.slice(0,10))}: base <span className="money">{money(a.baseTotal)}</span> + carryover <span className="money">{money(a.total-a.baseTotal)}</span> = <span className="money">{money(a.total)}</span>. Source: {budgetMonth(a.source)}. Earlier approval kept unchanged.</li>)}</ol></details>}</>}
     </GardenDialog>}
   </div>;
 }

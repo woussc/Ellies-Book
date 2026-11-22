@@ -19,6 +19,7 @@ export type Expense = {
   notes?: string;
 };
 export type Budget = {
+  budgetOrigins?: import('./carryover-model.mjs').BudgetOrigin[];
   periodId?: string;
   periodConfirmed?: boolean;
   budgetSet?: boolean;

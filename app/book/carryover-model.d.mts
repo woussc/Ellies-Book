@@ -1,0 +1,12 @@
+import type {Budget,Category} from './model.mjs';
+import type {BudgetPeriod} from './repeat-model.mjs';
+export type BudgetOriginRow={categoryId:string;name:string;sourceAllocation:number;paid:number;committed:number;room:number;base:number;selected:boolean;carryover:number};
+export type BudgetOrigin={id:string;at:string;source:{periodId:string;period:string;startDate:string;endDate:string;total:number;signature:string};baseTotal:number;total:number;rows:BudgetOriginRow[]};
+export type BudgetStartPreview={source:BudgetPeriod;rows:{category:Category;sourceAllocation:number;paid:number;committed:number;room:number;base:number;selected:boolean}[];baseTotal:number;adjustment:boolean;available:boolean;changed:boolean;revision:string};
+export type BudgetStartDraft={revision:string;baseTotal:number;baseAmounts:Record<string,number>;carryIds:string[]};
+export function budgetMonth(period:{startDate?:string}):string;
+export function previousBudgetPeriod(budget:Budget):BudgetPeriod|null;
+export function carryoverStatus(budget:Budget):{source:BudgetOrigin['source'];amount:number;changed:boolean;at:string}|null;
+export function previewBudgetStart(budget:Budget,today?:string):BudgetStartPreview;
+export function confirmBudgetStart(budget:Budget,draft:BudgetStartDraft,today?:string):Budget;
+export function validateCarryoverData(budget:Budget):void;

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import * as m from '../app/book/model.mjs';
 import * as lm from '../app/book/library-model.mjs';
 import {prepareRepeats,openPeriod} from '../app/book/repeat-model.mjs';
+import {carryoverFixture} from './carryover-fixtures.mjs';
 const root=process.env.SPACING_OUT||'artifacts/spacing';
 const base=process.env.BASE_URL||'http://localhost:3000/';
 await fs.mkdir(root,{recursive:true});
@@ -32,6 +33,7 @@ for(const [i,profile] of modes.entries()){
  library=lm.changeLibrary(library,{type:'book',name:'Future '+profile+' book',project:future});
  const empty={...m.blankBudget(profile),id:'spacing-empty-'+i,name:'Empty '+profile,total:100,created:true,categories:[],startDate:'2026-11-01',endDate:'2026-11-30'};
  library=lm.changeLibrary(library,{type:'book',name:'Empty '+profile+' book',project:empty});
+ for(const variant of ['unset','adjusted','empty'])library=lm.changeLibrary(library,{type:'book',name:`Carryover ${variant} ${profile}`,project:carryoverFixture(profile,variant)});
 }
 library=lm.changeLibrary(library,{type:'select',id:'spacing-0'});
 await fs.writeFile(root+'/fixtures.md',lm.serializeLibrary(library));
@@ -281,12 +283,34 @@ for(const engine of engines){
   for(const w of selectedWidths){
    await p.setViewportSize({width:w,height:w<=430?844:900});
    await nav('Board');await snap('future-budget-unset',md,w,{shot:w===390});
+   await click('Start from November');await snap('carryover-ahead-large',md,w,{shot:w===390||w===1440});await click('Cancel');
    await p.locator('.garden-category').first().click();await snap('future-repeat-card',md,w,{shot:w===390});
    if(await p.locator('.garden-dialog[open]').count())await p.locator('.garden-dialog[open]').getByRole('button',{name:'Close',exact:true}).click();
    await nav('Entries');await snap('future-planned-entries',md,w,{shot:w===390});
    await p.locator('.expense-edit').first().click();await snap('future-repeat-edit',md,w,{shot:w===390});await click('Cancel');
    await nav('Board');await click('Report');await snap('future-report',md,w,{shot:w===390});
   }
+  await nav('Books');await click('Open Carryover unset '+md);
+  for(const w of selectedWidths){
+   await p.setViewportSize({width:w,height:w<=430?844:900});
+   await nav('Board');await click('Start from October');await snap('carryover-review',md,w,{shot:w===390||w===1440});
+   assert.equal(await p.locator('.carryover-toggle[aria-pressed=true]').count(),0);
+   await p.locator('.carryover-toggle').nth(0).click();await p.locator('.carryover-toggle').nth(1).click();
+   await snap('carryover-selected',md,w,{shot:w===390||w===1440});
+   await p.getByRole('spinbutton',{name:/^New base for /}).nth(2).fill('10');
+   await p.getByRole('button',{name:/^(Set|Approve) November budget/}).click();
+   await p.getByRole('alert').filter({hasText:'negative'}).waitFor();await snap('carryover-negative-error',md,w,{shot:w===390});await click('Cancel');
+  }
+  await nav('Books');await click('Open Carryover adjusted '+md);
+  for(const w of selectedWidths){
+   await p.setViewportSize({width:w,height:w<=430?844:900});
+   await nav('Board');await snap('carryover-source-changed',md,w,{shot:w===390});
+   await click('Open budget details');await p.getByRole('dialog').getByRole('button',{name:'Review carryover',exact:true}).click();
+   await snap('carryover-adjustment',md,w,{shot:w===390||w===1440});await click('Cancel');
+   await click('Open budget details');await p.getByRole('dialog').getByText('Budget approval history',{exact:true}).click();await snap('carryover-history',md,w,{shot:w===390});await p.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
+  }
+  await nav('Books');await click('Open Carryover empty '+md);
+  for(const w of selectedWidths){await p.setViewportSize({width:w,height:w<=430?844:900});await nav('Board');await click('Start from October');await snap('carryover-empty',md,w,{shot:w===390});await click('Cancel');}
   await nav('Books');await click('Open Empty '+md);
   for(const w of selectedWidths){
    await p.setViewportSize({width:w,height:w<=430?844:900});

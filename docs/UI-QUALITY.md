@@ -37,6 +37,8 @@ Review the generated screenshots at phone, tablet and desktop widths using the U
 
 ## Evidence limits
 
+Month-to-month budget changes also cover the new-month choice, copy-ahead review with unavailable carryover, large source balances, optional positive/negative selection, inline negative-allocation recovery, empty categories, changed-source warnings, approved-adjustment review and immutable approval history. These draft-only spacing checks keep all stored money unchanged; money-rule tests and the recorded browser acceptance cover actual confirmation and restore.
+
 Repeating-bill changes also cover the monthly preview, optional end date, this-and-future edit scope, stop confirmation, next-period date confirmation, and an unbudgeted future period on Board, category trail, Entries and Report in every mode and width. The financial-invariance fixture includes repeating cards with large amounts; layout review never saves money edits or changes repeat rules.
 
 Linux WebKit is engine coverage, not physical iPhone/Safari validation. Native control internals, keyboard appearance, device safe areas, gestures and OS sharing need device-specific evidence. Report those gaps explicitly; never call the matrix a complete accessibility or native-device certification. Use a macOS/device pass when a Safari-only issue cannot be reproduced locally.

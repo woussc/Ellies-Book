@@ -1,5 +1,6 @@
 // UI/storage adapter. Financial lineage and headroom belong to the canonical engine.
 import {validateRepeatData,repeatTiming,validRepeatDate} from './repeat-model.mjs';
+import {validateCarryoverData,carryoverStatus,budgetMonth} from './carryover-model.mjs';
 import {
   computeBudgetSummary,
   safeSpreadsheetText,
@@ -184,6 +185,7 @@ export function validateBudget(b) {
     )
   )
     throw new Error("Could not read the activity in this backup.");
+  validateCarryoverData(b);
   if(b.repeatRules!==undefined||b.periods!==undefined)validateRepeatData(b,validateBudget);
   return b;
 }
@@ -466,6 +468,7 @@ export function editCategory(budget, id, patch) {
 }
 export function reportText(budget) {
   const t = totals(budget);
+  const origin=carryoverStatus(budget);
   const repeats=budget.expenses.filter(e=>e.repeatId).map(e=>{const r=repeatTiming(budget,e);return r?`- ${e.description}: ${money(e.amount)} · ${e.status} · ${e.date}. Repeats ${r.frequency}. Amount starts ${r.startDate}; next bill ${r.nextDate??'No further bills'}; ends ${r.endDate??'No end date'}.`:'';}).filter(Boolean);
   return `# ${budget.name}\n${budget.period} · ${budget.profile}${budget.startDate ? ` · ${budget.startDate} — ${budget.endDate}` : ''}\n\n${budget.budgetSet===false?'This period’s approved budget and allocations are not set.':`Our approved budget is ${money(budget.total)}. We've allocated ${money(t.plan)} by category.`}\n\nWe've paid ${money(t.spent)}, with ${money(t.committed)} still to pay. ${budget.budgetSet===false?'Set a budget before using Room left.':`That leaves ${money(t.left)} available after those commitments.`}\n\n## By category\n${budget.categories
     .map((c) => {
@@ -474,7 +477,7 @@ export function reportText(budget) {
     })
     .join(
       "\n",
-    )}${repeats.length?`\n\n## Repeating entries\n${repeats.join('\n')}`:''}\n\n## Entry notes\n${budget.expenses.filter(e=>e.notes).map(e=>`### ${e.description}\n${e.notes}`).join('\n\n') || 'No entry notes yet.'}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;
+    )}${origin?`\n\n## Budget carryover\nApproved Budget includes ${money(origin.amount)} carryover from ${budgetMonth(origin.source)}. This is a budget adjustment, not income or spending.${origin.changed?' The previous month changed — review carryover; approved amounts stay unchanged.':''}`:''}${repeats.length?`\n\n## Repeating entries\n${repeats.join('\n')}`:''}\n\n## Entry notes\n${budget.expenses.filter(e=>e.notes).map(e=>`### ${e.description}\n${e.notes}`).join('\n\n') || 'No entry notes yet.'}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;
 }
 export function csvText(budget) {
   const cell = (v) => {
