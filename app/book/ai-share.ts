@@ -11,7 +11,13 @@ export async function copyAiPack(pack: string) {
 
 export async function shareAiPack(pack: string) {
   if (nativeShare) {
-    await nativeShare(pack);
+    try {
+      await nativeShare(pack);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError")
+        return { method: "cancelled", offerDownload: false };
+      throw error;
+    }
     return { method: "native", offerDownload: false };
   }
   if (navigator.share) {

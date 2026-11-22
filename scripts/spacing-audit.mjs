@@ -79,6 +79,45 @@ for(const engine of engines){
    }
    const fills=[...document.querySelectorAll('.garden-entry-open,.mode-switch button')].filter(visible).map(e=>({name:text(e),background:getComputedStyle(e).backgroundColor,appearance:getComputedStyle(e).appearance}));
    const spacingIssues=[];
+   const actionContentInsets=[];
+   const addCategory=document.querySelector('.add-category');
+   if(addCategory&&visible(addCategory)){
+    const input=addCategory.querySelector('input'),button=addCategory.querySelector('button');
+    const a=rr(input),b=rr(button),range=document.createRange();
+    const content=[...button.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim()).map(n=>{range.selectNode(n);return range.getBoundingClientRect();});
+    content.push(button.querySelector('svg').getBoundingClientRect());
+    const insets={name:text(button),left:Math.min(...content.map(r=>r.left))-b.x,right:b.right-Math.max(...content.map(r=>r.right))};
+    actionContentInsets.push(insets);
+    if(insets.left<15.5||insets.right<15.5)spacingIssues.push('Category action needs 16px content insets');
+    const shareRow=Math.min(a.bottom,b.bottom)-Math.max(a.y,b.y)>1;
+    const gap=shareRow?b.x-a.right:b.y-a.bottom;
+    if(gap<7.5)spacingIssues.push('Category field/action need an 8px gap');
+    if(Math.abs(a.h-b.h)>1||(shareRow&&Math.abs(a.bottom-b.bottom)>1))spacingIssues.push('Category field/action alignment');
+    const style=getComputedStyle(input);
+    if(Math.min(parseFloat(style.paddingLeft),parseFloat(style.paddingRight))<16)spacingIssues.push('Category input needs 16px text insets');
+   }
+   const listSpacing=[];
+   for(const list of document.querySelectorAll('.ai-sheet ul')){
+    if(!visible(list))continue;
+    const context=document.createElement('canvas').getContext('2d');
+    const items=[...list.children].map(li=>{
+     const range=document.createRange();range.selectNodeContents(li);
+     const style=getComputedStyle(li);context.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+     return {name:text(li),rect:rr(li),textRight:range.getBoundingClientRect().right,markerAdvance:context.measureText('• ').width};
+    });
+    for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){
+     const a=items[i],b=items[j];
+     if(Math.min(a.rect.bottom,b.rect.bottom)>Math.max(a.rect.y,b.rect.y)+1&&a.rect.x<b.rect.x){
+      const gap=b.rect.x-b.markerAdvance-a.textRight;
+      listSpacing.push({from:a.name,to:b.name,axis:'horizontal',gap});
+      if(gap<11.5)spacingIssues.push('AI list text needs 12px before the next marker');
+     }else if(Math.abs(a.rect.x-b.rect.x)<1&&b.rect.y>=a.rect.bottom){
+      const gap=b.rect.y-a.rect.bottom;
+      listSpacing.push({from:a.name,to:b.name,axis:'vertical',gap});
+      if(gap<7.5)spacingIssues.push('AI list rows need an 8px gap');
+     }
+    }
+   }
    const context=document.createElement('canvas').getContext('2d');
    for(const input of document.querySelectorAll('.input-wrap input[type=number]')){
     if(!visible(input))continue;
@@ -128,7 +167,7 @@ for(const engine of engines){
     const node=rr(el.closest('.garden-node')),range=document.createRange();range.selectNodeContents(el);
     for(const r of range.getClientRects())if(r.width>0&&(r.left<node.x+15||r.right>node.right-15)){textInsets.push(text(el));break;}
    }
-   return {spacingIssues,textInsets,documentOverflow:Math.max(0,document.documentElement.scrollWidth-innerWidth),fields,small,overlaps,dateOverlap,crossings,fills,headings:[...document.querySelectorAll('main h1,dialog h1,.ai-sheet h1')].filter(visible).map(e=>e.textContent)};
+   return {spacingIssues,actionContentInsets,listSpacing,textInsets,documentOverflow:Math.max(0,document.documentElement.scrollWidth-innerWidth),fields,small,overlaps,dateOverlap,crossings,fills,headings:[...document.querySelectorAll('main h1,dialog h1,.ai-sheet h1')].filter(visible).map(e=>e.textContent)};
   },state);
   const failures=[];
   if(data.documentOverflow>1)failures.push('Document overflow');

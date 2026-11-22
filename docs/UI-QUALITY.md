@@ -14,6 +14,8 @@ Playwright and its Chromium/WebKit engines must be installed. CI installs them e
 
 The matrix covers all three modes at 320, 390, 430, 768 and 1440px in Chromium and Linux WebKit. It uses isolated, synthetic Markdown books, five entries in one category, an empty sibling category, all three money states and entry-owned notes. Each state is identified in a per-engine JSON ledger. Representative screenshots and every failed state's screenshot are retained.
 
+Allocations also checks the new-category field/action gap, matching heights and 16px input/action content insets. Collapsed and expanded Ask AI check list-row gaps and text clearance before the next column's bullet. The ledger records action content insets and list spacing; horizontal bullet clearance uses the rendered font's bullet-and-space advance, so native screenshots must still confirm marker paint.
+
 Check Board, Arrange, legend, project/budget/category/entry details, folded and paginated trails, empty trails, Entries add/edit/remove confirmation/filters, empty and populated Books, new-book setup, dated project setup, allocations, Profile, Budget settings, Report and collapsed/expanded Ask AI. Existing visual regressions also check layout persistence and financial invariance. The spacing gate fails on document overflow, field escape, undersized or overlapping active controls, heading/connector collisions, native button fills, mismatched paired controls, cramped text/action groups and card-text inset violations. Modal-background elements are excluded; focus must settle before evaluating scroll clearance.
 
 ## Visual acceptance, every time
