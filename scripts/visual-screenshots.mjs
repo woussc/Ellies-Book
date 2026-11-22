@@ -151,9 +151,18 @@ async function checkNoteModes(page) {
   const note = "# Home repairs\nKeep this edit. [[Home & bills]]";
   await navigate(page, "Entries", "Entries");
   await page.getByRole("button", {name: /^Edit November rent,/}).click();
+  // The entry editor hands focus to its first input on the next animation
+  // frame. Let that finish before filling a different field.
+  await page.waitForFunction(() => document.activeElement === document.querySelector('.spending-form input'));
   const editor = page.getByRole("textbox", {name: "Entry note (Markdown)", exact: true});
   await editor.fill(note);
+  assert.equal(await editor.inputValue(), note);
   await page.getByRole("button", {name: "Save changes", exact: true}).click();
+  // Save returns focus to the entry card asynchronously. Navigating before
+  // that handoff finishes can race the next Board interaction on a fast runner.
+  await page.waitForFunction(() => document.activeElement?.classList.contains('expense-edit'));
+  const saved = activeBudget(parseLibrary(await page.evaluate(() => localStorage.getItem('ellies-book:library:v1.md'))));
+  assert.equal(saved.expenses.find(entry => entry.id === 'rent').notes, note, 'The note must be committed before leaving Entries');
   await navigate(page, "Your board", "Board");
   await page.locator('[data-garden-node="category:category-0"]').click();
   await page.locator(".garden-entry-open").filter({hasText:"November rent"}).click();
