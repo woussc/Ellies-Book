@@ -68,14 +68,16 @@ function materialize(budget,period) {
   for(const rule of rules) {
     const dates=repeatDates(rule,range.startDate,range.endDate);
     if(!dates.length)continue;
-    if(!categories.some(c=>c.id===rule.categoryId)) {
-      const category=[budget,...(budget.periods??[])].flatMap(p=>p.categories).find(c=>c.id===rule.categoryId);
-      if(!category)throw new Error('A repeating bill needs its category. Restore the category before opening this period.');
-      categories.push({...category,amount:0});
-    }
     for(const date of dates) {
       const key=`${rule.seriesId??rule.id}:${date}`;
       if(identities.has(key))continue;
+      // An existing occurrence may intentionally use a different category.
+      // Resolve the template category only when adding a missing date.
+      if(!categories.some(c=>c.id===rule.categoryId)) {
+        const category=[budget,...(budget.periods??[])].flatMap(p=>p.categories).find(c=>c.id===rule.categoryId);
+        if(!category)throw new Error('A repeating bill needs its category. Restore the category before opening this period.');
+        categories.push({...category,amount:0});
+      }
       expenses.push({id:`repeat:${key}`,repeatId:rule.id,occurrenceDate:date,categoryId:rule.categoryId,
         description:rule.description,amount:rule.amount,status:'planned',history:['planned'],date,notes:''});
       identities.add(key);

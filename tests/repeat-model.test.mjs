@@ -101,3 +101,13 @@ test('a bill in a newly added category appears in an already prepared future per
   assert.deepEqual(december.categories.find(c=>c.id==='utilities'),{id:'utilities',name:'Utilities',amount:0,owner:'SHUAI',glCode:'001230'});
   assert.equal(december.total,0);assert.equal(december.budgetSet,false);
 });
+test('an ended occurrence moved to another category does not need its unused original category',()=>{
+  const b=book();b.categories.push({id:'other',name:'Other',amount:0,owner:'',glCode:''});
+  let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly',endDate:'2026-11-30'});
+  next=saveRepeatingEntry(next,{...next.expenses[0],categoryId:'other'},{frequency:'monthly'});
+  next.categories=next.categories.filter(c=>c.id==='other');
+  next.periods=next.periods.map(p=>({...p,categories:p.categories.filter(c=>c.id==='other')}));
+  const restored=parseBook(serializeBook(next));
+  assert.equal(openPeriod(restored,'2026-12').expenses.length,0);
+  assert.equal(openPeriod(openPeriod(restored,'2026-12'),'2026-11').expenses[0].categoryId,'other');
+});
