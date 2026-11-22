@@ -61,7 +61,7 @@ test("an unpaid invoice is a commitment, not actual spent", () => {
     spent: 0,
     committed: 85,
     left: 915,
-    forecast: 500,
+    forecast: 85,
   });
   const paid = advanceExpense(b, "invoice");
   assert.deepEqual(totals(paid), {
@@ -69,10 +69,31 @@ test("an unpaid invoice is a commitment, not actual spent", () => {
     spent: 85,
     committed: 0,
     left: 915,
-    forecast: 500,
+    forecast: 85,
   });
   assert.equal(totals(paid, b.categories[0].id).left, 415);
   assert.equal(advanceExpense(paid, "invoice").expenses[0].history.length, 2);
+});
+
+test("allocations are limits, not forecast spending, at project and category level", () => {
+  const b = blankBudget("Household");
+  b.total = 24000;
+  b.categories[0].amount = 13000;
+  assert.equal(totals(b).forecast, 0);
+  assert.equal(totals(b, b.categories[0].id).forecast, 0);
+  b.expenses = [
+    { id: "paid", categoryId: b.categories[0].id, amount: 620.35, status: "paid", history: ["planned", "committed", "paid"] },
+    { id: "planned", categoryId: b.categories[0].id, amount: 75.25, status: "planned", history: ["planned"] },
+  ];
+  assert.deepEqual(totals(b), { plan: 13000, spent: 620.35, committed: 0, left: 23379.65, forecast: 695.6 });
+  assert.deepEqual(totals(b, b.categories[0].id), { plan: 13000, spent: 620.35, committed: 0, left: 12379.65, forecast: 695.6 });
+  const reallocated = { ...b, categories: b.categories.map(c => ({ ...c, amount: c.amount + 100 })) };
+  assert.equal(totals(reallocated).forecast, 695.6);
+  assert.equal(totals(reallocated).left, 23379.65);
+  assert.equal(totals(reallocated, b.categories[1].id).forecast, 0);
+  const committed = advanceExpense(b, "planned");
+  assert.equal(totals(committed).forecast, 695.6);
+  assert.equal(totals(advanceExpense(committed, "planned")).forecast, 695.6);
 });
 
 test("status and category corrections replace exposure without double counting previous payments", () => {

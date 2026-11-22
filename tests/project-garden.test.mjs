@@ -8,6 +8,8 @@ test('project-first summary separates planned estimates from category allocation
   const b=exampleBudget(), view=gardenView(b);
   assert.equal(view.summary.planned,180);
   assert.equal(view.summary.left,3208.5);
+  assert.equal(view.summary.plan,4500);
+  assert.equal(view.summary.forecast,1971.5);
   assert.equal(view.category,null);
   assert.equal(view.entries.length,0);
 });
