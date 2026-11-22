@@ -1,0 +1,141 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {blankBudget, serializeBook, parseBook, totals, advanceExpense} from '../app/book/model.mjs';
+import {saveRepeatingEntry, openPeriod,repeatDates,repeatTiming,skipOccurrence,stopRepeating} from '../app/book/repeat-model.mjs';
+import {emptyLibrary,changeLibrary,serializeLibrary,parseLibrary,activeBudget} from '../app/book/library-model.mjs';
+
+function book(profile='Household') {
+  const b=blankBudget(profile); b.created=true;b.period='2026-11';b.startDate='2026-11-01';b.endDate='2026-11-30';b.total=2000;b.categories[0].amount=2000;
+  return b;
+}
+const rent=b=>({id:'rent',description:'Rent',amount:1450,categoryId:b.categories[0].id,status:'paid',date:'2026-11-01',notes:'Receipt only for November',history:['paid']});
+test('a paid monthly bill prepares one Planned occurrence in the next period, without copying a payment',()=>{
+  for(const mode of ['Household','Just me','Team']) {
+    const b=book(mode); const saved=saveRepeatingEntry(b,rent(b),{frequency:'monthly',startDate:'2026-11-01',endDate:''});
+    assert.equal(totals(saved).spent,1450);
+    const december=openPeriod(parseBook(serializeBook(saved)),'2026-12');
+    assert.equal(december.profile,mode); assert.equal(december.expenses.length,1);
+    assert.equal(december.expenses[0].status,'planned'); assert.equal(december.expenses[0].notes,'');
+    assert.deepEqual(december.expenses[0].history,['planned']);
+    assert.equal(totals(december).spent,0);assert.equal(totals(december).committed,0);assert.equal(totals(december).forecast,1450);
+    assert.equal(december.budgetSet,false);assert.equal(december.total,0);
+    assert.equal(openPeriod(openPeriod(december,'2026-11'),'2026-12').expenses.length,1);
+    const paid=advanceExpense(advanceExpense(december,december.expenses[0].id),december.expenses[0].id);
+    assert.equal(totals(paid).spent,1450);assert.equal(totals(paid).committed,0);assert.equal(totals(paid).forecast,1450);
+  }
+});
+
+test('calendar repeats clamp to month end and return to the original day; end is inclusive',()=>{
+  const rule={id:'a',frequency:'monthly',startDate:'2026-01-31',skipped:[]};
+  assert.deepEqual(repeatDates(rule,'2026-01-01','2026-04-30'),['2026-01-31','2026-02-28','2026-03-31','2026-04-30']);
+  assert.deepEqual(repeatDates({...rule,endDate:'2026-03-31'},'2026-01-01','2026-12-31'),['2026-01-31','2026-02-28','2026-03-31']);
+  assert.deepEqual(repeatDates({...rule,frequency:'yearly',startDate:'2024-02-29'},'2025-01-01','2028-12-31'),['2025-02-28','2026-02-28','2027-02-28','2028-02-29']);
+  assert.deepEqual(repeatDates({...rule,frequency:'weekly',startDate:'2026-12-28'},'2026-12-01','2027-01-15'),['2026-12-28','2027-01-04','2027-01-11']);
+});
+test('skip persists through full library restore; stopping keeps paid history and removes later Planned repeats',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly',endDate:'2027-03-01'});
+  next=openPeriod(next,'2026-12'); const id=next.expenses[0].id;
+  assert.deepEqual(repeatTiming(next,next.expenses[0]),{frequency:'monthly',startDate:'2026-11-01',nextDate:'2027-01-01',endDate:'2027-03-01'});
+  next=skipOccurrence(next,id);
+  const library=changeLibrary(emptyLibrary(),{type:'book',name:'Home',project:next});
+  next=activeBudget(parseLibrary(serializeLibrary(library)));
+  next=openPeriod(openPeriod(next,'2026-11'),'2026-12');assert.equal(next.expenses.length,0);
+  next=openPeriod(next,'2027-01');next=advanceExpense(advanceExpense(next,next.expenses[0].id),next.expenses[0].id);
+  next=stopRepeating(next,next.expenses[0].id);
+  assert.equal(next.expenses[0].status,'paid');assert.equal(repeatTiming(next,next.expenses[0]).nextDate,null);
+  assert.equal(openPeriod(next,'2027-02').expenses.length,0);
+  assert.equal(openPeriod(next,'2026-11').expenses[0].status,'paid');
+});
+test('this entry only is default; future amount edits preserve earlier records and paid future occurrences',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next=openPeriod(next,'2027-01');next=advanceExpense(advanceExpense(next,next.expenses[0].id),next.expenses[0].id);
+  next=openPeriod(next,'2026-12');const december=next.expenses[0];
+  next=saveRepeatingEntry(next,{...december,amount:1300},{frequency:'monthly'});
+  assert.equal(next.expenses[0].amount,1300);assert.equal(openPeriod(next,'2027-01').expenses[0].amount,1450);
+  next=saveRepeatingEntry(next,{...december,amount:1500},{frequency:'monthly',scope:'future'});
+  assert.equal(next.expenses[0].id,december.id);assert.equal(next.expenses[0].amount,1500);
+  assert.equal(openPeriod(next,'2026-11').expenses[0].amount,1450);
+  const jan=openPeriod(next,'2027-01');assert.equal(jan.expenses.length,1);assert.equal(jan.expenses[0].amount,1450);assert.equal(jan.expenses[0].status,'paid');
+  const feb=openPeriod(jan,'2027-02');assert.equal(feb.expenses.length,1);assert.equal(feb.expenses[0].amount,1500);assert.equal(feb.expenses[0].status,'planned');
+});
+test('legacy Markdown books are unchanged and malformed repeat backups are rejected',()=>{
+  const b=book();assert.deepEqual(parseBook(serializeBook(b)),b);
+  const saved=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  for(const mutate of [x=>x.repeatRules[0].startDate='2026-02-30',x=>x.repeatRules[0].frequency='daily',x=>x.expenses[0].repeatId='missing',x=>x.periods.push(structuredClone(x.periods[0]))]) {
+    const invalid=structuredClone(saved);mutate(invalid);assert.throws(()=>serializeBook(invalid));
+  }
+});
+test('changing future amounts preserves occurrence-owned notes and records removed schedule dates in the audit',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next=openPeriod(next,'2027-01');const january=next.expenses[0];
+  next=saveRepeatingEntry(next,{...january,notes:'January receipt [[Rent]] #home'},{frequency:'monthly'});
+  next=openPeriod(next,'2026-12');next=saveRepeatingEntry(next,{...next.expenses[0],amount:1600},{frequency:'monthly',scope:'future'});
+  const changed=openPeriod(next,'2027-01');assert.equal(changed.expenses[0].id,january.id);assert.equal(changed.expenses[0].amount,1600);assert.equal(changed.expenses[0].notes,'January receipt [[Rent]] #home');
+});
+test('editing an older occurrence uses the whole series end, not its retired amount segment',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next=openPeriod(next,'2026-12');next=saveRepeatingEntry(next,{...next.expenses[0],amount:1500},{frequency:'monthly',scope:'future'});
+  next=openPeriod(next,'2026-11');const older=next.expenses[0];
+  assert.equal(repeatTiming(next,older).endDate,null);
+  assert.equal(repeatTiming(next,older).nextDate,'2026-12-01');
+  next=saveRepeatingEntry(next,{...older,amount:1550},{frequency:'monthly',scope:'future',endDate:repeatTiming(next,older).endDate??''});
+  assert.equal(openPeriod(next,'2027-01').expenses[0].amount,1550);
+});
+test('confirming a shorter drafted period excludes only generated Planned dates outside its range',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next=openPeriod(next,'2026-12',{startDate:'2026-12-15',endDate:'2026-12-31'});
+  assert.equal(next.expenses.length,0);assert.equal(totals(next).forecast,0);
+  assert.equal(openPeriod(next,'2026-11').expenses[0].status,'paid');
+  assert.equal(openPeriod(next,'2027-01').expenses.length,1);
+  let paid=openPeriod(saveRepeatingEntry(b,rent(b),{frequency:'monthly'}),'2026-12');
+  paid=advanceExpense(advanceExpense(paid,paid.expenses[0].id),paid.expenses[0].id);
+  paid=openPeriod(paid,'2026-11');
+  assert.throws(()=>openPeriod(paid,'2026-12',{startDate:'2026-12-15',endDate:'2026-12-31'}),/outside|Paid|date/i);
+});
+test('a bill in a newly added category appears in an already prepared future period',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next.categories.push({id:'utilities',name:'Utilities',amount:200,owner:'SHUAI',glCode:'001230'});
+  next=saveRepeatingEntry(next,{...rent(b),id:'electric',description:'Electricity',amount:90,categoryId:'utilities'},{frequency:'monthly'});
+  const december=openPeriod(next,'2026-12');assert.equal(december.expenses.length,2);
+  assert.equal(december.expenses.find(e=>e.description==='Electricity').amount,90);
+  assert.deepEqual(december.categories.find(c=>c.id==='utilities'),{id:'utilities',name:'Utilities',amount:0,owner:'SHUAI',glCode:'001230'});
+  assert.equal(december.total,0);assert.equal(december.budgetSet,false);
+});
+test('an ended occurrence moved to another category does not need its unused original category',()=>{
+  const b=book();b.categories.push({id:'other',name:'Other',amount:0,owner:'',glCode:''});
+  let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly',endDate:'2026-11-30'});
+  next=saveRepeatingEntry(next,{...next.expenses[0],categoryId:'other'},{frequency:'monthly'});
+  next.categories=next.categories.filter(c=>c.id==='other');
+  next.periods=next.periods.map(p=>({...p,categories:p.categories.filter(c=>c.id==='other')}));
+  const restored=parseBook(serializeBook(next));
+  assert.equal(openPeriod(restored,'2026-12').expenses.length,0);
+  assert.equal(openPeriod(openPeriod(restored,'2026-12'),'2026-11').expenses[0].categoryId,'other');
+});
+test('rescheduling onto a Planned repeat date keeps one occurrence and audits the replaced draft',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'weekly'});
+  const target=next.expenses.find(e=>e.date==='2026-11-08');
+  next=saveRepeatingEntry(next,{...target,notes:'Draft receipt preserved in audit'},{frequency:'weekly'});
+  next=saveRepeatingEntry(next,{...next.expenses.find(e=>e.id==='rent'),date:'2026-11-08'},{frequency:'weekly',scope:'future'});
+  assert.equal(next.expenses.filter(e=>e.occurrenceDate==='2026-11-08').length,1);
+  assert.equal(next.expenses.find(e=>e.occurrenceDate==='2026-11-08').id,'rent');
+  assert.equal(next.expenses.length,4);assert.equal(totals(next).spent,1450);
+  assert.ok(next.events.at(-1).before.occurrences.some(e=>e.notes==='Draft receipt preserved in audit'));
+  const restored=parseBook(serializeBook(next));assert.equal(openPeriod(restored,'2026-12').expenses.length,4);
+});
+test('rescheduling cannot replace a Committed or Paid occurrence on the destination date',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'weekly'});
+  const target=next.expenses.find(e=>e.date==='2026-11-08');next=advanceExpense(next,target.id);
+  assert.throws(()=>saveRepeatingEntry(next,{...next.expenses.find(e=>e.id==='rent'),date:'2026-11-08'},{frequency:'weekly',scope:'future'}),/already|Committed|Paid/);
+  assert.equal(next.expenses.find(e=>e.id===target.id).status,'committed');
+});
+test('future rescheduling cannot cross an earlier occurrence, even when that record is only Planned',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'weekly'});
+  const earlier=next.expenses.find(e=>e.date==='2026-11-08');
+  next=saveRepeatingEntry(next,{...earlier,notes:'Keep this earlier bill and its forecast'},{frequency:'weekly'});
+  const selected=next.expenses.find(e=>e.date==='2026-11-22'),forecast=totals(next).forecast;
+  assert.throws(()=>saveRepeatingEntry(next,{...selected,date:'2026-11-08'},{frequency:'weekly',scope:'future'}),/previous repeat|earlier/);
+  assert.equal(totals(next).forecast,forecast);assert.equal(next.expenses.find(e=>e.id===earlier.id).notes,'Keep this earlier bill and its forecast');
+  const moved=saveRepeatingEntry(next,{...selected,date:'2026-11-16'},{frequency:'weekly',scope:'future'});
+  assert.equal(moved.expenses.find(e=>e.id===earlier.id).notes,'Keep this earlier bill and its forecast');
+  assert.ok(moved.expenses.some(e=>e.date==='2026-11-15'));assert.ok(moved.expenses.some(e=>e.date==='2026-11-16'));
+});

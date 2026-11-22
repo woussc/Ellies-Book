@@ -1,4 +1,5 @@
 // UI/storage adapter. Financial lineage and headroom belong to the canonical engine.
+import {validateRepeatData,repeatTiming,validRepeatDate} from './repeat-model.mjs';
 import {
   computeBudgetSummary,
   safeSpreadsheetText,
@@ -14,6 +15,12 @@ const LEGACY_KEYS = [
 ];
 export function localDate(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+export function displayDate(date) {
+  // Legacy backups checked only the shape of entry dates. Keep those records
+  // visible for correction instead of throwing or silently normalizing them.
+  if(!validRepeatDate(date))return 'Date needs correction';
+  return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));
 }
 export function readStoredBudget(storage, example = true) {
   for (const key of example
@@ -177,6 +184,7 @@ export function validateBudget(b) {
     )
   )
     throw new Error("Could not read the activity in this backup.");
+  if(b.repeatRules!==undefined||b.periods!==undefined)validateRepeatData(b,validateBudget);
   return b;
 }
 
@@ -403,6 +411,7 @@ export function removeExpense(budget, id) {
   const category = budget.categories.find((c) => c.id === before.categoryId)?.name;
   return {
     ...budget,
+    ...(before.repeatId?{repeatRules:budget.repeatRules.map(r=>r.id===before.repeatId?{...r,skipped:[...new Set([...(r.skipped??[]),before.occurrenceDate])]}:r)}:{}),
     expenses: budget.expenses.filter((e) => e.id !== id),
     events: [...budget.events, {
       text: `Removed ${before.description} · ${money(before.amount)} · ${before.status} · ${category} · ${before.date}. Kept in the audit trail, excluded from totals.`,
@@ -422,6 +431,7 @@ export function editBudgetDetails(budget, details) {
   const next = {
     ...budget,
     ...after,
+    budgetSet: true,
     categories: !budget.created && budget.profile !== details.profile
       ? blankBudget(details.profile).categories : budget.categories,
     created: true,
@@ -456,14 +466,15 @@ export function editCategory(budget, id, patch) {
 }
 export function reportText(budget) {
   const t = totals(budget);
-  return `# ${budget.name}\n${budget.period} · ${budget.profile}${budget.startDate ? ` · ${budget.startDate} — ${budget.endDate}` : ''}\n\nOur approved budget is ${money(budget.total)}. We've allocated ${money(t.plan)} by category.\n\nWe've paid ${money(t.spent)}, with ${money(t.committed)} still to pay. That leaves ${money(t.left)} available after those commitments.\n\n## By category\n${budget.categories
+  const repeats=budget.expenses.filter(e=>e.repeatId).map(e=>{const r=repeatTiming(budget,e);return r?`- ${e.description}: ${money(e.amount)} · ${e.status} · ${e.date}. Repeats ${r.frequency}. Amount starts ${r.startDate}; next bill ${r.nextDate??'No further bills'}; ends ${r.endDate??'No end date'}.`:'';}).filter(Boolean);
+  return `# ${budget.name}\n${budget.period} · ${budget.profile}${budget.startDate ? ` · ${budget.startDate} — ${budget.endDate}` : ''}\n\n${budget.budgetSet===false?'This period’s approved budget and allocations are not set.':`Our approved budget is ${money(budget.total)}. We've allocated ${money(t.plan)} by category.`}\n\nWe've paid ${money(t.spent)}, with ${money(t.committed)} still to pay. ${budget.budgetSet===false?'Set a budget before using Room left.':`That leaves ${money(t.left)} available after those commitments.`}\n\n## By category\n${budget.categories
     .map((c) => {
       const s = totals(budget, c.id);
-      return `- ${c.name}: ${money(c.amount)} allocated, ${money(s.spent)} paid, ${money(s.committed)} still to pay, ${money(s.left)} left.`;
+      return `- ${c.name}: ${budget.budgetSet===false?'not set':money(c.amount)} allocated, ${money(s.spent)} paid, ${money(s.committed)} still to pay, ${budget.budgetSet===false?'not set':money(s.left)} left.`;
     })
     .join(
       "\n",
-    )}\n\n## Entry notes\n${budget.expenses.filter(e=>e.notes).map(e=>`### ${e.description}\n${e.notes}`).join('\n\n') || 'No entry notes yet.'}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;
+    )}${repeats.length?`\n\n## Repeating entries\n${repeats.join('\n')}`:''}\n\n## Entry notes\n${budget.expenses.filter(e=>e.notes).map(e=>`### ${e.description}\n${e.notes}`).join('\n\n') || 'No entry notes yet.'}\n\n## Notes\n${budget.notes || "No notes yet."}\n\nLeft = budget − paid − still to pay. Planned entries are ideas, not payments.\n`;
 }
 export function csvText(budget) {
   const cell = (v) => {
@@ -486,7 +497,7 @@ export function csvText(budget) {
       // Spreadsheet imports otherwise turn a text finance code like 001230
       // into 1230. A text prefix preserves it without exporting a formula.
       const code = /^0\d/.test(c.glCode) ? `'${c.glCode}` : c.glCode;
-      return [c.name, c.amount, t.spent, t.committed, t.left, c.owner, code];
+      return [c.name, budget.budgetSet===false?'Not set':c.amount, t.spent, t.committed, budget.budgetSet===false?'Not set':t.left, c.owner, code];
     }),
   ]
     .map((row) => row.map(cell).join(","))

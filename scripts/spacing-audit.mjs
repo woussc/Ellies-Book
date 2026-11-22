@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import * as m from '../app/book/model.mjs';
 import * as lm from '../app/book/library-model.mjs';
+import {prepareRepeats,openPeriod} from '../app/book/repeat-model.mjs';
 const root=process.env.SPACING_OUT||'artifacts/spacing';
 const base=process.env.BASE_URL||'http://localhost:3000/';
 await fs.mkdir(root,{recursive:true});
@@ -18,10 +19,17 @@ template.expenses=Array.from({length:5},(_,i)=>({
 const modes=['Household','Just me','Team'],widths=[320,390,430,768,1440];
 let library=lm.emptyLibrary();
 for(const [i,profile] of modes.entries()){
- const b=structuredClone(template);b.id='spacing-'+i;b.name=profile+' November project';b.profile=profile;b.total=[1200,3000,10000][i];b.notes='Existing project note for spacing review.';
+ let b=structuredClone(template);b.id='spacing-'+i;b.name=profile+' November project';b.profile=profile;b.total=[1200,3000,10000][i];b.notes='Existing project note for spacing review.';
  b.categories=b.categories.map(c=>({...c,owner:profile==='Team'?'SHUAI':'',glCode:profile==='Team'?'001230':''}));
  b.expenses=b.expenses.map((e,j)=>{const status=['planned','committed','paid','paid','paid'][j];return {...e,status,history:[status]};});
+ b.period='2026-11';b.startDate='2026-11-01';b.endDate='2026-11-30';
+ const repeatEntry=b.expenses.at(-1),repeatId='spacing-repeat-'+i;
+ repeatEntry.repeatId=repeatId;repeatEntry.occurrenceDate='2026-11-01';repeatEntry.date='2026-11-01';
+ b.repeatRules=[{id:repeatId,frequency:'monthly',startDate:'2026-11-01',description:repeatEntry.description,amount:repeatEntry.amount,categoryId:repeatEntry.categoryId,skipped:[]}];
+ b=prepareRepeats(b);
  library=lm.changeLibrary(library,{type:'book',name:profile+' book',project:b});
+ const future={...openPeriod(structuredClone(b),'2026-12',{startDate:'2026-12-01',endDate:'2026-12-31'}),id:'spacing-future-'+i,name:'Future '+profile};
+ library=lm.changeLibrary(library,{type:'book',name:'Future '+profile+' book',project:future});
  const empty={...m.blankBudget(profile),id:'spacing-empty-'+i,name:'Empty '+profile,total:100,created:true,categories:[],startDate:'2026-11-01',endDate:'2026-11-30'};
  library=lm.changeLibrary(library,{type:'book',name:'Empty '+profile+' book',project:empty});
 }
@@ -80,6 +88,24 @@ for(const engine of engines){
    const fills=[...document.querySelectorAll('.garden-entry-open,.mode-switch button')].filter(visible).map(e=>({name:text(e),background:getComputedStyle(e).backgroundColor,appearance:getComputedStyle(e).appearance}));
    const spacingIssues=[];
    const actionContentInsets=[];
+   for(const button of document.querySelectorAll('.expense-row>.text-button')){
+    if(!visible(button))continue;
+    const b=rr(button),range=document.createRange(),walker=document.createTreeWalker(button,NodeFilter.SHOW_TEXT);
+    const content=[];let node;
+    while((node=walker.nextNode()))if(node.textContent.trim()){range.selectNodeContents(node);content.push(...range.getClientRects());}
+    content.push(...[...button.querySelectorAll('svg')].map(e=>e.getBoundingClientRect()));
+    if(!content.length)continue;
+    const insets={name:text(button),left:Math.min(...content.map(r=>r.left))-b.x,right:b.right-Math.max(...content.map(r=>r.right))};
+    actionContentInsets.push(insets);
+    if(insets.left<15.5||insets.right<15.5)spacingIssues.push('Entry stage action needs 16px text/icon insets');
+   }
+   for(const card of document.querySelectorAll('.expense-row')){
+    if(!visible(card))continue;
+    const style=getComputedStyle(card);
+    if(parseFloat(style.borderTopLeftRadius)<16||parseFloat(style.paddingLeft)<16||parseFloat(style.paddingRight)<16||parseFloat(style.borderTopWidth)<1)spacingIssues.push('Entry needs a rounded bordered card with 16px insets');
+    const stage=card.querySelector('.garden-stage');
+    if(!stage?.querySelector('svg'))spacingIssues.push('Entry stage needs its visible mark');
+   }
    const addCategory=document.querySelector('.add-category');
    if(addCategory&&visible(addCategory)){
     const input=addCategory.querySelector('input'),button=addCategory.querySelector('button');
@@ -220,12 +246,19 @@ for(const engine of engines){
    await p.locator('.garden-entry-open').first().click();await snap('entry-detail',md,w,{shot:shots});await p.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
    await click('Next 4');await snap('trail-last-page',md,w,{shot:shots});
    await p.locator('.garden-folded>button').first().click();await p.getByText('No entries in this category yet.',{exact:true}).waitFor();await snap('trail-empty',md,w,{shot:shots});
-   await nav('Entries');await snap('entries-add',md,w,{shot:shots});
+   await nav('Entries');await p.locator('.entry-filters').getByRole('button',{name:'All',exact:true}).click();await snap('entries-add',md,w,{shot:shots});
+   await p.getByLabel('Repeat',{exact:true}).selectOption('monthly');await snap('repeat-monthly-preview',md,w,{shot:shots});
+   await p.getByLabel('End repeat',{exact:true}).selectOption('date');await p.getByLabel('Last bill date',{exact:true}).fill('2027-03-01');await snap('repeat-end-date',md,w,{shot:shots});
+   await p.getByLabel('Repeat',{exact:true}).selectOption('none');
    await p.locator('.expense-edit').first().click();await snap('entries-edit',md,w,{shot:shots});
    await p.waitForFunction(()=>document.activeElement===document.querySelector('.spending-form input'));
+   await p.getByLabel('Apply changes to',{exact:true}).selectOption('future');await snap('repeat-edit-future',md,w,{shot:shots});
+   await click('Stop repeating');await snap('repeat-stop-confirm',md,w,{shot:shots});await click('Keep repeating');
+   await p.getByLabel('Apply changes to',{exact:true}).selectOption('this');
    await p.locator('.remove-entry').evaluate(el=>el.scrollIntoView({block:'center'}));await snap('entries-action-clearance',md,w,{shot:shots});
    await click('Remove entry');await snap('entries-remove-confirm',md,w,{shot:shots});await click('Keep entry');
    await click('Cancel');
+   await p.getByRole('button',{name:/^Next period/}).click();await snap('period-date-confirm',md,w,{shot:shots});await p.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
    await p.locator('.entry-filters').getByRole('button',{name:'Committed',exact:true}).click();await snap('entries-filter',md,w,{shot:shots});
    await nav('Books');await snap('books',md,w,{shot:shots});
    await p.locator('.library-book').filter({has:p.getByRole('button',{name:'Open '+md+' November project',exact:true})}).getByRole('button',{name:'+ New project',exact:true}).click();await snap('new-project',md,w,{shot:shots});await click('Cancel');
@@ -243,6 +276,16 @@ for(const engine of engines){
    await nav('Board');await click('Report');await snap('report',md,w,{shot:shots});
    await click('Ask AI');await snap('ask-ai',md,w,{shot:shots});
    await p.locator('.ai-exact-copy summary').click();await snap('ask-ai-expanded',md,w,{shot:shots});await p.locator('.ai-sheet').getByRole('button',{name:'Close',exact:true}).click();
+  }
+  await nav('Books');await click('Open Future '+md);
+  for(const w of selectedWidths){
+   await p.setViewportSize({width:w,height:w<=430?844:900});
+   await nav('Board');await snap('future-budget-unset',md,w,{shot:w===390});
+   await p.locator('.garden-category').first().click();await snap('future-repeat-card',md,w,{shot:w===390});
+   if(await p.locator('.garden-dialog[open]').count())await p.locator('.garden-dialog[open]').getByRole('button',{name:'Close',exact:true}).click();
+   await nav('Entries');await snap('future-planned-entries',md,w,{shot:w===390});
+   await p.locator('.expense-edit').first().click();await snap('future-repeat-edit',md,w,{shot:w===390});await click('Cancel');
+   await nav('Board');await click('Report');await snap('future-report',md,w,{shot:w===390});
   }
   await nav('Books');await click('Open Empty '+md);
   for(const w of selectedWidths){

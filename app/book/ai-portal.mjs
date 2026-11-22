@@ -41,17 +41,18 @@ export function createAiPortal(book) {
   const planned = (categoryId) => round(budget.expenses.filter(e=>e.status==='planned' && (!categoryId || e.categoryId===categoryId)).reduce((sum,e)=>sum+e.amount,0));
   const summary = () => {
     const t = totals(budget);
-    return { name: budget.name, profile: budget.profile, period: budget.period, currency: "USD", budget: budget.total, allocated: t.plan, planned: planned(), committed: t.committed, paid: t.spent, remaining: t.left };
+    return { name: budget.name, profile: budget.profile, period: budget.period, currency: "USD", budget: budget.budgetSet===false?null:budget.total, allocated: budget.budgetSet===false?null:t.plan, planned: planned(), committed: t.committed, paid: t.spent, remaining: budget.budgetSet===false?null:t.left };
   };
   const categories = () => budget.categories.map((c) => {
     const t = totals(budget, c.id);
-    return { name: c.name, allocated: t.plan, planned: planned(c.id), paid: t.spent, committed: t.committed, remaining: t.left, overBudget: t.left < 0 };
+    return { name: c.name, allocated: budget.budgetSet===false?null:t.plan, planned: planned(c.id), paid: t.spent, committed: t.committed, remaining: budget.budgetSet===false?null:t.left, overBudget: budget.budgetSet!==false&&t.left < 0 };
   });
   const statusLines = () => {
     const s = summary();
     return [
-      s.remaining < 0 ? `Over budget by ${money(Math.abs(s.remaining))}.` : `Left to spend: ${money(s.remaining)}.`,
-      `Approved Budget: ${money(s.budget)}. Category allocation: ${money(s.allocated)}. Planned estimates: ${money(s.planned)}.`,
+      ...(budget.budgetSet===false?['This period’s approved budget and allocations are not set. Room left is unknown until a budget is set.']:[]),
+      ...(budget.budgetSet===false?[]:[s.remaining < 0 ? `Over budget by ${money(Math.abs(s.remaining))}.` : `Left to spend: ${money(s.remaining)}.`, `Approved Budget: ${money(s.budget)}. Category allocation: ${money(s.allocated)}.`]),
+      `Planned estimates: ${money(s.planned)}.`,
       `Spent (paid): ${money(s.paid)}. Still to pay: ${money(s.committed)}.`,
       "Left to spend is after what you have paid and what is still to pay. Planned entries are ideas, not payments.",
     ];
@@ -68,7 +69,7 @@ export function createAiPortal(book) {
     tool("get_book_summary", "Read my budget", "Read the book name, period and money totals. Planned means uncommitted estimates; allocation divides the approved limit.", {}, () => ({ json: summary(), text: `${budget.name} · ${budget.period} · ${budget.profile}\n${statusLines().join("\n")}` })),
     tool("list_categories", "Read my categories", "Read each category plan, paid spending, still to pay and remaining amount. Over budget means remaining is below zero.", {}, () => {
       const rows = categories();
-      return { json: { categories: rows }, text: rows.map((c) => `${c.name}: ${money(c.allocated)} allocated, ${money(c.planned)} planned, ${money(c.paid)} paid, ${money(c.committed)} still to pay, ${money(c.remaining)} left.${c.overBudget ? " Over budget." : ""}`).join("\n") || "No categories yet." };
+      return { json: { categories: rows }, text: rows.map((c) => `${c.name}: ${c.allocated===null?'not set':money(c.allocated)} allocated, ${money(c.planned)} planned, ${money(c.paid)} paid, ${money(c.committed)} still to pay, ${c.remaining===null?'not set':money(c.remaining)} left.${c.overBudget ? " Over budget." : ""}`).join("\n") || "No categories yet." };
     }),
     tool("list_spending", "Read my spending", "Read spending in book order. Filter by category name, status or inclusive dates. This does not change any entries.", spendingProperties, (args) => {
       const rows = budget.expenses.filter((e) =>

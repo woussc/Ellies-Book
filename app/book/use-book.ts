@@ -18,6 +18,7 @@ import {
   serializeLibrary,
 } from "./library-model.mjs";
 import type { Library, LibraryAction } from "./library-model.mjs";
+import {periodId} from './repeat-model.mjs';
 
 type Snapshot = {
   library: Library;
@@ -161,9 +162,10 @@ function libraryAction(action: LibraryAction) {
   return saveLibrary(changeLibrary(prev.library, action));
 }
 
-function setBudget(next: SetStateAction<Budget>, projectId?: string) {
+function setBudget(next: SetStateAction<Budget>, projectId?: string, expectedPeriod?: string) {
   const prev = getSnapshot();
   if (projectId && prev.budget.id !== projectId) return false;
+  if(expectedPeriod&&periodId(prev.budget)!==expectedPeriod)return false;
   const budget = typeof next === "function" ? next(prev.budget) : next;
   if (budget.sample && (!prev.budget.sample || budget.id !== prev.budget.id))
     return libraryAction({ type: "example" });

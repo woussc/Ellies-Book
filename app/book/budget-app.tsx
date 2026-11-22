@@ -14,7 +14,6 @@ import {
   csvText,
   editCategory,
   editBudgetDetails,
-  editExpense,
   exampleBudget,
   localDate,
   money,
@@ -29,7 +28,10 @@ import { printReport, saveFile, shareReport, watchNativeKeyboard } from "./platf
 import { buildAiReadyPack } from "./ai-portal.mjs";
 import AskAiSheet from "./ask-ai-sheet";
 import { registerNativeShare } from "./ai-share";
-import ProjectGarden from "./project-garden";
+import ProjectGarden, {Stage} from "./project-garden";
+import PeriodSwitcher from './period-switcher';
+import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
+import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
 import type {NodeBoardHandle} from "./node-board";
 import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
 import { serializeLibrary } from "./library-model.mjs";
@@ -175,7 +177,7 @@ export default function BudgetApp() {
   const [activePage, setPage] = useState<Page | null>(null);
   const [selectedMode, setMode] = useState<Profile | null>(null);
   const [toast, setToast] = useState<{text: string; kind: ToastKind} | null>(null);
-  return <ProjectWorkspace key={book.budget.id} book={book} mode={selectedMode ?? book.budget.profile} setMode={setMode} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
+  return <ProjectWorkspace key={`${book.budget.id}:${periodId(book.budget)}`} book={book} mode={selectedMode ?? book.budget.profile} setMode={setMode} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
 }
 function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setToast}: {
   mode: Profile;
@@ -188,7 +190,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
 }) {
   const { budget, library, libraryAction, restoreBooks, setBudget: saveBudget, removeExample, status, error, legacy, recovery } = book;
   function setBudget(next: SetStateAction<Budget>) {
-    return saveBudget(next, budget.id);
+    return saveBudget(next, budget.id,periodId(budget));
   }
   const [setupBookId, setSetupBookId] = useState<string | null>(null);
   const [editingLayout, setEditingLayout] = useState(false);
@@ -214,12 +216,19 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     amount: "",
     categoryId: "",
     status: "paid",
-    date: localDate(),
+    date: budget.startDate && localDate()<budget.startDate?budget.startDate:budget.endDate && localDate()>budget.endDate?budget.endDate:localDate(),
     notes: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [entryFilter, setEntryFilter] = useState("all");
   const [confirmRemoval, setConfirmRemoval] = useState(false);
+  const [repeatDraft,setRepeatDraft]=useState<RepeatOptions>({frequency:'none',endDate:'',scope:'this'});
+  const [confirmStop,setConfirmStop]=useState(false);
+  const newRepeatDraft=useRef(repeatDraft);
+  const editingExpense=budget.expenses.find(e=>e.id===editingId);
+  const editingRule=budget.repeatRules?.find(r=>r.id===editingExpense?.repeatId);
+  const stopHeading=useRef<HTMLHeadingElement>(null);
+  const stopTrigger=useRef<HTMLButtonElement>(null);
   const newEntryDraft = useRef(draft);
   const spendingForm = useRef<HTMLFormElement>(null);
   const editingTrigger = useRef<HTMLButtonElement | null>(null);
@@ -268,10 +277,13 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       return;
     }
     if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
-    if (!editingId) newEntryDraft.current = draft;
+    if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;}
     editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
     setConfirmRemoval(false);
+    setConfirmStop(false);
+    const rule=budget.repeatRules?.find(r=>r.id===expense.repeatId);
+    setRepeatDraft({frequency:rule?.frequency??'none',endDate:repeatTiming(budget,expense)?.endDate??'',scope:'this'});
     setDraft({ ...expense, amount: String(expense.amount), notes: expense.notes ?? "" });
     requestAnimationFrame(() => {
       spendingForm.current?.scrollIntoView({ block: "start" });
@@ -281,6 +293,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   function closeExpense(returnFocus = true) {
     setEditingId(null);
     setConfirmRemoval(false);
+    setConfirmStop(false);
+    setRepeatDraft(newRepeatDraft.current);
     setDraft(newEntryDraft.current);
     if (returnFocus) requestAnimationFrame(() => {
       const target = editingTrigger.current?.isConnected ? editingTrigger.current : entriesHeading.current;
@@ -355,44 +369,24 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       ? draft.categoryId
       : budget.categories[0]?.id;
     if (!categoryId) return;
-    if (editingId) {
-      if (!budget.expenses.some((expense) => expense.id === editingId)) {
-        closeExpense();
-        notify("This entry is no longer in your book. Choose another entry to edit.");
-        return;
-      }
-      try {
-        const saved = setBudget((b) => editExpense(b, editingId, {
-          description: draft.description,
-          amount,
-          categoryId,
-          status: draft.status as Expense["status"],
-          date: draft.date,
-          notes: draft.notes,
-        }));
-        closeExpense();
-        notify(saved ? "Changes saved. Your totals and report are up to date." : "Changes are on this page only. Download a book backup before leaving.");
-      } catch (error) {
-        notify(error instanceof Error ? error.message : "Could not update this entry.");
-      }
-      return;
-    }
+    if(editingId&&!editingExpense){closeExpense();notify('This entry is no longer available. Choose another entry.','error');return;}
     const expense: Expense = {
+      ...editingExpense,
       ...draft,
       categoryId,
       status: draft.status as Expense["status"],
       amount,
-      id: crypto.randomUUID(),
-      history: [draft.status],
+      id: editingId??crypto.randomUUID(),
+      history: editingExpense?.history??[draft.status],
     };
-    const saved = change(
-      { ...budget, expenses: [...budget.expenses, expense] },
-      `Added ${expense.description} · ${expense.status} · ${money(amount)}`,
-    );
-    setDraft({ ...draft, description: "", amount: "", notes: "" });
+    let saved;
+    try {saved=setBudget(b=>saveRepeatingEntry(b,expense,{...repeatDraft,startDate:draft.date}));}
+    catch(error){notify(error instanceof Error?error.message:'Could not save this entry.','error');return;}
+    if(editingId)closeExpense();
+    else {setDraft({...draft,description:'',amount:'',notes:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
     notify(
       saved
-        ? `${expense.description} saved as ${expense.status}.`
+        ? `${expense.description} saved as ${expense.status}.${repeatDraft.frequency!=='none'?' Future repeats start Planned.':''}`
         : `${expense.description} added on this page only. Download a book backup before leaving.`,
       saved ? "success" : "error",
     );
@@ -417,7 +411,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     }
   }
   const header = (title: string, subtitle: string, action?: ReactNode) => (
-    <header className="page-heading">
+    <><header className="page-heading">
       <div>
         <h1 tabIndex={-1} ref={titleRef}>
           {title}
@@ -425,7 +419,11 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
         <p>{subtitle}</p>
       </div>
       {action}
-    </header>
+    </header>{budget.created&&['home','spend','plan','settings','report'].includes(page)&&<PeriodSwitcher budget={budget} onSettings={()=>go('settings')} onOpen={(id,dates)=>{
+      if((editingId||draft.description.trim()||draft.amount||draft.notes.trim())&&!window.confirm('Switch periods and discard these unsaved edits?'))return false;
+      try {const saved=setBudget(b=>openPeriod(b,id,dates));if(!saved)notify('This period is open on this page only. Download all books before leaving.','error');return true;}
+      catch(error){notify(error instanceof Error?error.message:'Could not open this period.','error');return false;}
+    }}/>}</>
   );
   const needsBudget = (!budget.created || budget.profile !== mode) && !["start", "books", "profile"].includes(page);
   const modeLibrary = {...library, books: library.books.map(b=>({...b,projects:b.projects.filter(p=>p.profile===mode)})).filter(b=>b.projects.length)};
@@ -802,7 +800,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       <h2>Allocation summary</h2>
                       <p>Approved Budget</p>
                       <strong className="aside-total">
-                        {money(budget.total)}
+                        {budget.budgetSet===false?'Not set yet':money(budget.total)}
                       </strong>
                       <div className="budget-track">
                         <span
@@ -966,6 +964,18 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       <label className="field">Entry note (Markdown)
                         <textarea maxLength={50000} rows={5} value={draft.notes} onChange={e=>setDraft({...draft, notes:e.target.value})} placeholder="Details, receipt reference or [[related entry]]" />
                       </label>
+                      <RepeatEditor value={repeatDraft} onChange={setRepeatDraft} date={draft.date} rule={editingRule}/>
+                      {editingRule&&<>
+                        <div className="repeat-actions">
+                          {editingExpense?.status==='planned'&&<button type="button" className="outline-button" onClick={()=>{
+                            try {const saved=setBudget(b=>skipOccurrence(b,editingId!));closeExpense();notify(saved?'Occurrence skipped. Other repeats stay scheduled.':'Skipped on this page only. Download all books before leaving.',saved?'success':'error');}catch(error){notify(error instanceof Error?error.message:'Could not skip this occurrence.','error');}
+                          }}>Skip this occurrence</button>}
+                          <button ref={stopTrigger} type="button" className="outline-button" onClick={()=>{setConfirmStop(true);requestAnimationFrame(()=>stopHeading.current?.focus());}}>Stop repeating</button>
+                        </div>
+                        {confirmStop&&<section className="repeat-stop-confirmation" aria-labelledby="stop-repeat-title"><h3 id="stop-repeat-title" tabIndex={-1} ref={stopHeading}>Stop after this occurrence?</h3><p>Later Planned repeats will be removed. This entry, past history and any Committed or Paid entries stay unchanged. Unsaved edits above will not be applied.</p><div className="repeat-actions"><button type="button" className="outline-button" onClick={()=>{setConfirmStop(false);requestAnimationFrame(()=>stopTrigger.current?.focus());}}>Keep repeating</button><button type="button" className="outline-button danger-button" onClick={()=>{
+                          try {const saved=setBudget(b=>stopRepeating(b,editingId!));closeExpense();notify(saved?'Repeat stopped. Previous entries and history kept.':'Stopped on this page only. Download all books before leaving.',saved?'success':'error');}catch(error){notify(error instanceof Error?error.message:'Could not stop this repeat.','error');}
+                        }}>Yes, stop repeating</button></div></section>}
+                      </>}
                       {!budget.categories.length && (
                         <p className="error">
                           Add a category in your plan before logging spending.
@@ -1038,12 +1048,11 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                                     (c) => c.id === e.categoryId,
                                   )?.name
                                 }{" "}
-                                · {e.date.slice(5).replace("-", "/")}
+                                · <time dateTime={e.date}>{displayDate(e.date)}</time>
                               </span>
-                              <span className={`status-label ${e.status}`}>
-                                {e.status}
-                              </span>
+                              <Stage value={e.status}/>
                             </span>
+                            <RepeatTiming budget={budget} entry={e}/>
                             <span className="expense-edit-label">{editingId === e.id ? "Editing entry" : "Edit entry"}<Icon name="arrow" size={15} /></span>
                             </button>
                             {e.status !== "paid" && (
@@ -1091,7 +1100,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   )}
                   <ProjectGarden
                     scope={`${currentBook?.name ? `${currentBook.name} / ` : ""}${budget.name}`}
-                    key={budget.id}
+                    key={`${budget.id}:${periodId(budget)}`}
                     budget={budget}
                     setBudget={setBudget}
                     storageError={storageError}
@@ -1134,20 +1143,19 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                         {budget.period} · {budget.profile}{budget.startDate && <> · {budget.startDate} — {budget.endDate}</>}
                       </p>
                       <p className="report-story">
-                        We’re working with{" "}
-                        <strong>{money(budget.total)}</strong>. So far, we’ve
+                        {budget.budgetSet===false?<>This period’s budget is not set yet. So far, we’ve </>:<>We’re working with <strong>{money(budget.total)}</strong>. So far, we’ve </>}
                         paid <strong>{money(t.spent)}</strong>, with{" "}
                         <strong>{money(t.committed)}</strong> still to pay.
                       </p>
                       <div className="report-left">
                         <span>
-                          {t.left < 0
+                          {budget.budgetSet===false?'Room left needs':t.left < 0
                             ? "That puts us over by"
                             : "That leaves us"}
                         </span>
-                        <strong>{money(Math.abs(t.left))}</strong>
+                        <strong>{budget.budgetSet===false?'a budget first':money(Math.abs(t.left))}</strong>
                         <span>
-                          {t.left < 0
+                          {budget.budgetSet===false?'Set this period’s approved limit in Budget settings.':t.left < 0
                             ? "after existing commitments."
                             : "after existing commitments."}
                         </span>
@@ -1170,10 +1178,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                               return (
                                 <tr key={c.id}>
                                   <th scope="row">{c.name}</th>
-                                  <td>{money(c.amount)}</td>
+                                  <td>{budget.budgetSet===false?'Not set':money(c.amount)}</td>
                                   <td>{money(s.spent)}</td>
-                                  <td className={s.left < 0 ? "negative" : ""}>
-                                    {money(s.left)}
+                                  <td className={budget.budgetSet!==false&&s.left < 0 ? "negative" : ""}>
+                                    {budget.budgetSet===false?'Not set':money(s.left)}
                                   </td>
                                 </tr>
                               );
@@ -1183,10 +1191,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       </div>
                       <p className="report-footnote">
                         Spent means paid. Left includes bills still to pay.{" "}
-                        {money(Math.abs(unassigned))}{" "}
+                        {budget.budgetSet===false?'Budget and allocations have not been set.':<>{money(Math.abs(unassigned))}{" "}
                         {unassigned < 0
                           ? "is allocated above the approved budget."
-                          : "of the total budget is not assigned to categories."}
+                          : "of the total budget is not assigned to categories."}</>}
                       </p>
                       <h3>Entry notes</h3>
                       <div className="report-entry-notes">

@@ -484,3 +484,15 @@ test("board view metadata is validated without changing the Markdown or money co
     assert.throws(() => serializeBook({ ...b, board }), /board/i);
   }
 });
+test('restored legacy calendar dates remain repairable without crashing date presentation',async()=>{
+  const {displayDate}=await import('../app/book/model.mjs');
+  assert.equal(displayDate('2026-11-22'),'Nov 22, 2026');
+  assert.equal(displayDate('2028-02-29'),'Feb 29, 2028');
+  for(const date of ['2026-13-01','2026-02-31','2026-02-29','0000-01-01']){
+    const b=exampleBudget();b.expenses[0].date=date;
+    const restored=parseBook(serializeBook(b));
+    assert.equal(displayDate(restored.expenses[0].date),'Date needs correction');
+    assert.equal(restored.expenses[0].date,date);
+    assert.deepEqual(totals(restored),totals(b));
+  }
+});

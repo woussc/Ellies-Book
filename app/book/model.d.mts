@@ -7,6 +7,8 @@ export type Category = {
   glCode: string;
 };
 export type Expense = {
+  repeatId?: string;
+  occurrenceDate?: string;
   id: string;
   categoryId: string;
   description: string;
@@ -17,6 +19,11 @@ export type Expense = {
   notes?: string;
 };
 export type Budget = {
+  periodId?: string;
+  periodConfirmed?: boolean;
+  budgetSet?: boolean;
+  periods?: import('./repeat-model.mjs').BudgetPeriod[];
+  repeatRules?: import('./repeat-model.mjs').RepeatRule[];
   board?: BoardLayout;
   id: string;
   name: string;
@@ -59,6 +66,7 @@ export function parseBook(markdown: string): Budget;
 export function validateBudget(budget: unknown): Budget;
 export function legacyBackup(storage: Storage): string;
 export function localDate(date?: Date): string;
+export function displayDate(date: string): string;
 export function readStoredBudget(storage: Storage, example?: boolean): Budget;
 export function persistBudget(storage: Storage, budget: Budget): void;
 export const profiles: Record<Profile, string[]>;

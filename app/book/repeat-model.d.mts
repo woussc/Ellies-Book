@@ -1,0 +1,17 @@
+import type {Budget,Expense} from './model.mjs';
+export type RepeatFrequency='weekly'|'monthly'|'yearly';
+export type RepeatRule={id:string;seriesId?:string;frequency:RepeatFrequency;startDate:string;anchorDate?:string;endDate?:string;description:string;amount:number;categoryId:string;skipped:string[]};
+export type BudgetPeriod=Pick<Budget,'period'|'startDate'|'endDate'|'total'|'categories'|'expenses'|'board'|'budgetSet'|'periodConfirmed'>&{periodId:string};
+export type RepeatOptions={frequency:RepeatFrequency|'none';startDate?:string;endDate?:string;scope?:'this'|'future'};
+export function validRepeatDate(value:unknown):boolean;
+export function periodRange(month:string):{startDate:string;endDate:string};
+export function periodId(budget:Pick<Budget,'period'|'periodId'>):string;
+export function nextPeriodId(budget:Budget):string;
+export function repeatDates(rule:Pick<RepeatRule,'id'|'frequency'|'startDate'|'anchorDate'|'endDate'|'skipped'>,from:string,to:string,limit?:number):string[];
+export function repeatTiming(budget:Budget,entry:Expense):{frequency:RepeatFrequency;startDate:string;nextDate:string|null;endDate:string|null}|null;
+export function prepareRepeats(budget:Budget):Budget;
+export function openPeriod(budget:Budget,id:string,dates?:{startDate:string;endDate:string}):Budget;
+export function saveRepeatingEntry(budget:Budget,entry:Expense,options?:RepeatOptions):Budget;
+export function skipOccurrence(budget:Budget,id:string):Budget;
+export function stopRepeating(budget:Budget,id:string):Budget;
+export function validateRepeatData(budget:Budget,validatePeriod:(budget:unknown)=>Budget):void;
