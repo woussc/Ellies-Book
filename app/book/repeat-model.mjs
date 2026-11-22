@@ -61,13 +61,19 @@ export function repeatTiming(budget,entry) {
 }
 function materialize(budget,period) {
   const range=bounds(period);if(!range)return period;
-  const expenses=[...period.expenses],rules=budget.repeatRules??[];
+  const expenses=[...period.expenses],categories=[...period.categories],rules=budget.repeatRules??[];
   const identities=new Set(expenses.filter(e=>e.repeatId).map(e=>{
     const rule=rules.find(r=>r.id===e.repeatId);return `${rule?.seriesId??rule?.id}:${e.occurrenceDate}`;
   }));
   for(const rule of rules) {
-    if(!period.categories.some(c=>c.id===rule.categoryId))continue;
-    for(const date of repeatDates(rule,range.startDate,range.endDate)) {
+    const dates=repeatDates(rule,range.startDate,range.endDate);
+    if(!dates.length)continue;
+    if(!categories.some(c=>c.id===rule.categoryId)) {
+      const category=[budget,...(budget.periods??[])].flatMap(p=>p.categories).find(c=>c.id===rule.categoryId);
+      if(!category)throw new Error('A repeating bill needs its category. Restore the category before opening this period.');
+      categories.push({...category,amount:0});
+    }
+    for(const date of dates) {
       const key=`${rule.seriesId??rule.id}:${date}`;
       if(identities.has(key))continue;
       expenses.push({id:`repeat:${key}`,repeatId:rule.id,occurrenceDate:date,categoryId:rule.categoryId,
@@ -75,7 +81,7 @@ function materialize(budget,period) {
       identities.add(key);
     }
   }
-  return {...period,expenses};
+  return {...period,categories,expenses};
 }
 export function prepareRepeats(budget) {
   if(!budget.repeatRules?.length)return budget;

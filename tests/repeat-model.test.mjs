@@ -92,3 +92,12 @@ test('confirming a shorter drafted period excludes only generated Planned dates 
   paid=openPeriod(paid,'2026-11');
   assert.throws(()=>openPeriod(paid,'2026-12',{startDate:'2026-12-15',endDate:'2026-12-31'}),/outside|Paid|date/i);
 });
+test('a bill in a newly added category appears in an already prepared future period',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'monthly'});
+  next.categories.push({id:'utilities',name:'Utilities',amount:200,owner:'SHUAI',glCode:'001230'});
+  next=saveRepeatingEntry(next,{...rent(b),id:'electric',description:'Electricity',amount:90,categoryId:'utilities'},{frequency:'monthly'});
+  const december=openPeriod(next,'2026-12');assert.equal(december.expenses.length,2);
+  assert.equal(december.expenses.find(e=>e.description==='Electricity').amount,90);
+  assert.deepEqual(december.categories.find(c=>c.id==='utilities'),{id:'utilities',name:'Utilities',amount:0,owner:'SHUAI',glCode:'001230'});
+  assert.equal(december.total,0);assert.equal(december.budgetSet,false);
+});
