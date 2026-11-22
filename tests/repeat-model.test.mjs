@@ -128,3 +128,14 @@ test('rescheduling cannot replace a Committed or Paid occurrence on the destinat
   assert.throws(()=>saveRepeatingEntry(next,{...next.expenses.find(e=>e.id==='rent'),date:'2026-11-08'},{frequency:'weekly',scope:'future'}),/already|Committed|Paid/);
   assert.equal(next.expenses.find(e=>e.id===target.id).status,'committed');
 });
+test('future rescheduling cannot cross an earlier occurrence, even when that record is only Planned',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'weekly'});
+  const earlier=next.expenses.find(e=>e.date==='2026-11-08');
+  next=saveRepeatingEntry(next,{...earlier,notes:'Keep this earlier bill and its forecast'},{frequency:'weekly'});
+  const selected=next.expenses.find(e=>e.date==='2026-11-22'),forecast=totals(next).forecast;
+  assert.throws(()=>saveRepeatingEntry(next,{...selected,date:'2026-11-08'},{frequency:'weekly',scope:'future'}),/previous repeat|earlier/);
+  assert.equal(totals(next).forecast,forecast);assert.equal(next.expenses.find(e=>e.id===earlier.id).notes,'Keep this earlier bill and its forecast');
+  const moved=saveRepeatingEntry(next,{...selected,date:'2026-11-16'},{frequency:'weekly',scope:'future'});
+  assert.equal(moved.expenses.find(e=>e.id===earlier.id).notes,'Keep this earlier bill and its forecast');
+  assert.ok(moved.expenses.some(e=>e.date==='2026-11-15'));assert.ok(moved.expenses.some(e=>e.date==='2026-11-16'));
+});

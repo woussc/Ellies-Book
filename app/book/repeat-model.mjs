@@ -131,6 +131,13 @@ export function saveRepeatingEntry(budget,entry,options={frequency:'none'}) {
   if(!old&&entry.date!==startDate)throw new Error('The first bill date must match the repeat start date.');
   const id=crypto.randomUUID(),cutoff=before?.occurrenceDate??entry.date;
   const series=old?.seriesId??old?.id;
+  if(old) {
+    const seriesIds=new Set(budget.repeatRules.filter(r=>(r.seriesId??r.id)===series).map(r=>r.id));
+    const previous=[budget,...(budget.periods??[])].flatMap(p=>p.expenses)
+      .filter(e=>e.id!==entry.id&&seriesIds.has(e.repeatId)&&e.occurrenceDate<cutoff)
+      .map(e=>e.occurrenceDate).sort().at(-1);
+    if(previous&&startDate<=previous)throw new Error(`Choose a bill date after the previous repeat (${previous}), or edit that earlier entry. Earlier entries stay unchanged.`);
+  }
   const replaced=new Set(old?(next.repeatRules??[]).filter(r=>(r.seriesId??r.id)===series&&(!r.endDate||r.endDate>=cutoff)).map(r=>r.id):[]);
   const rule={id,seriesId:old?.seriesId??old?.id??id,frequency:options.frequency,startDate,
     anchorDate:old&&old.frequency===options.frequency&&entry.date===before.date?old.anchorDate??old.startDate:startDate,
