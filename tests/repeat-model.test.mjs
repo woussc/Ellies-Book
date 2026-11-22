@@ -111,3 +111,20 @@ test('an ended occurrence moved to another category does not need its unused ori
   assert.equal(openPeriod(restored,'2026-12').expenses.length,0);
   assert.equal(openPeriod(openPeriod(restored,'2026-12'),'2026-11').expenses[0].categoryId,'other');
 });
+test('rescheduling onto a Planned repeat date keeps one occurrence and audits the replaced draft',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'weekly'});
+  const target=next.expenses.find(e=>e.date==='2026-11-08');
+  next=saveRepeatingEntry(next,{...target,notes:'Draft receipt preserved in audit'},{frequency:'weekly'});
+  next=saveRepeatingEntry(next,{...next.expenses.find(e=>e.id==='rent'),date:'2026-11-08'},{frequency:'weekly',scope:'future'});
+  assert.equal(next.expenses.filter(e=>e.occurrenceDate==='2026-11-08').length,1);
+  assert.equal(next.expenses.find(e=>e.occurrenceDate==='2026-11-08').id,'rent');
+  assert.equal(next.expenses.length,4);assert.equal(totals(next).spent,1450);
+  assert.ok(next.events.at(-1).before.occurrences.some(e=>e.notes==='Draft receipt preserved in audit'));
+  const restored=parseBook(serializeBook(next));assert.equal(openPeriod(restored,'2026-12').expenses.length,4);
+});
+test('rescheduling cannot replace a Committed or Paid occurrence on the destination date',()=>{
+  const b=book();let next=saveRepeatingEntry(b,rent(b),{frequency:'weekly'});
+  const target=next.expenses.find(e=>e.date==='2026-11-08');next=advanceExpense(next,target.id);
+  assert.throws(()=>saveRepeatingEntry(next,{...next.expenses.find(e=>e.id==='rent'),date:'2026-11-08'},{frequency:'weekly',scope:'future'}),/already|Committed|Paid/);
+  assert.equal(next.expenses.find(e=>e.id===target.id).status,'committed');
+});

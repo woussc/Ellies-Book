@@ -139,6 +139,10 @@ export function saveRepeatingEntry(budget,entry,options={frequency:'none'}) {
   next={...next,repeatRules:[...(next.repeatRules??[]).map(r=>replaced.has(r.id)?{...r,endDate:dayAfter(cutoff,-1)}:r),rule]};
   const changedOccurrences=[];
   if(old)next=mapPeriods(next,p=>({...p,expenses:p.expenses.flatMap(e=>{
+    if(e.id!==entry.id&&next.repeatRules.some(r=>r.id===e.repeatId&&(r.seriesId??r.id)===series)&&e.occurrenceDate===startDate) {
+      if(e.status!=='planned')throw new Error('A Committed or Paid repeat already exists on this date. Choose another bill date; its history will stay unchanged.');
+      changedOccurrences.push(e);return [];
+    }
     if(e.id===entry.id||!replaced.has(e.repeatId)||e.status!=='planned'||e.occurrenceDate<cutoff)return [e];
     changedOccurrences.push(e);
     // Keep occurrence identity and its own receipt note when the date survives.
