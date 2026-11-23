@@ -4,6 +4,10 @@
 .auto-sort-offer h2{font-size:24px;line-height:1.35;max-width:32ch}
 .auto-sort-offer p{max-width:65ch}
 .auto-sort-money{font-family:PlexMono,monospace;font-variant-numeric:tabular-nums}
+.auto-sort-saved{display:grid;gap:12px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+.auto-sort-saved-line{display:flex;gap:16px;justify-content:space-between;align-items:baseline;flex-wrap:wrap;min-width:0}
+.auto-sort-saved-line h3{font-size:22px;line-height:1.35;overflow-wrap:anywhere;margin:0;min-width:0}
+.auto-sort-saved-line .auto-sort-money{font-size:28px;line-height:1.4}
 .auto-sort-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
 .auto-sort-actions button{min-height:44px;min-width:44px;white-space:normal;overflow-wrap:anywhere}
 .auto-sort-feedback{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:16px 24px;border:1px solid var(--control-boundary);border-radius:16px}

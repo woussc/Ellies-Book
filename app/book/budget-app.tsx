@@ -404,7 +404,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     catch(error){notify(error instanceof Error?error.message:'Could not save this entry.','error');return;}
     let dismissed=quietPayees.current.has(normalizePayee(expense.payee));
     try {dismissed ||= isPayeeOfferDismissed(sessionStorage,budget,expense.payee??'');} catch {/* Keep the in-page dismissal if session storage is unavailable. */}
-    setLearnPayee(saved&&!dismissed&&shouldOfferRule(budget,expense,categoryManual)?{payee:expense.payee!,categoryId,description:expense.description,amount}:null);
+    setLearnPayee(saved&&!dismissed&&shouldOfferRule(budget,expense,categoryManual)?{payee:expense.payee!,categoryId,description:expense.description,amount,date:expense.date,status:expense.status}:null);
     if(editingId)closeExpense();
     else {setDraft({...draft,payee:'',description:'',amount:'',notes:'',categoryId:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
     setCategoryManual(editingId?newCategoryManual.current:false);
@@ -878,9 +878,9 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   )}
                   <div className="statement-entry-actions"><button className="secondary" onClick={()=>go('statement')} disabled={storageError}>Import statement</button><p className="hint">CSV, PDF or screenshots. Review before saving as Paid.</p></div>
                   <StatementImportHistory book={book}/>
-                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);}} save={book.saveAutoSort} disabled={storageError}/>
+                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);requestAnimationFrame(()=>spendingForm.current?.querySelector('input')?.focus({preventScroll:true}));}} save={book.saveAutoSort} disabled={storageError}>{offerContent=>(
                   <div className="content-grid spend-grid">
-                    <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
+                    {offerContent || <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">
                         <h2>{editingId ? "Edit entry" : "Add entry"}</h2>
                         {editingId && <button type="button" className="text-button" onClick={() => closeExpense()}>Cancel</button>}
@@ -1045,7 +1045,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           }}>Remove entry</button>
                         )
                       )}
-                    </form>
+                    </form>}
                     <section className="recent-spending">
                       <div className="entry-filters" role="group" aria-label="Filter entries">{["all","planned","committed","paid"].map(s=><button key={s} className="outline-button" aria-pressed={entryFilter===s} onClick={()=>setEntryFilter(s)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div>
                       <div className="section-heading">
@@ -1123,7 +1123,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                         pay” until you mark it paid.
                       </p>
                     </section>
-                  </div>
+                  </div>)}</AutoSort>
                 </>
               )}
               {budget.created && (

@@ -1,11 +1,11 @@
 "use client";
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState,type ReactNode} from 'react';
 import type {Budget} from './model.mjs';
-import {money} from './model.mjs';
+import {displayDate,money} from './model.mjs';
 import {rememberPayee, payeeRule, changePayeeRule, removePayeeRule, undoPayeeRule, type PayeeRule} from './auto-sort-model.mjs';
 import './auto-sort.css';
-export type LearnPayee = {payee:string;categoryId:string;description:string;amount:number};
-export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled}:{budget:Budget;bookName:string;offer:LearnPayee|null;onDismiss:(quiet?:boolean)=>void;save:(change:(b:Budget)=>Budget)=>Promise<void>;disabled:boolean}) {
+export type LearnPayee = {payee:string;categoryId:string;description:string;amount:number;date:string;status:string};
+export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled,children}:{budget:Budget;bookName:string;offer:LearnPayee|null;onDismiss:(quiet?:boolean)=>void;save:(change:(b:Budget)=>Budget)=>Promise<void>;disabled:boolean;children:(offer:ReactNode)=>ReactNode}) {
   const [error,setError]=useState(''),[undo,setUndo]=useState<{before:PayeeRule|null;after:PayeeRule|null;message:string}|null>(null);
   const [busy,setBusy]=useState(false);
   const heading=useRef<HTMLHeadingElement>(null);
@@ -22,14 +22,14 @@ export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled}
     } catch(e) {setError(e instanceof Error?e.message:'Could not save this rule. Try again.');return false;}
     finally {setBusy(false);}
   }
-  return <section className="auto-sort" aria-label="Auto-sort">
-    {offer&&category&&<div className="paper auto-sort-offer">
-      <p className="hint">Saved · {offer.description} · <span className="auto-sort-money">{money(offer.amount)}</span></p>
+  const offerContent=offer&&category?<div className="paper auto-sort-offer">
+      <div className="auto-sort-saved"><p className="hint">Entry saved</p><div className="auto-sort-saved-line"><h3>{offer.payee}</h3><strong className="auto-sort-money">{money(offer.amount)}</strong></div><p>{category.name} · {displayDate(offer.date)}</p><p className="hint">{offer.description} · {offer.status[0].toUpperCase()+offer.status.slice(1)}</p></div>
       <h2 ref={heading} tabIndex={-1}>{existing?'Update your rule?':`Always put ${offer.payee} in ${category.name}?`}</h2>
       <p>{existing?`Use ${category.name} for ${offer.payee} next time? Your other entries stay as they are.`:'Choose once. Next time, we’ll suggest this category. You can still change it.'}</p>
       <p className="hint">{budget.name} in {bookName} only · Across months</p>
       <div className="auto-sort-actions"><button className="primary" disabled={disabled||busy} onClick={async()=>{if(await run(b=>rememberPayee(b,offer.payee,offer.categoryId),`Rule saved for ${offer.payee}.`))onDismiss();}}>{busy?'Saving rule…':error?'Retry saving rule':existing?'Update rule':'Yes, remember this'}</button><button className="secondary" disabled={busy} onClick={()=>{onDismiss(true);setError('');}}>Not now</button></div>
-    </div>}
+    </div>:null;
+  return <section className="auto-sort" aria-label="Auto-sort">
     {undo&&<div className="auto-sort-feedback" role="status"><p>{undo.message} Saved entries are unchanged.</p><button className="secondary" disabled={disabled||busy} onClick={async()=>{setBusy(true);try{await save(b=>undoPayeeRule(b,undo.before,undo.after));setUndo(null);setError('');}catch(e){setError(e instanceof Error?e.message:'Could not undo this change.');}finally{setBusy(false);}}}>Undo</button></div>}
     {error&&<p className="error" role="alert">{error}</p>}
     <details className="paper auto-sort-manager"><summary>Auto-sort{rules.length?` · ${rules.length} ${rules.length===1?'rule':'rules'}`:''}</summary>
@@ -42,5 +42,6 @@ export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled}
       </div>;})}
       <p className="hint">Rules only suggest a category. They never add payments, move old entries or change amounts.</p>
     </details>
+    {children(offerContent)}
   </section>;
 }
