@@ -210,6 +210,11 @@ for(const engine of engines){
   await fs.writeFile(root+`/ledger-${engine}.json`,JSON.stringify(rows.filter(row=>row.engine===engine),null,2));
   console.log('AUDITED',engine,md,w,state,JSON.stringify({overflow:data.documentOverflow,fields:data.fields.filter(x=>x.overflow>1).map(x=>[x.name,x.overflow]),dateOverlap:data.dateOverlap,crossings:data.crossings,small:data.small.map(x=>x.name),overlaps:data.overlaps}));
  }
+ // Exercise the production asset route, not only the Pages preview route.
+ for(const name of ['pdf/pdf.worker.min.mjs','worker.min.js','tesseract-core-lstm.wasm','eng.traineddata']){
+  const url=new URL('_next/static/statement-assets/'+name,base),response=await fetch(url,{method:'HEAD'});
+  assert.equal(response.status,200,'Local extraction asset is unavailable: '+url);
+ }
  await p.goto(base);
  await nav('Books');await p.getByRole('heading',{name:'A place for your next chapter.',exact:true}).waitFor();
  for(const md of selectedModes){

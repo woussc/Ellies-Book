@@ -4,7 +4,10 @@ import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { readStatementPdf } from "../app/book/statement-pdf.mjs";
-import { extractStatementLines,needsStatementOcr } from "../app/book/statement-parse.mjs";
+import {
+  extractStatementLines,
+  needsStatementOcr,
+} from "../app/book/statement-parse.mjs";
 const fixture = (name) =>
   new URL("./fixtures/statement-import/" + name, import.meta.url);
 const options = {
@@ -76,26 +79,26 @@ test(
         ),
         { createCanvas } = pdfRequire("@napi-rs/canvas");
       let scannedRows = [];
-      for(const name of ['scanned.pdf','hybrid.pdf']){
-      await readStatementPdf(await fs.readFile(fixture(name)), {
-        onPage: async (page, result) => {
-          if(name==='scanned.pdf')assert.equal(result.lines.length, 0);
-          else assert.match(result.lines.join(' '),/Statement issued/);
-          assert.equal(needsStatementOcr(result.lines),true);
-          const viewport = page.getViewport({ scale: 2 }),
-            canvas = createCanvas(viewport.width, viewport.height);
-          await page.render({
-            canvas,
-            canvasContext: canvas.getContext("2d"),
-            viewport,
-          }).promise;
-          const read = await worker.recognize(canvas.toBuffer("image/png"));
-          scannedRows = extractStatementLines(read.data.text, options);
-        },
-      });
-      assert.equal(scannedRows.length, 2);
-      assert.equal(scannedRows[0].amount, 86);
-      assert.ok(scannedRows.every((r) => !r.checked));
+      for (const name of ["scanned.pdf", "hybrid.pdf"]) {
+        await readStatementPdf(await fs.readFile(fixture(name)), {
+          onPage: async (page, result) => {
+            if (name === "scanned.pdf") assert.equal(result.lines.length, 0);
+            else assert.match(result.lines.join(" "), /Statement issued/);
+            assert.equal(needsStatementOcr(result.lines), true);
+            const viewport = page.getViewport({ scale: 2 }),
+              canvas = createCanvas(viewport.width, viewport.height);
+            await page.render({
+              canvas,
+              canvasContext: canvas.getContext("2d"),
+              viewport,
+            }).promise;
+            const read = await worker.recognize(canvas.toBuffer("image/png"));
+            scannedRows = extractStatementLines(read.data.text, options);
+          },
+        });
+        assert.equal(scannedRows.length, 2);
+        assert.equal(scannedRows[0].amount, 86);
+        assert.ok(scannedRows.every((r) => !r.checked));
       }
     } finally {
       await worker.terminate();

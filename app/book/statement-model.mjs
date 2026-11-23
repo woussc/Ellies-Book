@@ -156,7 +156,12 @@ export function reviewStatement(library, request) {
         "needs",
         "This bank transaction ID appears twice. Leave one copy out.",
       );
-    if (request.rows.some((o) => o.id!==r.id&&o.decision!=='skip'&&o.sourceId===r.sourceId))
+    if (
+      request.rows.some(
+        (o) =>
+          o.id !== r.id && o.decision !== "skip" && o.sourceId === r.sourceId,
+      )
+    )
       return result(
         "needs",
         "This source row was selected more than once. Leave one copy out.",
@@ -365,7 +370,7 @@ export function applyStatement(library, request) {
     ...project,
     // Legacy periods use their editable label as identity until first import.
     // Anchor it before storing references so later label edits stay harmless.
-    periodId:periodId(project),
+    periodId: periodId(project),
     expenses,
     statementImports: {
       accounts: metadata.accounts.some((a) => a.id === request.account.id)

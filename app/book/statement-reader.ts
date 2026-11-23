@@ -1,5 +1,5 @@
 import { readStatementPdf } from "./statement-pdf.mjs";
-import {needsStatementOcr} from './statement-parse.mjs';
+import { needsStatementOcr } from "./statement-parse.mjs";
 export type StatementPage = {
   number: number;
   lines: string[];
@@ -25,7 +25,8 @@ type Callbacks = {
   progress: (s: string) => void;
   url: (blob: Blob) => string;
 };
-const assets = () => new URL("statement-assets/", document.baseURI).href;
+const assets = () =>
+  new URL("_next/static/statement-assets/", document.baseURI).href;
 const aborted = (signal: AbortSignal) => {
   if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
 };
@@ -121,6 +122,7 @@ export async function readStatementFiles(
         workerPath: assets() + "worker.min.js",
         corePath: assets(),
         langPath: assets(),
+        gzip:false,
         workerBlobURL: false,
         cacheMethod: "none",
       });

@@ -61,17 +61,25 @@ const request = (rows = [row()], patch = {}) => ({
   rows,
   ...patch,
 });
-test('a corrected duplicate source row cannot create two payments',()=>{
- const l=setup(),q=request([row(),row({id:'copy',amount:99,separate:true})]);
- assert.deepEqual(reviewStatement(l,q).map(r=>r.state),['needs','needs']);
- assert.throws(()=>applyStatement(l,q));
- assert.equal(project(l).expenses.length,0);
+test("a corrected duplicate source row cannot create two payments", () => {
+  const l = setup(),
+    q = request([row(), row({ id: "copy", amount: 99, separate: true })]);
+  assert.deepEqual(
+    reviewStatement(l, q).map((r) => r.state),
+    ["needs", "needs"],
+  );
+  assert.throws(() => applyStatement(l, q));
+  assert.equal(project(l).expenses.length, 0);
 });
-test('renaming a legacy period after import does not orphan undo references',()=>{
- const original=setup(),imported=applyStatement(original,request());
- project(imported).period='November, renamed';
- const restored=parseLibrary(serializeLibrary(imported));
- assert.deepEqual(project(undoStatement(restored,'project','batch-1')).expenses,project(original).expenses);
+test("renaming a legacy period after import does not orphan undo references", () => {
+  const original = setup(),
+    imported = applyStatement(original, request());
+  project(imported).period = "November, renamed";
+  const restored = parseLibrary(serializeLibrary(imported));
+  assert.deepEqual(
+    project(undoStatement(restored, "project", "batch-1")).expenses,
+    project(original).expenses,
+  );
 });
 test("review is inert; an import adds Paid exactly once and survives Markdown restore", () => {
   const l = setup(),

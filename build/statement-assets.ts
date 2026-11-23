@@ -12,6 +12,9 @@ export function statementAssets(): Plugin {
     pdf = dirname(require.resolve("pdfjs-dist/package.json")),
     eng = dirname(require.resolve("@tesseract.js-data/eng/package.json"));
   const files = new Map<string, string>();
+  // vinext start serves emitted assets under /_next/static, not arbitrary
+  // output-root files. Pages and the native bundle can use the same path.
+  const root = "_next/static/statement-assets/";
   for (const [label, folder] of [
     ["pdfjs", pdf],
     ["tesseract", tess],
@@ -20,29 +23,25 @@ export function statementAssets(): Plugin {
   ])
     for (const name of ["LICENSE", "LICENSE.md", "LICENSE.txt"])
       if (existsSync(join(folder, name)))
-        files.set(
-          `statement-assets/licenses/${label}-${name}.txt`,
-          join(folder, name),
-        );
-  files.set("statement-assets/worker.min.js", join(tess, "dist/worker.min.js"));
+        files.set(`${root}licenses/${label}-${name}.txt`, join(folder, name));
+  files.set(root + "worker.min.js", join(tess, "dist/worker.min.js"));
   for (const name of readdirSync(core).filter((n) =>
     /^tesseract-core(?:-simd)?-lstm\.wasm(?:\.js)?$/.test(n),
   ))
-    files.set("statement-assets/" + name, join(core, name));
+    files.set(root + name, join(core, name));
   files.set(
-    "statement-assets/eng.traineddata.gz",
+    // Keep the packaged gzip bytes; Tesseract detects their magic header.
+    // A .gz-only URL is treated as a missing precompressed variant by vinext.
+    root + "eng.traineddata",
     join(eng, "4.0.0_best_int/eng.traineddata.gz"),
   );
   files.set(
-    "statement-assets/pdf/pdf.worker.min.mjs",
+    root + "pdf/pdf.worker.min.mjs",
     join(pdf, "legacy/build/pdf.worker.min.mjs"),
   );
   for (const folder of ["cmaps", "standard_fonts", "wasm"])
     for (const name of readdirSync(join(pdf, folder)))
-      files.set(
-        `statement-assets/pdf/${folder}/${name}`,
-        join(pdf, folder, name),
-      );
+      files.set(`${root}pdf/${folder}/${name}`, join(pdf, folder, name));
   return {
     name: "statement-assets",
     configureServer(server) {
