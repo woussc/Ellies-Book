@@ -258,6 +258,9 @@ for(const engine of engines){
    // Learning offers require a saved entry. Exercise them in the synthetic
    // library, then restore the exact fixture before the view-only matrix.
    const savedFixture=await p.evaluate(()=>localStorage.getItem('ellies-book:library:v1.md')),savedBaseline=baseline;
+   // Each width is a new learning scenario; real session dismissals correctly
+   // survive reload, so reset only this synthetic context's offer preferences.
+   await p.evaluate(()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('ellies-book:auto-sort-dismissed:'))sessionStorage.removeItem(key);});
    baseline=null;
    for(const [payee,state] of [['A long new merchant payee with receipt references and project details','auto-sort-remember'],['Netflix','auto-sort-update']]){
      await p.getByLabel('Payee (optional)',{exact:true}).fill(payee);await p.getByLabel('What’s it for?',{exact:true}).fill('Spacing learning offer');
