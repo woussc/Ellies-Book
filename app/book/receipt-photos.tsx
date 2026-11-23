@@ -93,13 +93,13 @@ export function RemovedEntryReceipts({budget}: {budget: Budget}) {
    })}
  </details>;
 }
-function ReceiptHistory({budget, entryId, ids, restore}: {budget: Budget; entryId: string; ids: string[]; restore?: (id: string) => void}) {
+function ReceiptHistory({budget, entryId, ids, restore, earlierOnly = false}: {budget: Budget; entryId: string; ids: string[]; restore?: (id: string) => void; earlierOnly?: boolean}) {
  const history = budget.receiptData?.events.filter(e => e.entryId === entryId) ?? [];
  const earlier = budget.receiptData?.assets.filter(a => a.entryId === entryId && !ids.includes(a.id)) ?? [];
- if (!history.length) return null;
- return <details className="receipt-history"><summary>Entry photo history · {history.length}</summary>
+ if (!history.length || (earlierOnly && !earlier.length)) return null;
+ return <details className="receipt-history"><summary>{earlierOnly ? `Earlier receipt photos · ${earlier.length}` : `Entry photo history · ${history.length}`}</summary>
    <p>Removing a photo keeps it here. Earlier photos are never overwritten.</p>
-   <ol>{history.map((e, i) => <li key={i}>Photo {e.action} · <time dateTime={e.at}>{added(e.at)}</time></li>)}</ol>
+   {!earlierOnly && <ol>{history.map((e, i) => <li key={i}>Photo {e.action} · <time dateTime={e.at}>{added(e.at)}</time></li>)}</ol>}
    {earlier.map((a, i) => <PhotoCard key={a.id} meta={a} number={i + 1}>{restore && <button type="button" className="outline-button" disabled={ids.length >= MAX_RECEIPTS} onClick={() => restore(a.id)}>Restore to entry</button>}</PhotoCard>)}
  </details>;
 }
@@ -132,7 +132,7 @@ export function ReceiptEntryDetail({budget, entry, onEdit, children}: {budget: B
            {history.length > 0 && <ol>{history.map((event, i) => <li key={i}><ReceiptGlyph kind={event.kind === 'photo' ? 'photo' : 'check'}/><div><strong>{event.label}</strong><time dateTime={event.at}>{added(event.at)}</time></div></li>)}</ol>}
            {!history.some(e => e.kind === 'entry') && <p>Earlier entry stages: {entry.history.map(s => s[0].toUpperCase() + s.slice(1)).join(' → ')}. Dates were not recorded for these stages.</p>}
            <p>Photos stay with this entry’s history.</p>
-           <ReceiptHistory budget={budget} entryId={entry.id} ids={entry.receiptIds ?? []}/>
+           <ReceiptHistory budget={budget} entryId={entry.id} ids={entry.receiptIds ?? []} earlierOnly/>
          </div>
        </details>
      </div>
