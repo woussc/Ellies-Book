@@ -49,7 +49,12 @@ for(const engine of engines){
  const runtimeErrors=[];
  p.on('pageerror',e=>runtimeErrors.push(String(e)));
  const click=n=>p.getByRole('button',{name:n,exact:true}).click();
- const nav=async n=>{await p.locator(p.viewportSize().width<=640?'.mobile-nav':'.product-topbar nav').getByRole('button',{name:n,exact:true}).click();};
+ const nav=async n=>{
+  await p.locator(p.viewportSize().width<=640?'.mobile-nav':'.product-topbar nav').getByRole('button',{name:n,exact:true}).click();
+  // Match the screenshot driver's navigation contract: go() hands focus to
+  // H1 on the next task. Do not let that handoff interrupt a field edit.
+  await p.waitForFunction(()=>document.activeElement?.tagName==='H1');
+ };
  const mode=async n=>{await p.getByRole('group',{name:'Budget mode'}).getByRole('button',{name:n,exact:true}).click();};
  const getLibrary=async()=>{const s=await p.evaluate(()=>localStorage.getItem('ellies-book:library:v1.md'));return s?lm.parseLibrary(s):lm.emptyLibrary();};
  const finances=l=>JSON.stringify(l.books.flatMap(b=>b.projects).map(b=>{const x=structuredClone(b);delete x.board;return x;}).sort((a,b)=>a.id.localeCompare(b.id)));
