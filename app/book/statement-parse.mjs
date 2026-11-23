@@ -3,16 +3,16 @@ import { validRepeatDate } from "./repeat-model.mjs";
 export function parseBankAmount(value, decimal = ".") {
   let s = String(value ?? "")
     .trim()
-    .replace(/\u00a0/g, " ");
+    .replace(/\u00a0/g, " ").replace(/[−﹣－]/g,'-').replace(/＋/g,'+');
   if (!s) return null;
   s = s.replace(/^(?:USD\s*|\$\s*)/i, "").trim();
   let sign = 1;
   if (/^\(.*\)$/.test(s)) {
     sign = -1;
-    s = s.slice(1, -1);
+    s = s.slice(1, -1).trim();
   } else if (/^[+-]/.test(s)) {
     sign = s[0] === "-" ? -1 : 1;
-    s = s.slice(1);
+    s = s.slice(1).trim();
   }
   const group = decimal === "." ? "," : ".",
     parts = s.split(decimal);
@@ -159,7 +159,7 @@ export function extractStatementLines(content, o) {
     const rest = raw.slice(date[0].length).trim(),
       amounts = [
         ...rest.matchAll(
-          /(?:USD\s*|\$\s*)?[+-]?\(?\d[\d,.]*[.,]\d{2}\)?(?:\s*(?:USD))?(?!\d)/g,
+          /(?:USD\s*|\$\s*)?[+＋−﹣－-]?\s*\(?\d[\d,.]*[.,]\d{2}\)?(?:\s*(?:USD))?(?!\d)/g,
         ),
       ],
       selected = amounts.at(-1 - (o.amountFromEnd ?? 0)),

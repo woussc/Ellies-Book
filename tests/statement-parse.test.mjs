@@ -13,6 +13,13 @@ const options = {
   currencyCode: "USD",
   sourceId: "a".repeat(64),
 };
+test('Unicode minus signs retain spending direction in CSV and PDF readings',()=>{
+ for(const sign of ['−','﹣','－','-']){
+  assert.equal(parseBankAmount(sign+' 24.90'),-24.9);
+  const [r]=extractStatementLines(`05/11/2026 SHOP ${sign}24.90`,options);
+  assert.equal(r.amount,24.9);assert.equal(r.direction,'out');
+ }
+});
 test("quoted CSV, explicit dates, signed amounts and bank IDs produce unchecked drafts", () => {
   const csv =
     'Date,Merchant,Amount,ID\n05/11/2026,"Corner store, Main St",-12.50,txn-1\n06/11/2026,Refund,5.00,txn-2';
