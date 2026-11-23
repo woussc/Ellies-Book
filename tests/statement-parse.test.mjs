@@ -13,6 +13,23 @@ const options = {
   currencyCode: "USD",
   sourceId: "a".repeat(64),
 };
+test("merchant punctuation is not a sign token at the start of an amount", () => {
+  for (const merchant of ["DISNEY+", "DISNEY +", "SHOP-"]) {
+    const [r] = extractStatementLines(
+      `05/11/2026 ${merchant} (24.90)`,
+      options,
+    );
+    assert.equal(r.description, merchant);
+    assert.equal(r.amount, 24.9);
+    assert.equal(r.direction, "out");
+  }
+  const [r] = extractStatementLines("05/11/2026 DISNEY+ 24.90", {
+    ...options,
+    outSign: "positive",
+  });
+  assert.equal(r.description, "DISNEY+");
+  assert.equal(r.direction, "out");
+});
 test("an explicit spaced plus is positive, not a blank debit-column marker", () => {
   for (const sign of ["+", "＋"]) {
     const [spending] = extractStatementLines(`05/11/2026 SHOP ${sign} 24.90`, {
