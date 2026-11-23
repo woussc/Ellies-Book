@@ -68,5 +68,9 @@
 	<true/>
     <key>UIUserInterfaceStyle</key>
     <string>Light</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Take a receipt photo to keep with an entry on this device. Nothing is uploaded or shared.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Choose a receipt photo to keep with an entry on this device. Nothing is uploaded or shared.</string>
 </dict>
 </plist>

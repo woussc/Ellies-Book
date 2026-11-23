@@ -6,6 +6,10 @@ import * as m from '../app/book/model.mjs';
 import * as lm from '../app/book/library-model.mjs';
 import {prepareRepeats,openPeriod} from '../app/book/repeat-model.mjs';
 import {carryoverFixture} from './carryover-fixtures.mjs';
+import {setEntryReceipts} from '../app/book/receipt-model.mjs';
+import {receiptHash,createReceiptBackup} from '../app/book/receipt-files.mjs';
+const receiptBytes=await fs.readFile(new URL('../tests/fixtures/receipt-local.jpg',import.meta.url));
+const receiptBlob=new Blob([receiptBytes],{type:'image/jpeg'}),receiptSha=await receiptHash(receiptBlob);
 const root=process.env.SPACING_OUT||'artifacts/spacing';
 const base=process.env.BASE_URL||'http://localhost:3000/';
 await fs.mkdir(root,{recursive:true});
@@ -27,6 +31,9 @@ for(const [i,profile] of modes.entries()){
  const repeatEntry=b.expenses.at(-1),repeatId='spacing-repeat-'+i;
  repeatEntry.repeatId=repeatId;repeatEntry.occurrenceDate='2026-11-01';repeatEntry.date='2026-11-01';
  b.repeatRules=[{id:repeatId,frequency:'monthly',startDate:'2026-11-01',description:repeatEntry.description,amount:repeatEntry.amount,categoryId:repeatEntry.categoryId,skipped:[]}];
+ const photos=[0,1].map(j=>({id:`00000000-0000-4000-8000-${String(i*2+j).padStart(12,'0')}`,entryId:repeatEntry.id,name:'Receipt photo',type:'image/jpeg',size:receiptBlob.size,sha256:receiptSha,addedAt:'2026-11-21T10:48:00.000Z'}));
+ b=setEntryReceipts(b,repeatEntry.id,photos.map(a=>a.id),photos);
+ b=setEntryReceipts(b,repeatEntry.id,[photos[0].id]);
  b.autoSortRules=[{id:'spacing-payee-'+i,payee:'Netflix',categoryId:b.categories[1].id,profile,paused:false},{id:'spacing-payee-long-'+i,payee:'A very long merchant payee name with extra receipt references and project details',categoryId:b.categories[0].id,profile,paused:true},{id:'spacing-payee-missing-'+i,payee:'Old category payee',categoryId:'missing-category',profile,paused:false}];
  b=prepareRepeats(b);
  library=lm.changeLibrary(library,{type:'book',name:profile+' book',project:b});
@@ -38,6 +45,7 @@ for(const [i,profile] of modes.entries()){
 }
 library=lm.changeLibrary(library,{type:'select',id:'spacing-0'});
 await fs.writeFile(root+'/fixtures.md',lm.serializeLibrary(library));
+await fs.writeFile(root+'/fixtures.fennuma',await createReceiptBackup(library,async()=>receiptBlob));
 let rows=[];
 const engines=process.env.ENGINES?.split(',')||['chromium','webkit'];
 const selectedWidths=process.env.WIDTHS?process.env.WIDTHS.split(',').map(Number):widths;
@@ -227,7 +235,8 @@ for(const engine of engines){
   await mode(md);
   for(const w of selectedWidths){await p.setViewportSize({width:w,height:w===320?700:w===390?844:w===430?932:w===768?1024:900});await snap('empty-books',md,w,{shot:w===390});}
  }
- await p.getByLabel('Restore / add books',{exact:true}).setInputFiles(root+'/fixtures.md');
+ await p.getByLabel('Restore / add books',{exact:true}).setInputFiles(root+'/fixtures.fennuma');
+ await p.getByText('Backup added as new books. Your other projects are unchanged.',{exact:true}).waitFor();
  await mode('Household');await nav('Books');
  await p.getByRole('button',{name:'Open Household November project',exact:true}).click();
  if(await p.getByRole('button',{name:'Dismiss notification',exact:true}).count())await click('Dismiss notification');
@@ -260,6 +269,14 @@ for(const engine of engines){
    await click('Next 4');await snap('trail-last-page',md,w,{shot:shots});
    await p.locator('.garden-folded>button').first().click();await p.getByText('No entries in this category yet.',{exact:true}).waitFor();await snap('trail-empty',md,w,{shot:shots});
    await nav('Entries');await p.locator('.entry-filters').getByRole('button',{name:'All',exact:true}).click();await snap('entries-add',md,w,{shot:shots});
+   if(w<=640){await click('Add photo');await snap('receipt-source-choice',md,w,{shot:shots});await p.locator('.receipt-dialog').getByRole('button',{name:'Back',exact:true}).click();}
+   await p.getByLabel('Choose receipt photo',{exact:true}).setInputFiles('tests/fixtures/receipt-local.jpg');
+   await p.getByRole('heading',{name:'Check your photo',exact:true}).waitFor();await snap('receipt-preview',md,w,{shot:shots});
+   await p.locator('.receipt-dialog').getByRole('button',{name:'Zoom',exact:true}).click();await snap('receipt-preview-zoom',md,w,{shot:shots});
+   await p.locator('.receipt-dialog').getByRole('button',{name:'Use photo',exact:true}).click();await snap('receipt-unsaved',md,w,{shot:shots});
+   await p.locator('.spending-form .receipt-card').getByRole('button',{name:'Remove from entry',exact:true}).click();await snap('receipt-remove-unsaved',md,w,{shot:shots});await click('Yes, remove photo');
+   await p.getByLabel('Choose receipt photo',{exact:true}).setInputFiles({name:'not-a-photo.txt',mimeType:'text/plain',buffer:Buffer.from('Not a photo')});
+   await p.getByText('Choose a JPEG, PNG or WebP photo. HEIC works only if this device can open it.',{exact:true}).waitFor();await snap('receipt-invalid-file',md,w,{shot:shots});
    // Saving and dismissing are stateful interactions, not view-only probes.
    // Give each offer its own browser context so preferences, drafts and timed
    // notices cannot leak between cases or alter the main financial fixture.
@@ -306,6 +323,11 @@ for(const engine of engines){
    await p.getByLabel('Repeat',{exact:true}).selectOption('none');
    await p.locator('.expense-edit').first().click();await snap('entries-edit',md,w,{shot:shots});
    await p.waitForFunction(()=>document.activeElement===document.querySelector('.spending-form input'));
+   await p.locator('.spending-form .receipt-history > summary').click();await snap('receipt-history',md,w,{shot:shots});
+   await p.locator('.spending-form .receipt-history .receipt-card').getByRole('button',{name:'Open photo',exact:true}).click();await snap('receipt-historical-viewer',md,w,{shot:shots});
+   await p.locator('.receipt-dialog').getByRole('button',{name:'Back',exact:true}).click();
+   await p.locator('.spending-form .receipt-section > .receipt-card').getByRole('button',{name:'Remove from entry',exact:true}).click();await snap('receipt-remove-saved',md,w,{shot:shots});await click('Keep photo');
+   await p.locator('.spending-form .receipt-history > summary').click();
    await p.getByLabel('Apply changes to',{exact:true}).selectOption('future');await snap('repeat-edit-future',md,w,{shot:shots});
    await click('Stop repeating');await snap('repeat-stop-confirm',md,w,{shot:shots});await click('Keep repeating');
    await p.getByLabel('Apply changes to',{exact:true}).selectOption('this');

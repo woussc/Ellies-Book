@@ -7,6 +7,7 @@ export type Category = {
   glCode: string;
 };
 export type Expense = {
+  receiptIds?: string[];
   payee?: string;
   repeatId?: string;
   occurrenceDate?: string;
@@ -20,6 +21,7 @@ export type Expense = {
   notes?: string;
 };
 export type Budget = {
+  receiptData?: import('./receipt-model.mjs').ReceiptData;
   autoSortRules?:import('./auto-sort-model.mjs').PayeeRule[];
   statementImports?:import('./statement-model.mjs').StatementData;
   budgetOrigins?: import('./carryover-model.mjs').BudgetOrigin[];

@@ -40,7 +40,11 @@ import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
 import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
 import type {NodeBoardHandle} from "./node-board";
 import { BookSetup, BooksPage, ProfilePage } from "./library-pages";
-import { serializeLibrary } from "./library-model.mjs";
+import { changeLibrary, emptyLibrary, serializeLibrary } from "./library-model.mjs";
+import ReceiptEditor, {ReceiptCount, RemovedEntryReceipts, emptyReceiptDraft, type ReceiptDraft} from './receipt-photos';
+import {setEntryReceipts} from './receipt-model.mjs';
+import {createReceiptBackup, parseReceiptBackup} from './receipt-files.mjs';
+import {readReceipt, receiptAssetsForSave} from './receipt-storage';
 import "./workspace.css";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
@@ -228,6 +232,14 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     notes: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [receiptDraft, setReceiptDraft] = useState<ReceiptDraft>(emptyReceiptDraft);
+  const newReceiptDraft = useRef<ReceiptDraft>(emptyReceiptDraft());
+  const receiptBaseline = useRef('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [savingReceipt, setSavingReceipt] = useState(false);
+  const [receiptSaveError, setReceiptSaveError] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupError, setBackupError] = useState('');
   const [categoryManual,setCategoryManual]=useState(false);
   const newCategoryManual=useRef(false);
   const [learnPayee,setLearnPayee]=useState<LearnPayee|null>(null);
@@ -302,7 +314,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
     // Opening an entry is not consent to the pending learn offer.
     setLearnPayee(null);
-    if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;newCategoryManual.current=categoryManual;}
+    if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;newCategoryManual.current=categoryManual;newReceiptDraft.current=receiptDraft;}
+    receiptBaseline.current = JSON.stringify(expense);
+    setReceiptDraft({ids: [...(expense.receiptIds ?? [])], assets: []});
+    setReceiptSaveError('');setPhotoBusy(false);
     editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
     setConfirmRemoval(false);
@@ -323,6 +338,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     setRepeatDraft(newRepeatDraft.current);
     setDraft(newEntryDraft.current);
     setCategoryManual(newCategoryManual.current);
+    setReceiptDraft(newReceiptDraft.current);setReceiptSaveError('');setPhotoBusy(false);
     if (returnFocus) requestAnimationFrame(() => {
       const target = editingTrigger.current?.isConnected ? editingTrigger.current : entriesHeading.current;
       target?.focus({ preventScroll: true });
@@ -353,14 +369,17 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   async function restore(file: File | undefined) {
     if (!file) return;
     try {
-      if (file.size > 5_000_000)
-        throw new Error("Choose an Ellie’s Book backup smaller than 5 MB.");
+      const full = !file.name.toLowerCase().endsWith('.md');
+      if (file.size > (full ? 250_000_000 : 5_000_000))
+        throw new Error(full ? 'Choose a full backup smaller than 250 MB.' : 'Choose a Markdown backup smaller than 5 MB.');
       if (recovery && !window.confirm("Add these books to a recovered library? Download the saved copy first. The unreadable original will also be retained on this device.")) return;
-      const saved = restoreBooks(await file.text());
+      const text = await file.text();
+      const archive = full ? await parseReceiptBackup(text) : null;
+      const saved = archive ? await book.restoreReceiptBooks(archive.markdown, archive.assets) : restoreBooks(text);
       go("books");
       notify(
         saved
-          ? "Backup added as new books. Your other projects are unchanged."
+          ? `Backup added as new books. Your other projects are unchanged.${!full ? ' Markdown does not include photo files.' : ''}`
           : "Backup is not saved. Keep this page open and download all books.",
         saved ? "success" : "error",
       );
@@ -371,8 +390,20 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       );
     }
   }
-  const backup = () => download(serializeBook(budget), "ellies-book.md");
-  const backupAll = () => download(serializeLibrary(library), "ellies-book-library.md");
+  const markdownBackup = () => download(serializeBook(budget), 'ellies-book.md');
+  const markdownBackupAll = () => download(serializeLibrary(library), 'ellies-book-library.md');
+  async function fullBackup(all = false) {
+    if (backupBusy) return;
+    setBackupBusy(true);setBackupError('');
+    try {
+      const selected = all ? library : changeLibrary(emptyLibrary(), {type: 'book', name: bookName, project: {...budget, sample: false}});
+      const content = await createReceiptBackup(selected, readReceipt);
+      await download(content, all ? 'fennuma-all-books.fennuma' : 'fennuma-project.fennuma', 'application/json');
+    } catch (error) {setBackupError(error instanceof Error ? error.message : 'Could not prepare this backup. Try again.');}
+    finally {setBackupBusy(false);}
+  }
+  const backup = () => {void fullBackup();};
+  const backupAll = () => {void fullBackup(true);};
   function newBook(bookId: string | null = null) {
     setSetupBookId(bookId);
     go("start");
@@ -385,8 +416,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     go("home");
     if (!saved) notify("Project is open on this page only. Download all books before leaving.", "error");
   }
-  function addExpense(e: FormEvent) {
+  async function addExpense(e: FormEvent) {
     e.preventDefault();
+    if (savingReceipt || photoBusy) return;
+    setReceiptSaveError('');
     const amount = round(draft.amount);
     if (!(amount > 0)) return;
     if (!draft.description.trim()) {
@@ -409,13 +442,25 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       history: editingExpense?.history??[draft.status],
     };
     let saved;
-    try {saved=setBudget(b=>saveRepeatingEntry(b,expense,{...repeatDraft,startDate:draft.date}));}
-    catch(error){notify(error instanceof Error?error.message:'Could not save this entry.','error');return;}
+    const photoChanges = receiptDraft.assets.length > 0 || JSON.stringify(receiptDraft.ids) !== JSON.stringify(editingExpense?.receiptIds ?? []);
+    try {
+      if (photoChanges) {
+        setSavingReceipt(true);
+        const assets = await receiptAssetsForSave(budget, expense.id, receiptDraft.ids, receiptDraft.assets.map(a => ({...a, meta: {...a.meta, entryId: expense.id}})));
+        const baseline = receiptBaseline.current;
+        saved = await book.saveReceiptEntry(b => {
+          if (editingId && JSON.stringify(b.expenses.find(e => e.id === editingId)) !== baseline) throw new Error('This entry changed while you were editing. Cancel and reopen it before attaching photos. Your draft is still here.');
+          return setEntryReceipts(saveRepeatingEntry(b, expense, {...repeatDraft, startDate: draft.date}), expense.id, receiptDraft.ids, assets.map(a => a.meta));
+        }, assets, budget.id, periodId(budget));
+      } else saved=setBudget(b=>saveRepeatingEntry(b,expense,{...repeatDraft,startDate:draft.date}));
+    }
+    catch(error){const message=error instanceof Error?error.message:'Could not save this entry. Your draft is still here.';setReceiptSaveError(message);notify(message,'error');return;}
+    finally {setSavingReceipt(false);}
     let dismissed=quietPayees.current.has(normalizePayee(expense.payee));
     try {dismissed ||= isPayeeOfferDismissed(sessionStorage,budget,expense.payee??'');} catch {/* Keep the in-page dismissal if session storage is unavailable. */}
     setLearnPayee(saved&&!dismissed&&shouldOfferRule(budget,expense,categoryManual)?{payee:expense.payee!,categoryId,description:expense.description,amount,date:expense.date,status:expense.status}:null);
     if(editingId)closeExpense();
-    else {setDraft({...draft,payee:'',description:'',amount:'',notes:'',categoryId:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
+    else {setDraft({...draft,payee:'',description:'',amount:'',notes:'',categoryId:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});setReceiptDraft(emptyReceiptDraft());}
     setCategoryManual(editingId?newCategoryManual.current:false);
     notify(
       saved
@@ -453,7 +498,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       </div>
       {action}
     </header>{budget.created&&['home','spend','plan','settings','report'].includes(page)&&<PeriodSwitcher budget={budget} onSettings={()=>go('settings')} onStart={()=>go('carryover')} onOpen={(id,dates)=>{
-      if((editingId||draft.description.trim()||draft.amount||draft.notes.trim())&&!window.confirm('Switch periods and discard these unsaved edits?'))return false;
+      if((editingId||draft.description.trim()||draft.amount||draft.notes.trim()||receiptDraft.ids.length||receiptDraft.assets.length||photoBusy||savingReceipt)&&!window.confirm('Switch periods and discard these unsaved edits?'))return false;
       try {const saved=setBudget(b=>openPeriod(b,id,dates));if(!saved)notify('This period is open on this page only. Download all books before leaving.','error');return true;}
       catch(error){notify(error instanceof Error?error.message:'Could not open this period.','error');return false;}
     }}/>}</>
@@ -571,8 +616,9 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                 go("home");
                 notify(saved ? "Your project is ready. Welcome to your board." : "Project created on this page only. Download all books before leaving.", saved ? "success" : "error");
               }} />}
-              {page === "books" && <BooksPage library={modeLibrary} onNewBook={() => newBook()} onNewProject={id => newBook(id)} onOpen={selectProject} onRestore={restore} onBackup={backupAll} />}
-              {page === "profile" && <ProfilePage library={library} onName={name => { const saved = libraryAction({type:"profile", name}); notify(saved ? "Local profile saved." : "Profile is not saved. Download all books before leaving.",saved ? "success":"error"); }} onBackup={backupAll} onProjectBackup={backup} onRestore={restore} onSettings={() => go("settings")} hasProject={budget.created} />}
+              {page === "books" && <BooksPage library={modeLibrary} onNewBook={() => newBook()} onNewProject={id => newBook(id)} onOpen={selectProject} onRestore={restore} onBackup={backupAll} onMarkdown={markdownBackupAll} backupBusy={backupBusy} />}
+              {page === "profile" && <ProfilePage library={library} onName={name => { const saved = libraryAction({type:"profile", name}); notify(saved ? "Local profile saved." : "Profile is not saved. Download all books before leaving.",saved ? "success":"error"); }} onBackup={backupAll} onProjectBackup={backup} onMarkdown={markdownBackupAll} backupBusy={backupBusy} onRestore={restore} onSettings={() => go("settings")} hasProject={budget.created} />}
+              {backupError && <p role="alert" className="error receipt-save-error">{backupError}</p>}
               {page === 'carryover' && <>{header(budget.budgetSet===false?`Start from ${sourcePeriod?budgetMonth(sourcePeriod).replace(/ \d{4}$/,''):'previous month'}`:'Review carryover',`${budget.name} · ${budgetMonth(budget)} · USD`,<button className="outline-button" onClick={()=>go('home')}>Back to board</button>)}<BudgetStartReview budget={budget} onCancel={()=>go('home')} onConfirm={proposal=>{
                 try {const saved=setBudget(b=>confirmBudgetStart(b,proposal));go('home');notify(saved?'Budget approved. Your board is ready.':'Approved on this page only. Download all books before leaving.',saved?'success':'error');return null;}
                 catch(error){return error instanceof Error?error.message:'Could not approve this budget.';}
@@ -622,18 +668,19 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   <details className="book-backup">
                     <summary>Keep a copy of your book</summary>
                     <p>
-                      Download a Markdown backup to keep your categories,
-                      spending, notes and activity together. Restore it on
-                      another device or in this browser.
+                      A full backup keeps categories, spending, notes and current
+                      and historical receipt photos together. Clearing browser
+                      data removes local originals. Keep a downloaded copy.
                     </p>
-                    <button className="secondary" onClick={backup}>
-                      Download book backup <Icon name="download" size={18} />
+                    <button className="secondary" onClick={backup} disabled={backupBusy}>
+                      {backupBusy ? 'Preparing backup…' : 'Full book backup (with photos)'} <Icon name="download" size={18} />
                     </button>
+                    <button className="secondary" onClick={markdownBackup}>Markdown only — photos not included</button>
                     <label className="restore-book">
-                      Restore a book (.md)
+                      Restore a book (.fennuma or .md)
                       <input
                         type="file"
-                        accept=".md,text/markdown"
+                        accept=".md,.fennuma,text/markdown,application/json"
                         onChange={(e) => {
                           void restore(e.target.files?.[0]);
                           e.target.value = "";
@@ -890,6 +937,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);requestAnimationFrame(()=>spendingForm.current?.querySelector('input')?.focus({preventScroll:true}));}} save={book.saveAutoSort} disabled={storageError} actions={<><button className="primary" onClick={()=>{if(editingId&&!window.confirm('Add a new entry and discard these unsaved edits?'))return;if(editingId)closeExpense(false);setLearnPayee(null);requestAnimationFrame(()=>{spendingForm.current?.scrollIntoView({block:'start'});spendingForm.current?.querySelector('input')?.focus({preventScroll:true});});}}>Add entry</button><button className="secondary auto-sort-import" onClick={()=>go('statement')} disabled={storageError}>Import statement</button></>}>{offerContent=>(
                   <div className="content-grid spend-grid">
                     {offerContent || <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
+                      <fieldset className="entry-edit-fields" disabled={savingReceipt}>
                       <div className="spending-form-heading">
                         <h2>{editingId ? "Edit entry" : "Add entry"}</h2>
                         {editingId && <button type="button" className="text-button" onClick={() => closeExpense()}>Cancel</button>}
@@ -1010,6 +1058,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       <label className="field">Entry note (Markdown)
                         <textarea maxLength={50000} rows={5} value={draft.notes} onChange={e=>setDraft({...draft, notes:e.target.value})} placeholder="Details, receipt reference or [[related entry]]" />
                       </label>
+                      <ReceiptEditor key={editingId ?? 'new'} budget={budget} entryId={editingId ?? undefined} value={receiptDraft} onChange={value => {setReceiptDraft(value);setReceiptSaveError('');}} onBusy={setPhotoBusy}/>
                       <RepeatEditor value={repeatDraft} onChange={setRepeatDraft} date={draft.date} rule={editingRule}/>
                       {editingRule&&<>
                         <div className="repeat-actions">
@@ -1029,11 +1078,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       )}
                       <button
                         className="primary full"
-                        disabled={!budget.categories.length}
+                        disabled={!budget.categories.length || photoBusy || savingReceipt}
                         type="submit"
                       >
-                        {editingId ? "Save changes" : "Save entry"} <Icon name="check" size={19} />
+                        {savingReceipt ? 'Saving entry and photos…' : editingId ? "Save changes" : "Save entry"} <Icon name="check" size={19} />
                       </button>
+                      {receiptSaveError && <p className="error receipt-save-error" role="alert">{receiptSaveError}</p>}
                       {editingId && (
                         confirmRemoval ? (
                           <section className="remove-entry-confirmation" aria-labelledby="remove-entry-heading">
@@ -1054,6 +1104,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           }}>Remove entry</button>
                         )
                       )}
+                      </fieldset>
                     </form>}
                     <section className="recent-spending">
                       <div className="entry-filters" role="group" aria-label="Filter entries">{["all","planned","committed","paid"].map(s=><button key={s} className="outline-button" aria-pressed={entryFilter===s} onClick={()=>setEntryFilter(s)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div>
@@ -1099,6 +1150,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                               <Stage value={e.status}/>
                             </span>
                             <RepeatTiming budget={budget} entry={e}/>
+                            <ReceiptCount entry={e}/>
                             <span className="expense-edit-label">{editingId === e.id ? "Editing entry" : "Edit entry"}<Icon name="arrow" size={15} /></span>
                             </button>
                             {e.status !== "paid" && (
@@ -1166,6 +1218,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                     {budget.events.length ? [...budget.events].reverse().map((ev, i) => (
                       <p key={i}>{ev.text.split(/(-?\$[\d,]+\.\d{2})/g).map((part,index)=>index%2?<span className="money" key={index}>{part}</span>:part)}<small>{new Date(ev.at).toLocaleString()}</small></p>
                     )) : <p>No changes recorded yet.</p>}
+                    <RemovedEntryReceipts budget={budget}/>
                   </details>
                 </section>
               )}
@@ -1316,11 +1369,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                       <div className="finance-export">
                         <h3>Your whole book, safely kept.</h3>
                         <p>
-                          A Markdown backup includes every entry, its history
-                          and your notes. Restore it from My budget.
+                          A full backup includes every entry, notes and current
+                          and historical receipt photos. Reports and CSV do not
+                          embed photos.
                         </p>
-                        <button className="secondary" onClick={backup}>
-                          Download book backup{" "}
+                        <button className="secondary" onClick={backup} disabled={backupBusy}>
+                          {backupBusy ? 'Preparing backup…' : 'Full book backup (with photos)'}{" "}
                           <Icon name="download" size={17} />
                         </button>
                       </div>

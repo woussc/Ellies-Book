@@ -22,6 +22,8 @@ import {periodId} from './repeat-model.mjs';
 import {applyStatement,undoStatement,type StatementRequest} from './statement-model.mjs';
 import {saveStatement} from './statement-storage.mjs';
 import {saveAutoSortRules} from './auto-sort-storage.mjs';
+import {commitReceiptLibrary} from './receipt-transaction.mjs';
+import type {LocalReceipt} from './receipt-files.mjs';
 
 type Snapshot = {
   library: Library;
@@ -215,6 +217,22 @@ async function statementTransaction(change:(library:Library)=>Library) {
   });
 }
 
+async function receiptTransaction(assets: LocalReceipt[], change: (library: Library) => Library, restore = false) {
+  if (!navigator.locks) throw new Error('Safe photo saving is unavailable in this browser. Use a current browser. Nothing changed.');
+  const previous = getSnapshot();
+  const assertWritable = () => {
+    const latest = getSnapshot();
+    if (latest.blocked ? !restore : latest.status === 'error') throw new Error('Your unsaved changes are still on this page. Save them or download all books before reloading and restoring. Nothing changed.');
+  };
+  assertWritable();
+  const {writeReceipts} = await import('./receipt-storage');
+  const next = await commitReceiptLibrary(localStorage, writeReceipts, assets, library => {assertWritable(); return change(library);},
+    async work => await navigator.locks.request('ellies-book:statement-import', work), previous.blocked && restore ? previous.library : undefined);
+  current = {...previous, library: next, budget: activeBudget(next) ?? initialProject(), status: 'saved', error: '', blocked: false, recovery: ''};
+  emit();
+  return true;
+}
+
 export function useBook() {
   const snapshot = useSyncExternalStore(
     subscribe,
@@ -225,6 +243,12 @@ export function useBook() {
     ...snapshot,
     setBudget,
     saveAutoSort,
+    saveReceiptEntry: (change: (budget: Budget) => Budget, assets: LocalReceipt[], projectId: string, expectedPeriod: string) => receiptTransaction(assets, library => {
+      const budget = activeBudget(library);
+      if (!budget || budget.id !== projectId || periodId(budget) !== expectedPeriod) throw new Error('The open project or month changed. Reopen the entry before saving.');
+      return changeLibrary(library, {type: 'update', project: change(budget)});
+    }),
+    restoreReceiptBooks: (markdown: string, assets: LocalReceipt[]) => receiptTransaction(assets, library => restoreLibrary(library, markdown), true),
     removeExample,
     libraryAction,
     importStatement:(request:StatementRequest)=>statementTransaction(library=>applyStatement(library,request)),
