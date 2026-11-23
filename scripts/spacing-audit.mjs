@@ -58,7 +58,7 @@ for(const engine of engines){
   await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(90);
   const data=await p.evaluate((state)=>{
    const modal=document.querySelector('dialog[open],.ai-sheet');
-   const visible=e=>{let r=e.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'&&(!modal||modal.contains(e));};
+   const visible=e=>{let r=e.getBoundingClientRect();const closed=e.closest('details:not([open])');return (!closed||closed.querySelector('summary')?.contains(e))&&r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'&&(!modal||modal.contains(e));};
    const rr=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom};};
    const text=e=>(e.getAttribute('aria-label')||e.textContent||e.getAttribute('name')||e.type||'').trim().replace(/\s+/g,' ').slice(0,110);
    const fields=[...document.querySelectorAll('input:not([type=hidden]):not([type=file]):not([type=radio]):not([type=checkbox]),textarea,select')].filter(visible).map(e=>{
