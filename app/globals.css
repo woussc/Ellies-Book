@@ -2989,6 +2989,7 @@ body::before {
   .product-topbar,
   .mobile-nav,
   .page-heading,
+  .period-switcher,
   .report-actions,
   .book-backup,
   .legacy-notice,
@@ -3002,7 +3003,7 @@ body::before {
     margin: 0;
     width: 100%;
   }
-  main {
+  .app-shell main {
     padding: 0;
     max-width: 100%;
   }

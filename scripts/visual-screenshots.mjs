@@ -201,9 +201,11 @@ async function checkReportAndAudit(page) {
   await page.locator(".ai-exact-copy summary").click();
   assert.match(await page.getByRole("textbox",{name:"Exact copy",exact:true}).inputValue(),/Home repairs[\s\S]*Keep this edit/);
   await page.locator(".ai-sheet").getByRole("button",{name:"Close",exact:true}).click();
+  assert.equal(await page.getByLabel("Viewing period",{exact:true}).isVisible(),true);
   await page.emulateMedia({media:"print"});
   assert.equal(await page.locator(".report-entry-notes").isVisible(),true);
-  for (const selector of [".product-topbar", ".mobile-nav", ".page-heading", ".report-actions"]) {
+  assert.equal(await page.locator(".report-period").isVisible(),true);
+  for (const selector of [".product-topbar", ".mobile-nav", ".page-heading", ".period-switcher", ".report-actions"]) {
     assert.equal(await page.locator(selector).isVisible(), false, `${selector} must not consume space on the first printed page`);
   }
   await page.emulateMedia({media:"screen"});
