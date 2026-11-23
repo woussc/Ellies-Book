@@ -203,7 +203,7 @@ export function extractStatementLines(content, o) {
     const rest = raw.slice(date[0].length).trim(),
       amounts = [
         ...rest.matchAll(
-          /(?:USD\s*|\$\s*)?[+＋−﹣－-]?\s*\(?\d[\d,.]*[.,]\d{2}\)?(?:\s*(?:USD))?(?!\d)/g,
+          /(?:USD\s*|\$\s*)?[+＋−﹣－-]?\(?\d[\d,.]*[.,]\d{2}\)?(?:\s*(?:USD))?(?!\d)/g,
         ),
       ],
       selected = amounts.at(-1 - (o.amountFromEnd ?? 0)),
@@ -212,7 +212,7 @@ export function extractStatementLines(content, o) {
         : null;
     const description = rest.slice(0, amounts[0]?.index ?? rest.length).trim();
     const direction =
-      amount === null
+      amount === null || (selected && /[+＋−﹣－-]\s+$/.test(rest.slice(0,selected.index)))
         ? "unknown"
         : (o.outSign === "negative" ? amount < 0 : amount > 0)
           ? "out"
