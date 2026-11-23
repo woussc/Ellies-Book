@@ -1,5 +1,7 @@
 // Receipt references are entry-owned. Immutable image bytes live off the money
 // model; the manifest and append-only history travel with the Markdown book.
+import {periodId} from './repeat-model.mjs';
+
 export const MAX_RECEIPTS = 5;
 export const MAX_RECEIPT_BYTES = 15_000_000;
 export const receiptId = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value);
@@ -69,10 +71,19 @@ export function receiptManifest(library) {
  }
  return [...assets.values()];
 }
+function entryTransitions(budget, entry) {
+ const manual = budget.events.filter(e => e.after?.id === entry.id && typeof e.after.status === 'string');
+ const period = periodId(budget);
+ const imported = (budget.statementImports?.batches ?? []).flatMap(batch => batch.undone ? [] :
+   batch.items.filter(item => item.kind === 'match' && item.entryId === entry.id &&
+     item.projectId === budget.id && item.period === period && item.after.status === 'paid')
+     .map(item => ({before: item.before, after: item.after, at: batch.at})));
+ return [...manual, ...imported];
+}
 // Present only timestamps actually recorded in the audit trail; old stage
 // arrays have no dates and are kept separately by the view, never invented.
 export function earlierEntryStages(budget, entry) {
- const first = budget.events.filter(e => e.after?.id === entry.id && typeof e.after.status === 'string').sort((a, b) => a.at.localeCompare(b.at))[0];
+ const first = entryTransitions(budget, entry).sort((a, b) => a.at.localeCompare(b.at))[0];
  if (!first) return entry.history;
  return first.before?.id === entry.id && Array.isArray(first.before.history) ? first.before.history : [];
 }
@@ -81,7 +92,7 @@ export function entryReceiptHistory(budget, entry) {
  const photos = (budget.receiptData?.events ?? []).filter(e => e.entryId === entry.id).map(e => ({
    label: `Receipt ${assets.findIndex(a => a.id === e.receiptId) + 1} ${e.action}`, at: e.at, kind: 'photo',
  }));
- const entries = budget.events.filter(e => e.after?.id === entry.id && typeof e.after.status === 'string').map(e => ({
+ const entries = entryTransitions(budget, entry).map(e => ({
    label: e.before?.id && e.before.status === e.after.status ? 'Entry updated' : `Entry saved as ${e.after.status[0].toUpperCase()}${e.after.status.slice(1)}`,
    at: e.at, kind: 'entry',
  }));

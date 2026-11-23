@@ -19,6 +19,7 @@ import {
   undoStatement,
 } from "../app/book/statement-model.mjs";
 import { saveRepeatingEntry, openPeriod } from "../app/book/repeat-model.mjs";
+import { entryReceiptHistory } from "../app/book/receipt-model.mjs";
 const setup = (profile = "Household") => {
   const b = {
     ...blankBudget(profile),
@@ -168,6 +169,44 @@ for (const mode of ["Household", "Just me", "Team"])
       2,
     );
   });
+test("a matched statement payment appears in the existing bill's Entry history", () => {
+  const library = setup("Team");
+  const bill = {
+    id: "printing",
+    categoryId: "bills",
+    description: "Printing",
+    amount: 1200.1,
+    status: "committed",
+    history: ["committed"],
+    date: "2026-11-04",
+    notes: "",
+  };
+  const saved = saveRepeatingEntry(project(library), bill);
+  saved.events[0].at = "2026-11-04T12:00:00.000Z";
+  const committed = changeLibrary(library, { type: "update", project: saved });
+  const req = request([
+    row({
+      description: "Printing",
+      amount: 1200.1,
+      decision: "match",
+      matchId: bill.id,
+      matchProjectId: saved.id,
+      matchPeriod: saved.period,
+    }),
+  ]);
+  const restored = parseLibrary(serializeLibrary(applyStatement(committed, req)));
+  const paid = project(restored);
+  const [paidStep, committedStep, ...otherSteps] = entryReceiptHistory(paid, paid.expenses[0]);
+  assert.deepEqual(paidStep, {
+    label: "Entry saved as Paid",
+    at: paid.statementImports.batches[0].at,
+    kind: "entry",
+  });
+  assert.equal(committedStep.label, "Entry saved as Committed");
+  assert.deepEqual(otherSteps, []);
+  const undone = project(undoStatement(restored, saved.id, req.id));
+  assert.deepEqual(entryReceiptHistory(undone, undone.expenses[0]), [committedStep]);
+});
 test("cross-format likely matches require an explicit Paid link; duplicates never create another expense", () => {
   const first = applyStatement(setup(), request()),
     existing = project(first).expenses[0];
