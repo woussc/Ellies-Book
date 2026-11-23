@@ -220,9 +220,13 @@ async function statementTransaction(change:(library:Library)=>Library) {
 async function receiptTransaction(assets: LocalReceipt[], change: (library: Library) => Library, restore = false) {
   if (!navigator.locks) throw new Error('Safe photo saving is unavailable in this browser. Use a current browser. Nothing changed.');
   const previous = getSnapshot();
-  if ((previous.blocked || previous.status === 'error') && !restore) throw new Error('Save or download your book before adding photos. Your draft is still here.');
+  const assertWritable = () => {
+    const latest = getSnapshot();
+    if (latest.blocked ? !restore : latest.status === 'error') throw new Error('Your unsaved changes are still on this page. Save them or download all books before reloading and restoring. Nothing changed.');
+  };
+  assertWritable();
   const {writeReceipts} = await import('./receipt-storage');
-  const next = await commitReceiptLibrary(localStorage, writeReceipts, assets, change,
+  const next = await commitReceiptLibrary(localStorage, writeReceipts, assets, library => {assertWritable(); return change(library);},
     async work => await navigator.locks.request('ellies-book:statement-import', work), previous.blocked && restore ? previous.library : undefined);
   current = {...previous, library: next, budget: activeBudget(next) ?? initialProject(), status: 'saved', error: '', blocked: false, recovery: ''};
   emit();
