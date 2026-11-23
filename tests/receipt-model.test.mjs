@@ -1,10 +1,22 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {exampleBudget,totals,serializeBook,parseBook,removeExpense} from '../app/book/model.mjs';
-import {setEntryReceipts} from '../app/book/receipt-model.mjs';
+import {exampleBudget,totals,serializeBook,parseBook,removeExpense,advanceExpense} from '../app/book/model.mjs';
+import {setEntryReceipts,entryReceiptHistory} from '../app/book/receipt-model.mjs';
 import {saveRepeatingEntry,openPeriod} from '../app/book/repeat-model.mjs';
 const id='b2ef0b72-62c7-48ba-9aac-b78314795946';
 const at='2026-11-21T10:48:00.000Z';
+test('entry history presents dated receipt and stage events without inventing dates for legacy stages',()=>{
+ let b=exampleBudget();b.events=[];const e=b.expenses[0];e.status='planned';e.history=['planned'];
+ assert.deepEqual(entryReceiptHistory(b,e),[]);
+ const asset={id,entryId:e.id,name:'Receipt 1',type:'image/jpeg',size:123,sha256:'a'.repeat(64),addedAt:at};
+ b=setEntryReceipts(b,e.id,[id],[asset],at);b=advanceExpense(b,e.id);b=advanceExpense(b,e.id);
+ const saved=b.expenses.find(x=>x.id===e.id),history=entryReceiptHistory(b,saved);
+ assert.ok(history.some(x=>x.label==='Receipt 1 attached'&&x.at===at));
+ assert.ok(history.some(x=>x.label==='Entry saved as Committed'&&Number.isFinite(Date.parse(x.at))));
+ assert.ok(history.some(x=>x.label==='Entry saved as Paid'&&Number.isFinite(Date.parse(x.at))));
+ assert.deepEqual(entryReceiptHistory(parseBook(serializeBook(b)),saved),history);
+ assert.deepEqual(saved.receiptIds,[id]);assert.deepEqual(saved.history,['planned','committed','paid']);
+});
 test('photos persist with entry history and exact notes without changing money',()=>{
  const b=exampleBudget(),entry=b.expenses[0];entry.notes='## Dinner\n\n[[Groceries]]\n';
  const asset={id,entryId:entry.id,name:'Receipt 1',type:'image/jpeg',size:123,sha256:'a'.repeat(64),addedAt:at};

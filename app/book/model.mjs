@@ -359,20 +359,13 @@ export function totals(budget, categoryId) {
   };
 }
 export function advanceExpense(budget, id) {
+  const before = budget.expenses.find(e => e.id === id);
+  if (!before || before.status === 'paid') return budget;
+  const after = {...before, status: before.status === 'planned' ? 'committed' : 'paid', history: [...before.history, before.status === 'planned' ? 'committed' : 'paid']};
   return {
     ...budget,
-    expenses: budget.expenses.map((e) =>
-      e.id !== id || e.status === "paid"
-        ? e
-        : {
-            ...e,
-            status: e.status === "planned" ? "committed" : "paid",
-            history: [
-              ...e.history,
-              e.status === "planned" ? "committed" : "paid",
-            ],
-          },
-    ),
+    expenses: budget.expenses.map(e => e.id === id ? after : e),
+    events: [...budget.events, {text: `Entry saved as ${after.status[0].toUpperCase()+after.status.slice(1)} · ${after.description}`, at: new Date().toISOString(), before, after}],
   };
 }
 // Corrections replace the current financial projection, not the audit record.

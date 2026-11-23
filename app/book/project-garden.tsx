@@ -6,7 +6,7 @@ import {changeBoard, resolveNoteLink} from "./board-model.mjs";
 import {gardenView, resizeGarden, gardenLinks, type GardenRect} from "./garden-model.mjs";
 import {renderMarkdownDocument} from "../markdown-render";
 import {displayDate,RepeatTiming} from './repeat-entry';
-import {ReceiptCount,SavedReceipts} from './receipt-photos';
+import {ReceiptCount,ReceiptEntryDetail} from './receipt-photos';
 import {budgetMonth,carryoverStatus,previousBudgetPeriod} from './carryover-model.mjs';
 import "./project-garden.css";
 
@@ -169,12 +169,12 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
       <h2>Entry stages</h2><ul className="garden-legend"><li><Stage value="planned"/>Uncommitted estimate; included in forecast.</li><li><Stage value="committed"/>Agreed or billed; still to pay.</li><li><Stage value="paid"/>Money already paid.</li></ul>
       <h2>Balances & relationships</h2><p>Room left = Approved Budget − Paid − Committed. Planned estimates do not reduce Room left. Allocation is not planned spending.</p><p><span className="negative"><NodeGlyph kind="alert"/>Over by</span> is an attention condition, not an entry stage. Green marks paid amounts or positive Room left; neutral marks Planned, ochre marks Committed. Words and glyphs always accompany color.</p><p>Sage straight links show project ownership, category allocation and entry membership. Clay marks the selected category. Notes and Markdown links belong to their entry, not a separate Board node.</p>
     </GardenDialog>}
-    {detail && <GardenDialog key={detail} title={detail==='project'?budget.name:detail==='budget'?'Budget details':detail.startsWith('entry:')?budget.expenses.find(e=>e.id===detail.slice(6))?.description??'Entry':budget.categories.find(c=>c.id===detail.slice(9))?.name??'Category'} onClose={()=>setDetail(null)}>
+    {detail && <GardenDialog key={detail} className={detail.startsWith('entry:')?'receipt-entry-dialog':''} actions={detail.startsWith('entry:')?<button className="outline-button receipt-desktop-edit" onClick={()=>{const entry=budget.expenses.find(e=>e.id===detail.slice(6));if(entry){setDetail(null);onExpense(entry);}}}>Edit entry</button>:undefined} title={detail==='project'?budget.name:detail==='budget'?'Budget details':detail.startsWith('entry:')?budget.expenses.find(e=>e.id===detail.slice(6))?.description??'Entry':budget.categories.find(c=>c.id===detail.slice(9))?.name??'Category'} onClose={()=>setDetail(null)}>
       {detail.startsWith('entry:')?(()=>{
         const e=budget.expenses.find(x=>x.id===detail.slice(6));if(!e)return <p>This entry is no longer available.</p>;
-        return <><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/><p>{budget.categories.find(c=>c.id===e.categoryId)?.name} · <time dateTime={e.date}>{displayDate(e.date)}</time></p><RepeatTiming budget={budget} entry={e}/><button className="primary" onClick={()=>{setDetail(null);onExpense(e);}}>Edit entry</button><div className="receipt-entry-detail"><div className="receipt-detail-context"><h2>Entry note</h2>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
+        return <>{e.payee&&<p>{e.payee}</p>}<div className="receipt-entry-summary"><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/></div><p className="receipt-entry-category">{budget.categories.find(c=>c.id===e.categoryId)?.name} · <time dateTime={e.date}>{displayDate(e.date)}</time></p><RepeatTiming budget={budget} entry={e}/><ReceiptEntryDetail budget={budget} entry={e} onEdit={()=>{setDetail(null);onExpense(e);}}>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
           const record=resolveNoteLink(budget,target);if(record)setDetail((budget.categories.some(c=>c.id===record.id)?'category:':'entry:')+record.id);else setMessage(`No record named “${target}” in this project.`);
-        },onTag:(tag)=>setMessage(`Tag: #${tag}. This note stays attached to its entry.`)})}</div>:<p>No note attached. Add one in Edit entry.</p>}<h2>Stage history</h2><p>{e.history.join(' → ')}</p></div><SavedReceipts budget={budget} entry={e} onAdd={()=>{setDetail(null);onExpense(e);}}/></div><p role="status">{message}</p></>;
+        },onTag:(tag)=>setMessage(`Tag: #${tag}. This note stays attached to its entry.`)})}</div>:<p>No note attached. Add one in Edit entry.</p>}</ReceiptEntryDetail>{message&&<p role="status">{message}</p>}</>;
       })():detail.startsWith('category:')?(()=>{
         const c=budget.categories.find(x=>x.id===detail.slice(9));if(!c)return null;const t=totals(budget,c.id);
         return <><dl className="garden-detail-metrics"><div><dt>Allocation</dt><dd className="money">{money(c.amount)}</dd></div><div><dt>Paid</dt><dd className="money">{money(t.spent)}</dd></div><div><dt>Committed</dt><dd className="money">{money(t.committed)}</dd></div><div><dt>{t.left<0?'Over by':'Room left'}</dt><dd className={'money'+(t.left<0?' negative':'')}>{money(Math.abs(t.left))}</dd></div></dl>{budget.profile==='Team' && <p>Owner: {c.owner||'Not assigned'} · GL code: {c.glCode||'Not assigned'}</p>}<div className="garden-detail-actions"><button className="primary" onClick={()=>{setDetail(null);focus(c.id);}}>Explore category</button><button className="outline-button" onClick={()=>{setDetail(null);onPlan();}}>Edit allocation</button></div></>;
@@ -183,8 +183,8 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
   </div>;
 }
 
-function GardenDialog({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}) {
+function GardenDialog({title,onClose,children,actions,className=''}:{title:string;onClose:()=>void;children:ReactNode;actions?:ReactNode;className?:string}) {
   const dialog=useRef<HTMLDialogElement>(null);
   useEffect(()=>{const trigger=document.activeElement as HTMLElement|null;const previous=document.body.style.overflow;document.body.style.overflow='hidden';dialog.current?.showModal();return()=>{document.body.style.overflow=previous;trigger?.focus({preventScroll:true});};},[]);
-  return <dialog className="garden-dialog" ref={dialog} aria-labelledby="garden-dialog-title" onCancel={e=>{e.preventDefault();onClose();}}><header><h1 id="garden-dialog-title">{title}</h1><button className="outline-button" onClick={onClose}>Close</button></header><div className="garden-dialog-body">{children}</div></dialog>;
+  return <dialog className={`garden-dialog ${className}`} ref={dialog} aria-labelledby="garden-dialog-title" onCancel={e=>{e.preventDefault();onClose();}}><header><h1 id="garden-dialog-title">{title}</h1><div className="receipt-dialog-actions">{actions}<button className="outline-button" onClick={onClose}>Close</button></div></header><div className="garden-dialog-body">{children}</div></dialog>;
 }

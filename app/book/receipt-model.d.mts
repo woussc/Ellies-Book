@@ -10,3 +10,4 @@ export function validateReceiptAsset(asset: ReceiptAsset): ReceiptAsset;
 export function validateReceiptData(budget: Budget): void;
 export function setEntryReceipts(budget: Budget, entryId: string, ids: string[], additions?: ReceiptAsset[], at?: string): Budget;
 export function receiptManifest(library: Library): ReceiptAsset[];
+export function entryReceiptHistory(budget: Budget, entry: import('./model.mjs').Expense): {label: string; at: string; kind: string}[];

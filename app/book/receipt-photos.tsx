@@ -4,7 +4,7 @@
 
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import type {Budget, Expense} from './model.mjs';
-import {MAX_RECEIPTS, type ReceiptAsset} from './receipt-model.mjs';
+import {MAX_RECEIPTS, entryReceiptHistory, type ReceiptAsset} from './receipt-model.mjs';
 import {checkReceiptBytes, type LocalReceipt} from './receipt-files.mjs';
 import {prepareReceipt, readReceipt} from './receipt-storage';
 import './receipt-photos.css';
@@ -12,8 +12,13 @@ import './receipt-photos.css';
 export type ReceiptDraft = {ids: string[]; assets: LocalReceipt[]};
 export const emptyReceiptDraft = (): ReceiptDraft => ({ids: [], assets: []});
 const added = (value: string) => new Date(value).toLocaleString(undefined, {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'});
+const addedDate = (value: string) => new Date(value).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+function ReceiptGlyph({kind}: {kind: 'phone' | 'plus' | 'expand' | 'history' | 'photo' | 'check'}) {
+ const paths = {phone: <><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></>, plus: <path d="M12 5v14M5 12h14"/>, expand: <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/>, history: <path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v6l4 2"/>, photo: <><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m4 18 5-5 4 3 3-5 5 7"/></>, check: <><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></>};
+ return <svg className="receipt-glyph" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[kind]}</svg>;
+}
 function LocalOnly() {
- return <p className="receipt-local"><span className="receipt-phone-copy">Only on this phone. Not shared.</span><span className="receipt-device-copy">Only on this device. Not shared.</span></p>;
+ return <p className="receipt-local"><ReceiptGlyph kind="phone"/><span className="receipt-phone-copy">Only on this phone. Not shared.</span><span className="receipt-device-copy">Only on this device. Not shared.</span></p>;
 }
 
 function usePhoto(meta: ReceiptAsset, local?: Blob) {
@@ -56,7 +61,6 @@ function PhotoViewer({meta, local, onClose, actions}: {meta: ReceiptAsset; local
      {photo.url ? <img src={photo.url} alt="Your complete receipt" /> : <p role="status">{photo.error ?? 'Opening photo…'}</p>}
    </section>
    <div className="receipt-actions"><button type="button" className="outline-button" disabled={!photo.url} aria-pressed={zoom} onClick={() => setZoom(!zoom)}>{zoom ? 'Fit photo' : 'Zoom'}</button>{photo.error && <button type="button" className="outline-button" onClick={photo.retry}>Try again</button>}</div>
-   <p className="hint">{added(meta.addedAt)} · JPEG · {Math.max(1, Math.round(meta.size / 1000))} KB</p>
    {actions}
  </PhotoDialog>;
 }
@@ -66,9 +70,9 @@ function PhotoCard({meta, local, number, children}: {meta: ReceiptAsset; local?:
    <button type="button" className="receipt-thumbnail" aria-label={`Open photo ${number}`} onClick={() => setOpen(true)}>
      {photo.url ? <img src={photo.url} alt={`Receipt ${number}`} /> : <span>{photo.error ? 'Photo unavailable' : 'Opening photo…'}</span>}
    </button>
-   <div className="receipt-card-content"><h4>Receipt photo {number}</h4><p>{local ? 'Ready to attach. Save the entry to keep it.' : `Added ${added(meta.addedAt)}`}</p><p>JPEG · {Math.max(1, Math.round(meta.size / 1000))} KB</p>
+   <div className="receipt-card-content"><div className="receipt-card-label"><h4>Receipt {number}</h4><p>{local ? 'Ready to attach. Save the entry to keep it.' : `Added ${addedDate(meta.addedAt)}`}</p></div>
      {photo.error && <p className="error">{photo.error}</p>}
-     <div className="receipt-actions"><button type="button" className="outline-button" onClick={() => setOpen(true)}>Open photo</button>{children}</div>
+     <div className="receipt-actions"><button type="button" className="outline-button" onClick={() => setOpen(true)}><ReceiptGlyph kind="expand"/>Open photo</button>{children}</div>
    </div>
    {open && <PhotoViewer meta={meta} local={local} onClose={() => setOpen(false)} />}
  </article>;
@@ -99,15 +103,42 @@ function ReceiptHistory({budget, entryId, ids, restore}: {budget: Budget; entryI
    {earlier.map((a, i) => <PhotoCard key={a.id} meta={a} number={i + 1}>{restore && <button type="button" className="outline-button" disabled={ids.length >= MAX_RECEIPTS} onClick={() => restore(a.id)}>Restore to entry</button>}</PhotoCard>)}
  </details>;
 }
-export function SavedReceipts({budget, entry, onAdd}: {budget: Budget; entry: Expense; onAdd?: () => void}) {
+export function SavedReceipts({budget, entry, onAdd, history = true}: {budget: Budget; entry: Expense; onAdd?: () => void; history?: boolean}) {
  const ids = entry.receiptIds ?? [];
  return <section className="receipt-section" aria-label="Receipt photos">
    <div className="receipt-heading"><h3>Receipt photos</h3><ReceiptCount entry={entry}/></div>
-   <LocalOnly/>
    {ids.length ? ids.map((id, i) => {const meta = budget.receiptData?.assets.find(a => a.id === id); return meta ? <PhotoCard key={id} meta={meta} number={i + 1}/> : null;}) : <p>No photos attached yet.</p>}
-   {onAdd && <button type="button" className="outline-button" onClick={onAdd}>Add photo</button>}
-   <ReceiptHistory budget={budget} entryId={entry.id} ids={ids}/>
+   <LocalOnly/>
+   {onAdd && <button type="button" className="outline-button receipt-add" onClick={onAdd}><ReceiptGlyph kind="plus"/>Add photo</button>}
+   <p className="receipt-backup-hint">Keep photos safe with a full book backup.</p>
+   {history && <ReceiptHistory budget={budget} entryId={entry.id} ids={ids}/>}
  </section>;
+}
+export function ReceiptEntryDetail({budget, entry, onEdit, children}: {budget: Budget; entry: Expense; onEdit: () => void; children: ReactNode}) {
+ const history = entryReceiptHistory(budget, entry);
+ const historyRef = useRef<HTMLDetailsElement>(null);
+ useEffect(() => {
+   const media = window.matchMedia('(min-width: 641px)');
+   const sync = () => {if (historyRef.current) historyRef.current.open = media.matches;};
+   sync(); media.addEventListener('change', sync); return () => media.removeEventListener('change', sync);
+ }, []);
+ return <div className="receipt-entry-detail">
+   <SavedReceipts budget={budget} entry={entry} onAdd={onEdit} history={false}/>
+   <div className="receipt-detail-context">
+     <section className="receipt-entry-note" aria-label="Entry note"><h3>Entry note</h3>{children}</section>
+     <div className="receipt-entry-actions"><button type="button" className="outline-button receipt-mobile-edit" onClick={onEdit}>Edit entry</button>
+       <details ref={historyRef} className="receipt-entry-history"><summary><ReceiptGlyph kind="history"/>Entry history<span aria-hidden="true">⌄</span></summary>
+         <div className="receipt-timeline">
+           {history.length > 0 && <ol>{history.map((event, i) => <li key={i}><ReceiptGlyph kind={event.kind === 'photo' ? 'photo' : 'check'}/><div><strong>{event.label}</strong><time dateTime={event.at}>{added(event.at)}</time></div></li>)}</ol>}
+           {!history.some(e => e.kind === 'entry') && <p>Earlier entry stages: {entry.history.map(s => s[0].toUpperCase() + s.slice(1)).join(' → ')}. Dates were not recorded for these stages.</p>}
+           <p>Photos stay with this entry’s history.</p>
+           <ReceiptHistory budget={budget} entryId={entry.id} ids={entry.receiptIds ?? []}/>
+         </div>
+       </details>
+     </div>
+     <p className="receipt-detail-help">Adding a photo does not change your amount, category or payment status.</p>
+   </div>
+ </div>;
 }
 export default function ReceiptEditor({budget, entryId, value, onChange, onBusy}: {budget: Budget; entryId?: string; value: ReceiptDraft; onChange: (value: ReceiptDraft) => void; onBusy: (busy: boolean) => void}) {
  const picker = useRef<HTMLInputElement>(null), camera = useRef<HTMLInputElement>(null), alive = useRef(true);
@@ -134,7 +165,7 @@ export default function ReceiptEditor({budget, entryId, value, onChange, onBusy}
      </PhotoCard> : null;
    })}
    {removing && <div className="receipt-remove" role="group" aria-label="Remove photo confirmation"><p>This photo will stay in the entry’s history after you save. An unsaved photo is just discarded.</p><div className="receipt-actions"><button type="button" className="outline-button" onClick={() => setRemoving(null)}>Keep photo</button><button type="button" className="outline-button" onClick={() => {onChange({ids: value.ids.filter(id => id !== removing), assets: value.assets.filter(a => a.meta.id !== removing)}); setRemoving(null);}}>Yes, remove photo</button></div></div>}
-   <button type="button" className="outline-button" onClick={add} disabled={preparing || value.ids.length >= MAX_RECEIPTS}>{preparing ? 'Preparing photo…' : 'Add photo'}</button>
+   <button type="button" className="outline-button receipt-add" onClick={add} disabled={preparing || value.ids.length >= MAX_RECEIPTS}><ReceiptGlyph kind="plus"/>{preparing ? 'Preparing photo…' : 'Add photo'}</button>
    <p className="hint">{value.ids.length >= MAX_RECEIPTS ? 'Five photos per entry. Remove one before adding another.' : 'Up to 5 photos · 15 MB each · JPEG, PNG or WebP. HEIC where supported.'}</p>
    {!!value.assets.length && <p role="status">Not saved yet. Save the entry to keep your photos.</p>}
    {error && <p className="error" role="alert">{error}</p>}

@@ -69,3 +69,16 @@ export function receiptManifest(library) {
  }
  return [...assets.values()];
 }
+// Present only timestamps actually recorded in the audit trail; old stage
+// arrays have no dates and are kept separately by the view, never invented.
+export function entryReceiptHistory(budget, entry) {
+ const assets = (budget.receiptData?.assets ?? []).filter(a => a.entryId === entry.id);
+ const photos = (budget.receiptData?.events ?? []).filter(e => e.entryId === entry.id).map(e => ({
+   label: `Receipt ${assets.findIndex(a => a.id === e.receiptId) + 1} ${e.action}`, at: e.at, kind: 'photo',
+ }));
+ const entries = budget.events.filter(e => e.after?.id === entry.id && typeof e.after.status === 'string').map(e => ({
+   label: e.before?.id && e.before.status === e.after.status ? 'Entry updated' : `Entry saved as ${e.after.status[0].toUpperCase()}${e.after.status.slice(1)}`,
+   at: e.at, kind: 'entry',
+ }));
+ return [...entries, ...photos].sort((a, b) => b.at.localeCompare(a.at));
+}
