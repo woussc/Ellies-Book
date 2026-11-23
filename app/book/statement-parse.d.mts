@@ -29,3 +29,4 @@ export function extractStatementLines(
   options: StatementOptions,
 ): StatementRow[];
 export function parseBankAmount(value: string, decimal?: string): number | null;
+export function needsStatementOcr(lines:string[]):boolean;

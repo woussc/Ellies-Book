@@ -1,4 +1,5 @@
 import { readStatementPdf } from "./statement-pdf.mjs";
+import {needsStatementOcr} from './statement-parse.mjs';
 export type StatementPage = {
   number: number;
   lines: string[];
@@ -194,11 +195,7 @@ export async function readStatementFiles(
                     ),
               ),
             );
-            if (
-              !result.lines.some((line) =>
-                /\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}/.test(line),
-              )
-            )
+            if (needsStatementOcr(result.lines))
               result.lines = await recognize(canvas);
             source.pages.push({ ...result, preview: c.url(blob) });
             canvas.width = canvas.height = 0;

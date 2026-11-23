@@ -158,6 +158,10 @@ function statementCurrency(raw){
  if((!found.size||found.has('USD'))&&/\p{Sc}/u.test(raw.replace(/[$€£]/g,'')))found.add('FOREIGN');
  return found.size>1?'MIXED':found.values().next().value;
 }
+export function needsStatementOcr(lines){
+ // A searchable issue date alone says nothing about the payment table.
+ return !lines.some(line=>/^\s*\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}\b.*\d[.,]\d{2}(?!\d)/.test(line));
+}
 export function extractStatementLines(content, o) {
   const lines = Array.isArray(content) ? content : content.split(/\r?\n/),
     headerCurrency=statementCurrency(lines.filter(line=>!/^\s*\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}\b/.test(line)).join('\n')),
