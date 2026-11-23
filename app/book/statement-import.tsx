@@ -191,7 +191,7 @@ export default function StatementImport({
     description: 1,
     amount: 2,
     out: 2,
-    in: 3,
+    in: undefined,
     amountFromEnd: 0,
   });
   const [split, setSplit] = useState(false),
