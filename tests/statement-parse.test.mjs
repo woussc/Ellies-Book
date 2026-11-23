@@ -13,11 +13,37 @@ const options = {
   currencyCode: "USD",
   sourceId: "a".repeat(64),
 };
-test('a spaced blank-column dash cannot turn a credit into spending',()=>{
- const [r]=extractStatementLines('05/11/2026 CREDIT - 24.90',options);
- assert.equal(r.amount,24.9);assert.equal(r.direction,'unknown');
- const [debit]=extractStatementLines('05/11/2026 SHOP -24.90',options);
- assert.equal(debit.direction,'out');
+test("a spaced blank-column dash cannot turn a credit into spending", () => {
+  const [r] = extractStatementLines("05/11/2026 CREDIT - 24.90", options);
+  assert.equal(r.amount, 24.9);
+  assert.equal(r.direction, "unknown");
+  const [debit] = extractStatementLines("05/11/2026 SHOP -24.90", options);
+  assert.equal(debit.direction, "out");
+});
+test("ordinary ALL, TOP and TRY headings are not currency declarations", () => {
+  for (const heading of [
+    "ALL TRANSACTIONS (USD)",
+    "TOP PAYMENTS (USD)",
+    "TRY AGAIN (USD)",
+  ]) {
+    assert.equal(
+      extractStatementLines(heading + "\n05/11/2026 SHOP -24.90", options)[0]
+        .currency,
+      "USD",
+    );
+  }
+  for (const hint of [
+    "Currency: ALL",
+    "Account summary CAD",
+    "CAD Chequing",
+    "(SGD)",
+  ]) {
+    assert.notEqual(
+      extractStatementLines(hint + "\n05/11/2026 SHOP -24.90", options)[0]
+        .currency,
+      "USD",
+    );
+  }
 });
 test("Unicode minus signs retain spending direction in CSV and PDF readings", () => {
   for (const sign of ["−", "﹣", "－", "-"]) {

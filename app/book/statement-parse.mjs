@@ -159,11 +159,33 @@ const bankCurrencies = new Set(
   ),
 );
 function statementCurrency(raw) {
-  const found = new Set(
-    (raw.match(/\b[A-Z]{3}(?=[^A-Z]|$)/g) ?? []).filter((c) =>
-      bankCurrencies.has(c),
-    ),
-  );
+  const found = new Set();
+  for (const match of raw.matchAll(/\b[A-Z]{3}(?=[^A-Z]|$)/g)) {
+    const code = match[0];
+    if (!bankCurrencies.has(code)) continue;
+    const before = raw.slice(0, match.index).split("\n").at(-1),
+      after = raw.slice(match.index + 3).split("\n")[0];
+    // ALL, TRY, TOP and other ISO codes are ordinary words too. Require a
+    // declaration, account label, brackets or adjacency to a monetary value.
+    const declared = /\b(?:currency|ccy)\s*[:(]?\s*$/i.test(before);
+    const bracketed =
+      ["(", "["].some((v) => before.trimEnd().endsWith(v)) &&
+      [")", "]"].some((v) => after.trimStart().startsWith(v));
+    const money =
+      /^\s*[$€£]?\s*[+＋−﹣－-]?\s*\(?\d[\d,.]*[.,]\d{2}/.test(after) ||
+      /\d[.,]\d{2}\)?\s*$/.test(before);
+    const account =
+      (/\b(?:account|statement|balance)\b/i.test(before) && !after.trim()) ||
+      /^\s+(?:account|chequing|checking|savings)\b/i.test(after);
+    if (
+      declared ||
+      bracketed ||
+      money ||
+      account ||
+      (!before.trim() && !after.trim())
+    )
+      found.add(code);
+  }
   for (const [pattern, code] of [
     [/€/, "EUR"],
     [/£/, "GBP"],
@@ -212,7 +234,8 @@ export function extractStatementLines(content, o) {
         : null;
     const description = rest.slice(0, amounts[0]?.index ?? rest.length).trim();
     const direction =
-      amount === null || (selected && /[+＋−﹣－-]\s+$/.test(rest.slice(0,selected.index)))
+      amount === null ||
+      (selected && /[+＋−﹣－-]\s+$/.test(rest.slice(0, selected.index)))
         ? "unknown"
         : (o.outSign === "negative" ? amount < 0 : amount > 0)
           ? "out"
