@@ -270,7 +270,7 @@ async function checkRestoreFeedback(page) {
     name: "project-backup.md", mimeType: "text/markdown", buffer: Buffer.from(serializeBook(project)),
   });
   await page.getByRole("heading", {name: "Your books", exact: true}).waitFor();
-  await page.getByText("Backup added as new books. Your other projects are unchanged.", {exact: true}).waitFor();
+  await page.getByText("Backup added as new books. Your other projects are unchanged. Markdown does not include photo files.", {exact: true}).waitFor();
   assert.equal(await page.getByRole("button", {name: "Open Restored project", exact: true}).count(), 1);
   const after = parseLibrary(await page.evaluate(() => localStorage.getItem("ellies-book:library:v1.md")));
   assert.deepEqual(after.example, before.example);
