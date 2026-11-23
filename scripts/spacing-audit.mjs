@@ -45,7 +45,7 @@ const selectedModes=process.env.MODES?process.env.MODES.split(','):modes;
 for(const engine of engines){
  const browser=await ({chromium,webkit}[engine]).launch({headless:true});
  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,deviceScaleFactor:1,...(engine==='webkit'?{isMobile:true}:{})});
- const p=await context.newPage();p.setDefaultTimeout(8000);
+ let p=await context.newPage();p.setDefaultTimeout(8000);
  const runtimeErrors=[];
  p.on('pageerror',e=>runtimeErrors.push(String(e)));
  const click=n=>p.getByRole('button',{name:n,exact:true}).click();
@@ -255,22 +255,26 @@ for(const engine of engines){
    await click('Next 4');await snap('trail-last-page',md,w,{shot:shots});
    await p.locator('.garden-folded>button').first().click();await p.getByText('No entries in this category yet.',{exact:true}).waitFor();await snap('trail-empty',md,w,{shot:shots});
    await nav('Entries');await p.locator('.entry-filters').getByRole('button',{name:'All',exact:true}).click();await snap('entries-add',md,w,{shot:shots});
-   // Learning offers require a saved entry. Exercise them in the synthetic
-   // library, then restore the exact fixture before the view-only matrix.
-   const savedFixture=await p.evaluate(()=>localStorage.getItem('ellies-book:library:v1.md')),savedBaseline=baseline;
-   // Each width is a new learning scenario; real session dismissals correctly
-   // survive reload, so reset only this synthetic context's offer preferences.
-   await p.evaluate(()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('ellies-book:auto-sort-dismissed:'))sessionStorage.removeItem(key);});
-   // Reset the component's matching in-memory fallback too, not only storage.
-   await p.reload();await nav('Entries');
-   baseline=null;
+   // Saving and dismissing are stateful interactions, not view-only probes.
+   // Give each offer its own browser context so preferences, drafts and timed
+   // notices cannot leak between cases or alter the main financial fixture.
+   const mainPage=p,savedFixture=await p.evaluate(()=>localStorage.getItem('ellies-book:library:v1.md')),savedBaseline=baseline;
    for(const [payee,state] of [['A long new merchant payee with receipt references and project details','auto-sort-remember'],['Netflix','auto-sort-update']]){
+    const offerContext=await browser.newContext({viewport:mainPage.viewportSize(),hasTouch:true,deviceScaleFactor:1,...(engine==='webkit'?{isMobile:true}:{})});
+    await offerContext.addInitScript(value=>localStorage.setItem('ellies-book:library:v1.md',value),savedFixture);
+    p=await offerContext.newPage();p.setDefaultTimeout(8000);p.on('pageerror',e=>runtimeErrors.push(String(e)));baseline=null;
+    try{
+     await p.goto(base);await nav('Entries');
+     const before=lm.activeBudget(await getLibrary());assert.equal(before.profile,md);
      await p.getByLabel('Payee (optional)',{exact:true}).fill(payee);await p.getByLabel('What’s it for?',{exact:true}).fill('Spacing learning offer');
      await p.getByLabel('Spending amount',{exact:true}).fill('15.49');await p.locator('.spending-form select').first().selectOption(template.categories[1].id);await p.locator('.spending-form select').first().selectOption(template.categories[0].id);
-     await p.locator('.spending-form').getByLabel('Date',{exact:true}).fill('2026-11-20');await click('Save entry');await snap(state,md,w,{shot:shots});
-     try{await click('Not now');}catch(error){console.error('Learning scenario failed',JSON.stringify({engine,mode:md,width:w,state,form:await p.locator('.spending-form').textContent().catch(()=>null),notice:await p.locator('.entries-notice').textContent().catch(()=>null)}));throw error;}
+     await p.locator('.spending-form').getByLabel('Date',{exact:true}).fill('2026-11-20');await click('Save entry');
+     await p.locator('.auto-sort-offer').waitFor({state:'visible'});
+     assert.equal(lm.activeBudget(await getLibrary()).expenses.length,before.expenses.length+1,'Learning starts only after one saved entry');
+     await snap(state,md,w,{shot:shots});await click('Not now');
+    }catch(error){console.error('Learning scenario failed',JSON.stringify({engine,mode:md,width:w,state,fields:await p.locator('.spending-form input,.spending-form select').evaluateAll(fields=>fields.map(e=>({type:e.type,value:e.value,valid:e.validity.valid}))),notice:await p.locator('.entries-notice').textContent().catch(()=>null)}));throw error;}
+    finally{await offerContext.close();p=mainPage;baseline=savedBaseline;}
    }
-   await p.evaluate(value=>localStorage.setItem('ellies-book:library:v1.md',value),savedFixture);await p.reload();await nav('Entries');baseline=savedBaseline;
    await p.locator('.auto-sort-toggle').click();await snap('auto-sort-rules',md,w,{shot:shots});
    await p.locator('.auto-sort-toggle').click();
    await p.getByLabel('Payee (optional)',{exact:true}).fill('Netflix');await snap('auto-sort-suggested',md,w,{shot:shots});
