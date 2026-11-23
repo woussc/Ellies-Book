@@ -293,6 +293,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       return;
     }
     if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
+    // Opening an entry is not consent to the pending learn offer.
+    setLearnPayee(null);
     if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;newCategoryManual.current=categoryManual;}
     editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
