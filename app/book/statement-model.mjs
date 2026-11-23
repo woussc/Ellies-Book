@@ -363,6 +363,9 @@ export function applyStatement(library, request) {
   const metadata = project.statementImports ?? { accounts: [], batches: [] };
   const next = {
     ...project,
+    // Legacy periods use their editable label as identity until first import.
+    // Anchor it before storing references so later label edits stay harmless.
+    periodId:periodId(project),
     expenses,
     statementImports: {
       accounts: metadata.accounts.some((a) => a.id === request.account.id)

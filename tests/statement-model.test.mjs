@@ -67,6 +67,12 @@ test('a corrected duplicate source row cannot create two payments',()=>{
  assert.throws(()=>applyStatement(l,q));
  assert.equal(project(l).expenses.length,0);
 });
+test('renaming a legacy period after import does not orphan undo references',()=>{
+ const original=setup(),imported=applyStatement(original,request());
+ project(imported).period='November, renamed';
+ const restored=parseLibrary(serializeLibrary(imported));
+ assert.deepEqual(project(undoStatement(restored,'project','batch-1')).expenses,project(original).expenses);
+});
 test("review is inert; an import adds Paid exactly once and survives Markdown restore", () => {
   const l = setup(),
     before = serializeLibrary(l);
