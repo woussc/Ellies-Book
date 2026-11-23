@@ -3,13 +3,28 @@ import assert from 'node:assert/strict';
 import {blankBudget, editExpense, parseBook, serializeBook, totals, validateBudget} from '../app/book/model.mjs';
 import {changeLibrary, emptyLibrary, parseLibrary, restoreLibrary, serializeLibrary} from '../app/book/library-model.mjs';
 import {openPeriod} from '../app/book/repeat-model.mjs';
-import {rememberPayee, suggestCategory, changePayeeRule, removePayeeRule, undoPayeeRule, suggestStatementCategory} from '../app/book/auto-sort-model.mjs';
+import {rememberPayee, suggestCategory, changePayeeRule, removePayeeRule, undoPayeeRule, suggestStatementCategory, shouldOfferRule} from '../app/book/auto-sort-model.mjs';
 import {parseStatementCsv, extractStatementLines} from '../app/book/statement-parse.mjs';
 import {applyStatement, reviewStatement, undoStatement} from '../app/book/statement-model.mjs';
 import {saveAutoSortRules} from '../app/book/auto-sort-storage.mjs';
 import {LIBRARY_KEY} from '../app/book/library-model.mjs';
+import {dismissPayeeOffer,isPayeeOfferDismissed} from '../app/book/auto-sort-offers.mjs';
 const options={sourceId:'a'.repeat(64),dateOrder:'YMD',decimal:'.',outSign:'negative',currencyCode:'USD',date:0,description:1,amount:2,payee:3};
 function project(profile='Household') {const b=blankBudget(profile,{period:'2026-11'});return {...b,created:true,name:'Everyday',startDate:'2026-11-01',endDate:'2026-11-30'};}
+test('learning requires an explicit category choice; Not now stays quiet only in this project and session',()=>{
+  const b=project(),entry={payee:'Netflix',categoryId:'category-1'};
+  assert.equal(shouldOfferRule(b,entry,false),false);
+  assert.equal(shouldOfferRule(b,entry,true),true);
+  const learned=rememberPayee(b,entry.payee,entry.categoryId);
+  assert.equal(shouldOfferRule(learned,entry,true),false);
+  assert.equal(shouldOfferRule(learned,{...entry,categoryId:'category-2'},true),true);
+  const values=new Map(),session={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};
+  dismissPayeeOffer(session,b,' Netflix ');
+  assert.equal(isPayeeOfferDismissed(session,b,'NETFLIX'),true);
+  assert.equal(isPayeeOfferDismissed(session,{...b,id:'other-project'},'Netflix'),false);
+  assert.equal(isPayeeOfferDismissed(session,{...b,profile:'Team'},'Netflix'),false);
+  assert.equal(isPayeeOfferDismissed({getItem:()=>null},b,'Netflix'),false);
+});
 for (const mode of ['Household','Just me','Team']) test(`${mode}: exact payee, isolated project, reversible preference-only changes and backup`,()=>{
   const b=project(mode), c=b.categories[1].id, next=rememberPayee(b,' Netflix ',c), rule=next.autoSortRules[0];
   assert.equal(suggestCategory(next,' NETFLIX ').categoryId,c);

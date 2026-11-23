@@ -33,7 +33,8 @@ import PeriodSwitcher from './period-switcher';
 import BudgetStartReview from './budget-start-review';
 import StatementImport,{StatementImportHistory} from './statement-import';
 import AutoSort,{type LearnPayee} from './auto-sort';
-import {payeeRule,suggestCategory} from './auto-sort-model.mjs';
+import {normalizePayee,shouldOfferRule,suggestCategory} from './auto-sort-model.mjs';
+import {dismissPayeeOffer,isPayeeOfferDismissed} from './auto-sort-offers.mjs';
 import {budgetMonth,carryoverStatus,confirmBudgetStart,previousBudgetPeriod} from './carryover-model.mjs';
 import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
 import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
@@ -230,6 +231,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const [categoryManual,setCategoryManual]=useState(false);
   const newCategoryManual=useRef(false);
   const [learnPayee,setLearnPayee]=useState<LearnPayee|null>(null);
+  const quietPayees=useRef(new Set<string>());
   const suggestion=!categoryManual&&!editingId?suggestCategory(budget,draft.payee):null;
   const draftCategory=suggestion?.categoryId||draft.categoryId||budget.categories[0]?.id||'';
   const bookName=library.books.find(b=>b.projects.some(p=>p.id===budget.id))?.name??'Example book';
@@ -400,8 +402,9 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     let saved;
     try {saved=setBudget(b=>saveRepeatingEntry(b,expense,{...repeatDraft,startDate:draft.date}));}
     catch(error){notify(error instanceof Error?error.message:'Could not save this entry.','error');return;}
-    const previousRule=payeeRule(budget,expense.payee??'');
-    setLearnPayee(saved&&expense.payee&&(!previousRule||(categoryManual&&(previousRule.categoryId!==categoryId||previousRule.paused)))?{payee:expense.payee,categoryId,description:expense.description,amount}:null);
+    let dismissed=quietPayees.current.has(normalizePayee(expense.payee));
+    try {dismissed ||= isPayeeOfferDismissed(sessionStorage,budget,expense.payee??'');} catch {/* Keep the in-page dismissal if session storage is unavailable. */}
+    setLearnPayee(saved&&!dismissed&&shouldOfferRule(budget,expense,categoryManual)?{payee:expense.payee!,categoryId,description:expense.description,amount}:null);
     if(editingId)closeExpense();
     else {setDraft({...draft,payee:'',description:'',amount:'',notes:'',categoryId:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
     setCategoryManual(editingId?newCategoryManual.current:false);
@@ -875,7 +878,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   )}
                   <div className="statement-entry-actions"><button className="secondary" onClick={()=>go('statement')} disabled={storageError}>Import statement</button><p className="hint">CSV, PDF or screenshots. Review before saving as Paid.</p></div>
                   <StatementImportHistory book={book}/>
-                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={()=>setLearnPayee(null)} save={book.saveAutoSort} disabled={storageError}/>
+                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);}} save={book.saveAutoSort} disabled={storageError}/>
                   <div className="content-grid spend-grid">
                     <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">

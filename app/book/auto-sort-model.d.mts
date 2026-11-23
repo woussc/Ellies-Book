@@ -5,6 +5,7 @@ export function normalizePayee(value:unknown):string;
 export function validateAutoSort(budget:Budget):void;
 export function payeeRule(budget:Budget,payee:string):PayeeRule|null;
 export function suggestCategory(budget:Budget,payee:string):PayeeRule|null;
+export function shouldOfferRule(budget:Budget,entry:{payee?:string;categoryId:string},categoryChosen:boolean):boolean;
 export function rememberPayee(budget:Budget,payee:string,categoryId:string):Budget;
 export function changePayeeRule(budget:Budget,id:string,patch:Partial<Pick<PayeeRule,'categoryId'|'paused'>>):Budget;
 export function removePayeeRule(budget:Budget,id:string):Budget;

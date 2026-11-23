@@ -261,7 +261,7 @@ for(const engine of engines){
    baseline=null;
    for(const [payee,state] of [['A long new merchant payee with receipt references and project details','auto-sort-remember'],['Netflix','auto-sort-update']]){
      await p.getByLabel('Payee (optional)',{exact:true}).fill(payee);await p.getByLabel('What’s it for?',{exact:true}).fill('Spacing learning offer');
-     await p.getByLabel('Spending amount',{exact:true}).fill('15.49');await p.locator('.spending-form').getByLabel('Category',{exact:true}).selectOption(template.categories[0].id);
+     await p.getByLabel('Spending amount',{exact:true}).fill('15.49');await p.locator('.spending-form select').first().selectOption(template.categories[1].id);await p.locator('.spending-form select').first().selectOption(template.categories[0].id);
      await p.locator('.spending-form').getByLabel('Date',{exact:true}).fill('2026-11-20');await click('Save entry');await snap(state,md,w,{shot:shots});await click('Not now');
    }
    await p.evaluate(value=>localStorage.setItem('ellies-book:library:v1.md',value),savedFixture);await p.reload();await nav('Entries');baseline=savedBaseline;

@@ -5,7 +5,7 @@ import {money} from './model.mjs';
 import {rememberPayee, payeeRule, changePayeeRule, removePayeeRule, undoPayeeRule, type PayeeRule} from './auto-sort-model.mjs';
 import './auto-sort.css';
 export type LearnPayee = {payee:string;categoryId:string;description:string;amount:number};
-export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled}:{budget:Budget;bookName:string;offer:LearnPayee|null;onDismiss:()=>void;save:(change:(b:Budget)=>Budget)=>void;disabled:boolean}) {
+export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled}:{budget:Budget;bookName:string;offer:LearnPayee|null;onDismiss:(quiet?:boolean)=>void;save:(change:(b:Budget)=>Budget)=>void;disabled:boolean}) {
   const [error,setError]=useState(''),[undo,setUndo]=useState<{before:PayeeRule|null;after:PayeeRule|null;message:string}|null>(null);
   const heading=useRef<HTMLHeadingElement>(null);
   const rules=(budget.autoSortRules??[]).filter(r=>r.profile===budget.profile);
@@ -26,7 +26,7 @@ export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled}
       <h2 ref={heading} tabIndex={-1}>{existing?'Update your rule?':`Always put ${offer.payee} in ${category.name}?`}</h2>
       <p>{existing?`Use ${category.name} for ${offer.payee} next time? Your other entries stay as they are.`:'Choose once. Next time, we’ll suggest this category. You can still change it.'}</p>
       <p className="hint">{budget.name} in {bookName} only · Across months</p>
-      <div className="auto-sort-actions"><button className="primary" disabled={disabled} onClick={()=>{if(run(b=>rememberPayee(b,offer.payee,offer.categoryId),`Rule saved for ${offer.payee}.`))onDismiss();}}>{existing?'Update rule':'Yes, remember this'}</button><button className="secondary" onClick={()=>{onDismiss();setError('');}}>Not now</button></div>
+      <div className="auto-sort-actions"><button className="primary" disabled={disabled} onClick={()=>{if(run(b=>rememberPayee(b,offer.payee,offer.categoryId),`Rule saved for ${offer.payee}.`))onDismiss();}}>{error?'Retry saving rule':existing?'Update rule':'Yes, remember this'}</button><button className="secondary" onClick={()=>{onDismiss(true);setError('');}}>Not now</button></div>
     </div>}
     {undo&&<div className="auto-sort-feedback" role="status"><p>{undo.message} Saved entries are unchanged.</p><button className="secondary" disabled={disabled} onClick={()=>{try{save(b=>undoPayeeRule(b,undo.before,undo.after));setUndo(null);setError('');}catch(e){setError(e instanceof Error?e.message:'Could not undo this change.');}}}>Undo</button></div>}
     {error&&<p className="error" role="alert">{error}</p>}

@@ -16,6 +16,11 @@ export function suggestCategory(budget, payee) {
   const rule = payeeRule(budget, payee);
   return rule && !rule.paused && budget.categories.some(c => c.id === rule.categoryId) ? rule : null;
 }
+export function shouldOfferRule(budget, entry, categoryChosen) {
+  if (!categoryChosen || !validPayee(entry.payee) || !budget.categories.some(c=>c.id===entry.categoryId)) return false;
+  const existing=payeeRule(budget,entry.payee);
+  return !existing || existing.categoryId!==entry.categoryId || existing.paused;
+}
 function withRules(budget, rules, text, before, after) {
   const next = {...budget, autoSortRules: rules, events: [...budget.events, {text, at: new Date().toISOString(), before, after}]};
   validateAutoSort(next);
