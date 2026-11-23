@@ -13,6 +13,17 @@ const options = {
   currencyCode: "USD",
   sourceId: "a".repeat(64),
 };
+test("malformed monetary tokens keep their column and require correction", () => {
+  for (const bad of ["24.90)", "(24.90", "((24.90))", "24.900", "24.90X"]) {
+    const [r] = extractStatementLines(`05/11/2026 SHOP 10.00 ${bad} 1,240.00`, {
+      ...options,
+      amountFromEnd: 1,
+    });
+    assert.equal(r.amount, 0, bad);
+    assert.equal(r.direction, "unknown", bad);
+    assert.equal(r.description, "SHOP");
+  }
+});
 test("merchant punctuation is not a sign token at the start of an amount", () => {
   for (const merchant of ["DISNEY+", "DISNEY +", "SHOP-"]) {
     const [r] = extractStatementLines(

@@ -225,7 +225,9 @@ export function extractStatementLines(content, o) {
     const rest = raw.slice(date[0].length).trim(),
       amounts = [
         ...rest.matchAll(
-          /(?:^|\s)(?:USD\s*|\$\s*)?(?:\(\d[\d,.]*[.,]\d{2}\)|(?:[+＋]\s*|[−﹣－-])?\d[\d,.]*[.,]\d{2})(?:\s*USD)?(?!\d)/g,
+          // Tokenize amount-shaped cells, including malformed punctuation.
+          // Validation below must reject a cell, not drop it and shift columns.
+          /(?:^|\s)(?:USD\s*|\$\s*)?(?:[+＋]\s*(?=\d))?[+＋−﹣－$(\d-][^\s]*[.,]\d{2}[^\s]*(?:\s+USD)?/g,
         ),
       ],
       selected = amounts.at(-1 - (o.amountFromEnd ?? 0)),
