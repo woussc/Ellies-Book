@@ -13,6 +13,19 @@ const options = {
   currencyCode: "USD",
   sourceId: "a".repeat(64),
 };
+test("dotted phone references remain in bank wording without shifting amount slots", () => {
+  for (const phone of ["800.123.4567", "+1.800.123.4567", "(800).123.4567"]) {
+    const description = `PHONE PAY ${phone} CA`;
+    const [r] = extractStatementLines(
+      `05/11/2026 ${description} -24.90 1,240.00`,
+      { ...options, amountFromEnd: 1 },
+    );
+    assert.equal(r.description, description);
+    assert.equal(r.originalDescription, description);
+    assert.equal(r.amount, 24.9);
+    assert.equal(r.direction, "out");
+  }
+});
 test("an attached USD prefix stays with its own column, not the previous amount", () => {
   const [r] = extractStatementLines("05/11/2026 SHOP 10.00 -24.90 USD1240.00", {
     ...options,

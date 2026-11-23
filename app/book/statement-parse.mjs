@@ -234,7 +234,15 @@ export function extractStatementLines(content, o) {
       amount = selected
         ? parseBankAmount(selected[0].replace(/\s*USD$/i, ""), o.decimal)
         : null;
-    const description = rest.slice(0, amounts[0]?.index ?? rest.length).trim();
+    // Phone references belong to bank wording. Keep their slots above so an
+    // unrecognized numeric cell can never silently shift a selected column.
+    const firstMoney = amounts.find(
+      (m) =>
+        !/^[+＋]?(?:\d{1,3}\.)?\d{2,4}\.\d{3,4}\.\d{4}(?:[a-z]+\d*)?$/i.test(
+          m[0].trim().replace(/[()]/g, ""),
+        ),
+    );
+    const description = rest.slice(0, firstMoney?.index ?? rest.length).trim();
     const direction =
       amount === null ||
       (selected &&
