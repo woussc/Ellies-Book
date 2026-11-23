@@ -318,6 +318,8 @@ export function BooksPage({
   onOpen,
   onRestore,
   onBackup,
+  onMarkdown,
+  backupBusy,
 }: {
   library: Library;
   onNewBook: () => void;
@@ -325,6 +327,8 @@ export function BooksPage({
   onOpen: (projectId: string) => void;
   onRestore: (file?: File) => void;
   onBackup: () => void;
+  onMarkdown: () => void;
+  backupBusy: boolean;
 }) {
   return (
     <div className="library-page">
@@ -404,14 +408,15 @@ export function BooksPage({
       ))}
       <div className="library-backup">
         <p>Saved in this browser only. A download is your portable copy.</p>
-        <button className="secondary" onClick={onBackup}>
-          Download all books
+        <button className="secondary" onClick={onBackup} disabled={backupBusy}>
+          {backupBusy ? 'Preparing backup…' : 'Download all books (with photos)'}
         </button>
+        <button className="secondary" onClick={onMarkdown}>Markdown only — photos not included</button>
         <label className="secondary file-button">
           Restore / add books
           <input
             type="file"
-            accept=".md,text/markdown"
+            accept=".md,.fennuma,text/markdown,application/json"
             onChange={(e) => {
               onRestore(e.target.files?.[0]);
               e.target.value = "";
@@ -428,6 +433,8 @@ export function ProfilePage({
   onName,
   onBackup,
   onProjectBackup,
+  onMarkdown,
+  backupBusy,
   onRestore,
   onSettings,
   hasProject,
@@ -436,6 +443,8 @@ export function ProfilePage({
   onName: (name: string) => void;
   onBackup: () => void;
   onProjectBackup: () => void;
+  onMarkdown: () => void;
+  backupBusy: boolean;
   onRestore: (file?: File) => void;
   onSettings: () => void;
   hasProject: boolean;
@@ -491,19 +500,20 @@ export function ProfilePage({
               uploaded. Clearing browser data removes local books.
             </p>
             <div className="profile-actions">
-              <button className="secondary" onClick={onBackup}>
-                Download all books
+              <button className="secondary" onClick={onBackup} disabled={backupBusy}>
+                {backupBusy ? 'Preparing backup…' : 'Download all books (with photos)'}
               </button>
               {hasProject && (
-                <button className="secondary" onClick={onProjectBackup}>
-                  Download this project (.md)
+                <button className="secondary" onClick={onProjectBackup} disabled={backupBusy}>
+                  Full book backup (with photos)
                 </button>
               )}
+              <button className="secondary" onClick={onMarkdown}>Markdown only — photos not included</button>
               <label className="secondary file-button">
                 Restore / add books
                 <input
                   type="file"
-                  accept=".md,text/markdown"
+                  accept=".md,.fennuma,text/markdown,application/json"
                   onChange={(e) => {
                     onRestore(e.target.files?.[0]);
                     e.target.value = "";
@@ -512,7 +522,9 @@ export function ProfilePage({
               </label>
             </div>
             <p className="hint">
-              Restore adds copies. It never replaces your other books.
+              Restore adds copies. It never replaces your other books. Full
+              backups include current and historical photos. Markdown keeps
+              notes and history references, but not photo files.
             </p>
           </section>
           <section className="profile-section">

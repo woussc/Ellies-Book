@@ -6,6 +6,7 @@ import {changeBoard, resolveNoteLink} from "./board-model.mjs";
 import {gardenView, resizeGarden, gardenLinks, type GardenRect} from "./garden-model.mjs";
 import {renderMarkdownDocument} from "../markdown-render";
 import {displayDate,RepeatTiming} from './repeat-entry';
+import {ReceiptCount,SavedReceipts} from './receipt-photos';
 import {budgetMonth,carryoverStatus,previousBudgetPeriod} from './carryover-model.mjs';
 import "./project-garden.css";
 
@@ -143,6 +144,7 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
                     <h3><NodeGlyph kind="entry"/>{e.description}</h3><strong className="money">{money(e.amount)}</strong>
                     <span className="garden-entry-meta"><Stage value={e.status}/><time dateTime={e.date}>{displayDate(e.date)}</time></span>
                     <RepeatTiming budget={budget} entry={e}/>
+                    <ReceiptCount entry={e}/>
                     {e.notes && <span className="garden-note-mark"><NodeGlyph kind="note"/>Attached note</span>}
                   </button>
                   {arrange && localControls('entry:'+e.id)}
@@ -170,9 +172,9 @@ export default function ProjectGarden({budget,scope,setBudget,onPlan,onSettings,
     {detail && <GardenDialog key={detail} title={detail==='project'?budget.name:detail==='budget'?'Budget details':detail.startsWith('entry:')?budget.expenses.find(e=>e.id===detail.slice(6))?.description??'Entry':budget.categories.find(c=>c.id===detail.slice(9))?.name??'Category'} onClose={()=>setDetail(null)}>
       {detail.startsWith('entry:')?(()=>{
         const e=budget.expenses.find(x=>x.id===detail.slice(6));if(!e)return <p>This entry is no longer available.</p>;
-        return <><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/><p>{budget.categories.find(c=>c.id===e.categoryId)?.name} · <time dateTime={e.date}>{displayDate(e.date)}</time></p><RepeatTiming budget={budget} entry={e}/><button className="primary" onClick={()=>{setDetail(null);onExpense(e);}}>Edit entry</button><h2>Entry note</h2>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
+        return <><p className="garden-detail-money money">{money(e.amount)}</p><Stage value={e.status}/><p>{budget.categories.find(c=>c.id===e.categoryId)?.name} · <time dateTime={e.date}>{displayDate(e.date)}</time></p><RepeatTiming budget={budget} entry={e}/><button className="primary" onClick={()=>{setDetail(null);onExpense(e);}}>Edit entry</button><div className="receipt-entry-detail"><div className="receipt-detail-context"><h2>Entry note</h2>{e.notes?<div className="eb-md garden-note">{renderMarkdownDocument(e.notes, {onWikilink:(target)=>{
           const record=resolveNoteLink(budget,target);if(record)setDetail((budget.categories.some(c=>c.id===record.id)?'category:':'entry:')+record.id);else setMessage(`No record named “${target}” in this project.`);
-        },onTag:(tag)=>setMessage(`Tag: #${tag}. This note stays attached to its entry.`)})}</div>:<p>No note attached. Add one in Edit entry.</p>}<h2>Stage history</h2><p>{e.history.join(' → ')}</p><p role="status">{message}</p></>;
+        },onTag:(tag)=>setMessage(`Tag: #${tag}. This note stays attached to its entry.`)})}</div>:<p>No note attached. Add one in Edit entry.</p>}<h2>Stage history</h2><p>{e.history.join(' → ')}</p></div><SavedReceipts budget={budget} entry={e} onAdd={()=>{setDetail(null);onExpense(e);}}/></div><p role="status">{message}</p></>;
       })():detail.startsWith('category:')?(()=>{
         const c=budget.categories.find(x=>x.id===detail.slice(9));if(!c)return null;const t=totals(budget,c.id);
         return <><dl className="garden-detail-metrics"><div><dt>Allocation</dt><dd className="money">{money(c.amount)}</dd></div><div><dt>Paid</dt><dd className="money">{money(t.spent)}</dd></div><div><dt>Committed</dt><dd className="money">{money(t.committed)}</dd></div><div><dt>{t.left<0?'Over by':'Room left'}</dt><dd className={'money'+(t.left<0?' negative':'')}>{money(Math.abs(t.left))}</dd></div></dl>{budget.profile==='Team' && <p>Owner: {c.owner||'Not assigned'} · GL code: {c.glCode||'Not assigned'}</p>}<div className="garden-detail-actions"><button className="primary" onClick={()=>{setDetail(null);focus(c.id);}}>Explore category</button><button className="outline-button" onClick={()=>{setDetail(null);onPlan();}}>Edit allocation</button></div></>;

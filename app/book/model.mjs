@@ -3,6 +3,7 @@ import {validateRepeatData,repeatTiming,validRepeatDate} from './repeat-model.mj
 import {validateCarryoverData,carryoverStatus,budgetMonth} from './carryover-model.mjs';
 import {validateStatementData} from './statement-model.mjs';
 import {validateAutoSort} from './auto-sort-model.mjs';
+import {validateReceiptData} from './receipt-model.mjs';
 import {
   computeBudgetSummary,
   safeSpreadsheetText,
@@ -190,6 +191,7 @@ export function validateBudget(b) {
     throw new Error("Could not read the activity in this backup.");
   validateCarryoverData(b);
   validateAutoSort(b);
+  validateReceiptData(b);
   validateStatementData(b);
   if(b.repeatRules!==undefined||b.periods!==undefined)validateRepeatData(b,validateBudget);
   return b;

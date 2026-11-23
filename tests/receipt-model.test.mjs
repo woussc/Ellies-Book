@@ -1,0 +1,44 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {exampleBudget,totals,serializeBook,parseBook,removeExpense} from '../app/book/model.mjs';
+import {setEntryReceipts} from '../app/book/receipt-model.mjs';
+import {saveRepeatingEntry,openPeriod} from '../app/book/repeat-model.mjs';
+const id='b2ef0b72-62c7-48ba-9aac-b78314795946';
+const at='2026-11-21T10:48:00.000Z';
+test('photos persist with entry history and exact notes without changing money',()=>{
+ const b=exampleBudget(),entry=b.expenses[0];entry.notes='## Dinner\n\n[[Groceries]]\n';
+ const asset={id,entryId:entry.id,name:'Receipt 1',type:'image/jpeg',size:123,sha256:'a'.repeat(64),addedAt:at};
+ const attached=setEntryReceipts(b,entry.id,[id],[asset],at);
+ assert.deepEqual(totals(attached),totals(b));
+ const read=parseBook(serializeBook(attached));
+ assert.deepEqual(read.expenses[0].receiptIds,[id]);assert.equal(read.expenses[0].notes,entry.notes);
+ const removed=setEntryReceipts(read,entry.id,[],[],at);
+ assert.equal(removed.receiptData.assets.length,1);assert.deepEqual(removed.receiptData.events.map(e=>e.action),['attached','removed']);
+ const restored=setEntryReceipts(removed,entry.id,[id],[],at);
+ assert.equal(restored.receiptData.events.at(-1).action,'restored');
+ assert.equal(parseBook(serializeBook(removeExpense(restored,entry.id))).receiptData.assets[0].id,id);
+});
+test('backups reject foreign, duplicate and oversized receipt references',()=>{
+ const b=exampleBudget(),e=b.expenses[0],asset={id,entryId:e.id,name:'Receipt',type:'image/jpeg',size:12,sha256:'b'.repeat(64),addedAt:at};
+ assert.throws(()=>setEntryReceipts(b,e.id,[id],[{...asset,entryId:'another-entry'}]),/belong/);
+ assert.throws(()=>setEntryReceipts(b,e.id,[id,id],[asset]),/reference/);
+ assert.throws(()=>setEntryReceipts(b,e.id,[id],[{...asset,size:15_000_001}]),/receipt photo/);
+ assert.throws(()=>setEntryReceipts(b,e.id,['../outside'],[asset]),/belong/);
+ const six=Array.from({length:6},(_,i)=>({...asset,id:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`}));
+ assert.throws(()=>setEntryReceipts(b,e.id,six.map(a=>a.id),six),/reference/);
+ const attached=setEntryReceipts(b,e.id,[id],[asset]);
+ assert.throws(()=>setEntryReceipts(attached,e.id,[id],[{...asset,sha256:'c'.repeat(64)}]),/belong/);
+});
+test('month switching and repeat corrections keep occurrence photos but never copy them to future bills',()=>{
+ let b=exampleBudget();b.period='2026-11';b.startDate='2026-11-01';b.endDate='2026-11-30';
+ const entry={...b.expenses[0],date:'2026-11-21'};
+ b=saveRepeatingEntry(b,entry,{frequency:'monthly',startDate:entry.date});
+ const asset={id,entryId:entry.id,name:'Receipt',type:'image/jpeg',size:12,sha256:'b'.repeat(64),addedAt:at};
+ b=setEntryReceipts(b,entry.id,[id],[asset]);
+ b=saveRepeatingEntry(b,{...b.expenses.find(e=>e.id===entry.id),amount:100},{frequency:'monthly',scope:'future'});
+ assert.deepEqual(b.expenses.find(e=>e.id===entry.id).receiptIds,[id]);
+ const december=openPeriod(b,'2026-12');
+ assert.ok(december.expenses.some(e=>e.repeatId));assert.ok(december.expenses.every(e=>!e.receiptIds?.length));
+ const november=openPeriod(parseBook(serializeBook(december)),'2026-11');
+ assert.deepEqual(november.expenses.find(e=>e.id===entry.id).receiptIds,[id]);
+});

@@ -1,0 +1,12 @@
+import type {Budget} from './model.mjs';
+import type {Library} from './library-model.mjs';
+export type ReceiptAsset = {id: string; entryId: string; name: string; type: 'image/jpeg'; size: number; sha256: string; addedAt: string};
+export type ReceiptEvent = {receiptId: string; entryId: string; action: 'attached' | 'removed' | 'restored'; at: string};
+export type ReceiptData = {assets: ReceiptAsset[]; events: ReceiptEvent[]};
+export const MAX_RECEIPTS: number;
+export const MAX_RECEIPT_BYTES: number;
+export function receiptId(value: unknown): boolean;
+export function validateReceiptAsset(asset: ReceiptAsset): ReceiptAsset;
+export function validateReceiptData(budget: Budget): void;
+export function setEntryReceipts(budget: Budget, entryId: string, ids: string[], additions?: ReceiptAsset[], at?: string): Budget;
+export function receiptManifest(library: Library): ReceiptAsset[];

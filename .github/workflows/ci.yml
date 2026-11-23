@@ -54,6 +54,12 @@ jobs:
       - name: Statement import (money rules, real CSV/PDF/password/scanned/image fixtures)
         run: node --test tests/statement-*.test.mjs tests/auto-sort.test.mjs
 
+      - name: Receipt photos (history, checked backups and durable transactions)
+        run: node --test tests/receipt-model.test.mjs tests/receipt-files.test.mjs
+
+      - name: Native receipt storage contract
+        run: node --experimental-strip-types --experimental-test-module-mocks --test tests/receipt-storage.test.mjs
+
       - name: Rendered-HTML contract
         # The build already ran above, so call the node test directly instead of
         # `pnpm run test` (which would run `vinext build` a second time).

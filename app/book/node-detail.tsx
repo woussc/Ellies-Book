@@ -6,6 +6,7 @@ import { noteConnections, resolveNoteLink } from "./board-model.mjs";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Expense } from "./model.mjs";
 import type { CanvasNode } from "./canvas-model.mjs";
+import {SavedReceipts} from './receipt-photos';
 
 export default function NodeDetail({
   node,
@@ -170,6 +171,7 @@ export default function NodeDetail({
             >
               Edit this entry
             </button>
+            <SavedReceipts budget={budget} entry={expense} onAdd={() => leave(() => onExpense(expense))}/>
           </>
         ) : (
           node.kind !== "notes" && (
