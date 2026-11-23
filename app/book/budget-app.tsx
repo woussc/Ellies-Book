@@ -179,7 +179,7 @@ export default function BudgetApp() {
   const [activePage, setPage] = useState<Page | null>(null);
   const [selectedMode, setMode] = useState<Profile | null>(null);
   const [toast, setToast] = useState<{text: string; kind: ToastKind} | null>(null);
-  return <ProjectWorkspace key={`${book.budget.id}:${periodId(book.budget)}`} book={book} mode={selectedMode ?? book.budget.profile} setMode={setMode} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
+  return <ProjectWorkspace key={`${book.budget.id}:${periodId(book.budget)}:${book.budget.startDate}:${book.budget.endDate}`} book={book} mode={selectedMode ?? book.budget.profile} setMode={setMode} activePage={activePage} setPage={setPage} toast={toast} setToast={setToast} />;
 }
 function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setToast}: {
   mode: Profile;
