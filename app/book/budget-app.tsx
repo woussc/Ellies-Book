@@ -32,6 +32,8 @@ import ProjectGarden, {Stage} from "./project-garden";
 import PeriodSwitcher from './period-switcher';
 import BudgetStartReview from './budget-start-review';
 import StatementImport,{StatementImportHistory} from './statement-import';
+import AutoSort,{type LearnPayee} from './auto-sort';
+import {payeeRule,suggestCategory} from './auto-sort-model.mjs';
 import {budgetMonth,carryoverStatus,confirmBudgetStart,previousBudgetPeriod} from './carryover-model.mjs';
 import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
 import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
@@ -216,6 +218,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const storageError = status === "error";
   const [newCategory, setNewCategory] = useState("");
   const [draft, setDraft] = useState({
+    payee: "",
     description: "",
     amount: "",
     categoryId: "",
@@ -224,6 +227,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     notes: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [categoryManual,setCategoryManual]=useState(false);
+  const newCategoryManual=useRef(false);
+  const [learnPayee,setLearnPayee]=useState<LearnPayee|null>(null);
+  const suggestion=!categoryManual&&!editingId?suggestCategory(budget,draft.payee):null;
+  const draftCategory=suggestion?.categoryId||draft.categoryId||budget.categories[0]?.id||'';
+  const bookName=library.books.find(b=>b.projects.some(p=>p.id===budget.id))?.name??'Example book';
   const [entryFilter, setEntryFilter] = useState("all");
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [repeatDraft,setRepeatDraft]=useState<RepeatOptions>({frequency:'none',endDate:'',scope:'this'});
@@ -282,14 +291,15 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       return;
     }
     if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
-    if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;}
+    if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;newCategoryManual.current=categoryManual;}
     editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
     setConfirmRemoval(false);
     setConfirmStop(false);
     const rule=budget.repeatRules?.find(r=>r.id===expense.repeatId);
     setRepeatDraft({frequency:rule?.frequency??'none',endDate:repeatTiming(budget,expense)?.endDate??'',scope:'this'});
-    setDraft({ ...expense, amount: String(expense.amount), notes: expense.notes ?? "" });
+    setDraft({ ...expense, payee:expense.payee??'', amount: String(expense.amount), notes: expense.notes ?? "" });
+    setCategoryManual(false);
     requestAnimationFrame(() => {
       spendingForm.current?.scrollIntoView({ block: "start" });
       spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
@@ -301,6 +311,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     setConfirmStop(false);
     setRepeatDraft(newRepeatDraft.current);
     setDraft(newEntryDraft.current);
+    setCategoryManual(newCategoryManual.current);
     if (returnFocus) requestAnimationFrame(() => {
       const target = editingTrigger.current?.isConnected ? editingTrigger.current : entriesHeading.current;
       target?.focus({ preventScroll: true });
@@ -358,7 +369,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   function selectProject(projectId: string) {
     const saved = libraryAction({ type: "select", id: projectId });
     setEditingId(null);
-    setDraft({description: "", amount: "", categoryId: "", status: "paid", date: localDate(), notes: ""});
+    setDraft({payee:"",description: "", amount: "", categoryId: "", status: "paid", date: localDate(), notes: ""});
+    setCategoryManual(false);setLearnPayee(null);
     go("home");
     if (!saved) notify("Project is open on this page only. Download all books before leaving.", "error");
   }
@@ -370,8 +382,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       notify("Give this entry a description.");
       return;
     }
-    const categoryId = budget.categories.some((c) => c.id === draft.categoryId)
-      ? draft.categoryId
+    const categoryId = budget.categories.some((c) => c.id === draftCategory)
+      ? draftCategory
       : budget.categories[0]?.id;
     if (!categoryId) return;
     if(editingId&&!editingExpense){closeExpense();notify('This entry is no longer available. Choose another entry.','error');return;}
@@ -379,6 +391,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       ...editingExpense,
       ...draft,
       categoryId,
+      payee:draft.payee.trim(),
       status: draft.status as Expense["status"],
       amount,
       id: editingId??crypto.randomUUID(),
@@ -387,8 +400,11 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     let saved;
     try {saved=setBudget(b=>saveRepeatingEntry(b,expense,{...repeatDraft,startDate:draft.date}));}
     catch(error){notify(error instanceof Error?error.message:'Could not save this entry.','error');return;}
+    const previousRule=payeeRule(budget,expense.payee??'');
+    setLearnPayee(saved&&expense.payee&&(!previousRule||(categoryManual&&(previousRule.categoryId!==categoryId||previousRule.paused)))?{payee:expense.payee,categoryId,description:expense.description,amount}:null);
     if(editingId)closeExpense();
-    else {setDraft({...draft,description:'',amount:'',notes:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
+    else {setDraft({...draft,payee:'',description:'',amount:'',notes:'',categoryId:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
+    setCategoryManual(editingId?newCategoryManual.current:false);
     notify(
       saved
         ? `${expense.description} saved as ${expense.status}.${repeatDraft.frequency!=='none'?' Future repeats start Planned.':''}`
@@ -538,7 +554,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
             <>
               {page === "start" && <BookSetup mode={mode} key={`${mode}:${setupBookId || "new-book"}`} book={modeLibrary.books.find(book => book.id === setupBookId)} onCancel={() => go("books")} onExample={() => { setMode("Household"); setBudget(exampleBudget()); go("home"); }} onCreate={(name, project) => {
                 const saved = libraryAction(setupBookId ? {type:"project",bookId:setupBookId,project} : {type:"book",name,project});
-                setDraft({description:"",amount:"",categoryId:"",status:"paid",date:localDate(),notes:""});
+                setDraft({payee:"",description:"",amount:"",categoryId:"",status:"paid",date:localDate(),notes:""});
+                setCategoryManual(false);setLearnPayee(null);
                 go("home");
                 notify(saved ? "Your project is ready. Welcome to your board." : "Project created on this page only. Download all books before leaving.", saved ? "success" : "error");
               }} />}
@@ -858,6 +875,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   )}
                   <div className="statement-entry-actions"><button className="secondary" onClick={()=>go('statement')} disabled={storageError}>Import statement</button><p className="hint">CSV, PDF or screenshots. Review before saving as Paid.</p></div>
                   <StatementImportHistory book={book}/>
+                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={()=>setLearnPayee(null)} save={book.saveAutoSort} disabled={storageError}/>
                   <div className="content-grid spend-grid">
                     <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">
@@ -865,6 +883,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                         {editingId && <button type="button" className="text-button" onClick={() => closeExpense()}>Cancel</button>}
                       </div>
                       {editingId && <p className="hint editing-hint">Correct this entry below. Your totals update when you save.</p>}
+                      <label className="field">Payee (optional)<input maxLength={100} placeholder="e.g. Netflix" value={draft.payee} onChange={e=>setDraft({...draft,payee:e.target.value})}/></label>
                       <label className="field">
                         What’s it for?
                         <input
@@ -904,10 +923,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           <select
                             required
                             value={
-                              draft.categoryId || budget.categories[0]?.id || ""
+                              draftCategory
                             }
                             onChange={(e) =>
-                              setDraft({ ...draft, categoryId: e.target.value })
+                              {setDraft({ ...draft, categoryId: e.target.value });setCategoryManual(true);}
                             }
                           >
                             {budget.categories.map((c) => (
@@ -918,6 +937,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           </select>
                         </label>
                       </div>
+                      {suggestion&&<p className="auto-sort-suggestion" role="status">Suggested by your {suggestion.payee} rule. You can choose another category for this entry.</p>}
                       <fieldset className="status-field">
                         <legend>Where is it at?</legend>
                         {[

@@ -21,6 +21,7 @@ import type { Library, LibraryAction } from "./library-model.mjs";
 import {periodId} from './repeat-model.mjs';
 import {applyStatement,undoStatement,type StatementRequest} from './statement-model.mjs';
 import {saveStatement} from './statement-storage.mjs';
+import {saveAutoSortRules} from './auto-sort-storage.mjs';
 
 type Snapshot = {
   library: Library;
@@ -185,6 +186,16 @@ function removeExample() {
   return getSnapshot().budget;
 }
 
+// Preference writes publish only after durable storage succeeds. A failed rule
+// save must never roll back the entry that was already saved before the offer.
+function saveAutoSort(change: (budget: Budget) => Budget) {
+  const previous = getSnapshot();
+  if (previous.blocked || previous.status === 'error') throw new Error('Save or download your book before changing rules. Your entry is still here.');
+  const next = saveAutoSortRules(localStorage,previous.budget.id,change);
+  current = {...previous, library: next, budget: activeBudget(next)!, status: 'saved', error: ''};
+  emit();
+}
+
 // Import writes get a fresh library under a same-origin Web Lock. A failed
 // setItem never publishes a half-import or a success/undo message in memory.
 async function statementTransaction(change:(library:Library)=>Library) {
@@ -206,6 +217,7 @@ export function useBook() {
   return {
     ...snapshot,
     setBudget,
+    saveAutoSort,
     removeExample,
     libraryAction,
     importStatement:(request:StatementRequest)=>statementTransaction(library=>applyStatement(library,request)),

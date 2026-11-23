@@ -2,6 +2,7 @@
 import {validateRepeatData,repeatTiming,validRepeatDate} from './repeat-model.mjs';
 import {validateCarryoverData,carryoverStatus,budgetMonth} from './carryover-model.mjs';
 import {validateStatementData} from './statement-model.mjs';
+import {validateAutoSort} from './auto-sort-model.mjs';
 import {
   computeBudgetSummary,
   safeSpreadsheetText,
@@ -157,6 +158,7 @@ export function validateBudget(b) {
         text(e.id) &&
         e.id &&
         text(e.description) &&
+        (e.payee === undefined || (text(e.payee) && e.payee.length <= 100)) &&
         (e.notes === undefined || (text(e.notes) && e.notes.length <= 50000)) &&
         amount(e.amount) &&
         e.amount > 0 &&
@@ -187,6 +189,7 @@ export function validateBudget(b) {
   )
     throw new Error("Could not read the activity in this backup.");
   validateCarryoverData(b);
+  validateAutoSort(b);
   validateStatementData(b);
   if(b.repeatRules!==undefined||b.periods!==undefined)validateRepeatData(b,validateBudget);
   return b;
@@ -376,7 +379,7 @@ export function advanceExpense(budget, id) {
 export function editExpense(budget, id, patch) {
   const before = budget.expenses.find((e) => e.id === id);
   if (!before) return budget;
-  const labels = { description: "Description", amount: "Amount", categoryId: "Category", status: "Status", date: "Date", notes: "Note" };
+  const labels = { description: "Description", payee: "Payee", amount: "Amount", categoryId: "Category", status: "Status", date: "Date", notes: "Note" };
   const after = { ...before };
   for (const key of Object.keys(labels)) {
     if (Object.hasOwn(patch, key)) after[key] = patch[key];
@@ -384,6 +387,10 @@ export function editExpense(budget, id, patch) {
   if (typeof after.description !== "string" || !after.description.trim() || after.description.length > 100)
     throw new Error("Give this entry a description of up to 100 characters.");
   after.description = after.description.trim();
+  if (after.payee !== undefined) {
+    if (typeof after.payee !== 'string' || after.payee.length > 100) throw new Error('Enter a payee of up to 100 characters.');
+    after.payee = after.payee.trim();
+  }
   if (typeof after.amount !== "number" || !Number.isFinite(after.amount) || after.amount <= 0 || after.amount > 1e9)
     throw new Error("Enter an amount between $0.01 and $1,000,000,000.");
   after.amount = round(after.amount);

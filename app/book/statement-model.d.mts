@@ -2,6 +2,9 @@ import type { Budget, Expense } from "./model.mjs";
 import type { Library } from "./library-model.mjs";
 export type StatementAccount = { id: string; label: string };
 export type StatementRow = {
+  payee?:string;
+  categorySource?:'manual'|'rule';
+  suggestedBy?:string;
   originalDescription?: string;
   id: string;
   sourceId: string;

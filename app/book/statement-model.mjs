@@ -112,12 +112,13 @@ export function reviewStatement(library, request) {
       !validRepeatDate(r.date) ||
       !exactAmount(r.amount) ||
       !text(r.description, 100) ||
+      (r.payee !== undefined && (typeof r.payee !== 'string' || r.payee.length > 100)) ||
       r.currency !== "USD" ||
       r.direction !== "out"
     )
       return result(
         "needs",
-        "Check the date, description, exact amount, currency and direction.",
+        "Check the date, description, payee (up to 100 characters), exact amount, currency and direction.",
       );
     if (!range || r.date < range.startDate || r.date > range.endDate)
       return result(
@@ -320,6 +321,7 @@ export function applyStatement(library, request) {
           : {
               id: crypto.randomUUID(),
               description: r.description.trim(),
+              ...(r.payee?.trim() ? {payee: r.payee.trim()} : {}),
               amount: r.amount,
               status: "paid",
               history: ["paid"],

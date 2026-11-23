@@ -1,4 +1,5 @@
 "use client";
+import {suggestStatementCategory} from './auto-sort-model.mjs';
 /* Source previews are temporary blob URLs, never remote image-optimizer inputs. */
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from "react";
@@ -263,7 +264,7 @@ export default function StatementImport({
   function patch(patch: Partial<StatementRow>) {
     setRows((current) =>
       current.map((r, i) =>
-        i === index ? { ...r, ...patch, checked: false } : r,
+        i === index ? suggestStatementCategory(budget, r, {...patch, checked: false}) : r,
       ),
     );
     setError("");
@@ -407,7 +408,7 @@ export default function StatementImport({
         throw new Error(
           "Read up to 1,000 payment rows at a time. Choose a smaller statement.",
         );
-      draft = draft.map((r) => ({
+      draft = draft.map((r) => suggestStatementCategory(budget, {
         ...r,
         categoryId: budget.categories[0]?.id ?? "",
       }));
@@ -496,7 +497,7 @@ export default function StatementImport({
     setOptions({ ...options, [key]: value });
   const column = (
     title: string,
-    k: "date" | "description" | "amount" | "out" | "in" | "currency" | "bankId",
+    k: "date" | "description" | "amount" | "out" | "in" | "currency" | "bankId" | "payee",
     optional = false,
   ) => (
     <label className="field">
@@ -873,6 +874,7 @@ export default function StatementImport({
               <div className="statement-fields">
                 {column("Date column", "date")}
                 {column("Description column", "description")}
+                {column("Payee column (optional)", "payee", true)}
                 {split ? (
                   <>
                     {column("Money out column", "out")}
@@ -1021,6 +1023,7 @@ export default function StatementImport({
                     />
                   </label>
                   <div className="statement-fields">
+                    <label className="field">Payee (optional)<input maxLength={100} value={selected.payee??selected.description} onChange={e=>patch({payee:e.target.value})}/></label>
                     <label className="field">
                       Payment date
                       <input
@@ -1085,6 +1088,7 @@ export default function StatementImport({
                       </select>
                     </label>
                   </div>
+                  {selected.decision==='new'&&selected.suggestedBy&&<p className="auto-sort-suggestion">Suggested by your {selected.suggestedBy} rule. The category stays editable; check the reading before including this row.</p>}
                   {checked.candidates.length > 0 && (
                     <div className="statement-matches">
                       <h3>Could one of these be this payment?</h3>
@@ -1238,6 +1242,7 @@ export default function StatementImport({
                       {r.currency}
                     </p>
                     <p className="hint">{v.reason}</p>
+                    {r.decision==='new'&&r.suggestedBy&&<p className="hint">{budget.categories.find(c=>c.id===r.categoryId)?.name} · Suggested by your {r.suggestedBy} rule</p>}
                   </div>
                   <button
                     className="secondary"

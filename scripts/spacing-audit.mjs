@@ -27,6 +27,7 @@ for(const [i,profile] of modes.entries()){
  const repeatEntry=b.expenses.at(-1),repeatId='spacing-repeat-'+i;
  repeatEntry.repeatId=repeatId;repeatEntry.occurrenceDate='2026-11-01';repeatEntry.date='2026-11-01';
  b.repeatRules=[{id:repeatId,frequency:'monthly',startDate:'2026-11-01',description:repeatEntry.description,amount:repeatEntry.amount,categoryId:repeatEntry.categoryId,skipped:[]}];
+ b.autoSortRules=[{id:'spacing-payee-'+i,payee:'Netflix',categoryId:b.categories[1].id,profile,paused:false},{id:'spacing-payee-long-'+i,payee:'A very long merchant payee name with extra receipt references and project details',categoryId:b.categories[0].id,profile,paused:true},{id:'spacing-payee-missing-'+i,payee:'Old category payee',categoryId:'missing-category',profile,paused:false}];
  b=prepareRepeats(b);
  library=lm.changeLibrary(library,{type:'book',name:profile+' book',project:b});
  const future={...openPeriod(structuredClone(b),'2026-12',{startDate:'2026-12-01',endDate:'2026-12-31'}),id:'spacing-future-'+i,name:'Future '+profile};
@@ -254,10 +255,26 @@ for(const engine of engines){
    await click('Next 4');await snap('trail-last-page',md,w,{shot:shots});
    await p.locator('.garden-folded>button').first().click();await p.getByText('No entries in this category yet.',{exact:true}).waitFor();await snap('trail-empty',md,w,{shot:shots});
    await nav('Entries');await p.locator('.entry-filters').getByRole('button',{name:'All',exact:true}).click();await snap('entries-add',md,w,{shot:shots});
+   // Learning offers require a saved entry. Exercise them in the synthetic
+   // library, then restore the exact fixture before the view-only matrix.
+   const savedFixture=await p.evaluate(()=>localStorage.getItem('ellies-book:library:v1.md')),savedBaseline=baseline;
+   baseline=null;
+   for(const [payee,state] of [['A long new merchant payee with receipt references and project details','auto-sort-remember'],['Netflix','auto-sort-update']]){
+     await p.getByLabel('Payee (optional)',{exact:true}).fill(payee);await p.getByLabel('What’s it for?',{exact:true}).fill('Spacing learning offer');
+     await p.getByLabel('Spending amount',{exact:true}).fill('15.49');await p.locator('.spending-form').getByLabel('Category',{exact:true}).selectOption(template.categories[0].id);
+     await p.locator('.spending-form').getByLabel('Date',{exact:true}).fill('2026-11-20');await click('Save entry');await snap(state,md,w,{shot:shots});await click('Not now');
+   }
+   await p.evaluate(value=>localStorage.setItem('ellies-book:library:v1.md',value),savedFixture);await p.reload();await nav('Entries');baseline=savedBaseline;
+   await p.locator('.auto-sort-manager summary').click();await snap('auto-sort-rules',md,w,{shot:shots});
+   await p.locator('.auto-sort-manager summary').click();
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('Netflix');await snap('auto-sort-suggested',md,w,{shot:shots});
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('');
    await click('Import statement');await p.getByLabel('Account label',{exact:true}).fill('Statement spacing account');await snap('statement-source-choice',md,w,{shot:shots});
    await p.getByLabel('Choose CSV file',{exact:true}).setInputFiles('tests/fixtures/statement-import/statement.csv');
    await p.getByRole('heading',{name:'Check your columns',exact:true}).waitFor();await snap('statement-csv-columns',md,w,{shot:shots});
    await click('Check extracted rows');await snap('statement-reading',md,w,{shot:shots});
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('Netflix');await snap('auto-sort-import-suggested',md,w,{shot:shots});
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('NETFL1X');await snap('auto-sort-import-uncertain',md,w,{shot:shots});
    await p.getByLabel('Bank wording',{exact:true}).fill('A long bank merchant name that still needs to stay inside the row correction field');
    await p.getByLabel('Payment amount (USD)',{exact:true}).fill('999999999.99');await p.getByLabel('This is a separate purchase, even if another payment looks the same.',{exact:true}).check();await snap('statement-large-reading',md,w,{shot:shots});
    await click('Checked, next row');await click('Leave row out');await click('Leave row out');await snap('statement-review-needs',md,w,{shot:shots});
@@ -336,6 +353,7 @@ for(const engine of engines){
    await p.setViewportSize({width:w,height:w<=430?844:900});
    await nav('Board');await snap('empty-board',md,w,{shot:w===390});
    await nav('Entries');await snap('empty-entries',md,w,{shot:w===390});
+   await p.locator('.auto-sort-manager summary').click();await snap('auto-sort-empty',md,w,{shot:w===390});
   }
  }
  await browser.close();
