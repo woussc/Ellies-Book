@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/postcss";
 import { defineConfig } from "vite";
+import {statementAssets} from './build/statement-assets';
 
 // [Fact] GitHub project Pages base path. Must match the repository name.
 // If the repo is renamed or served from a user/org root domain, update this
@@ -37,7 +38,7 @@ export default defineConfig({
       plugins: [tailwindcss()],
     },
   },
-  plugins: [react()],
+  plugins: [react(),statementAssets()],
   build: {
     // [Unknown -> adjust-after-first-CI-run] Output dir for the Pages artifact.
     // dist-pages is isolated from the Worker's dist/ so the two builds never

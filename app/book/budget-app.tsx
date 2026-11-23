@@ -31,6 +31,7 @@ import { registerNativeShare } from "./ai-share";
 import ProjectGarden, {Stage} from "./project-garden";
 import PeriodSwitcher from './period-switcher';
 import BudgetStartReview from './budget-start-review';
+import StatementImport,{StatementImportHistory} from './statement-import';
 import {budgetMonth,carryoverStatus,confirmBudgetStart,previousBudgetPeriod} from './carryover-model.mjs';
 import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
 import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
@@ -40,7 +41,7 @@ import { serializeLibrary } from "./library-model.mjs";
 import "./workspace.css";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
-type Page = "start" | "settings" | "plan" | "spend" | "home" | "report" | "books" | "profile" | "carryover";
+type Page = "start" | "settings" | "plan" | "spend" | "home" | "report" | "books" | "profile" | "carryover" | "statement";
 type ToastKind = "success" | "error" | "info";
 const pages: { id: Page; label: string; short: string; icon: string }[] = [
   { id: "home", label: "Your board", short: "Board", icon: "flow" },
@@ -199,7 +200,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const boardController = useRef<NodeBoardHandle>(null);
   const boardScroll = useRef(0);
   const page = activePage ?? (budget.created ? "home" : "start");
-  const navigationPage=page==='carryover'?'home':page;
+  const navigationPage=page==='carryover'?'home':page==='statement'?'spend':page;
   async function download(content: string, name: string, type = "text/markdown") {
     try {
       await saveFile(content, name, type);
@@ -848,12 +849,15 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                   </div>
                 </>
               )}
+              {page === 'statement' && <StatementImport key={budget.id+periodId(budget)} book={book} onClose={()=>go('spend')}/>}
               {page === "spend" && (
                 <>
                   {header(
                     "Entries",
                     `${budget.name} · Add, correct or change the stage of one entry.`,
                   )}
+                  <div className="statement-entry-actions"><button className="secondary" onClick={()=>go('statement')} disabled={storageError}>Import statement</button><p className="hint">CSV, PDF or screenshots. Review before saving as Paid.</p></div>
+                  <StatementImportHistory book={book}/>
                   <div className="content-grid spend-grid">
                     <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">

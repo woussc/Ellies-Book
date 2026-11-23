@@ -210,6 +210,11 @@ for(const engine of engines){
   await fs.writeFile(root+`/ledger-${engine}.json`,JSON.stringify(rows.filter(row=>row.engine===engine),null,2));
   console.log('AUDITED',engine,md,w,state,JSON.stringify({overflow:data.documentOverflow,fields:data.fields.filter(x=>x.overflow>1).map(x=>[x.name,x.overflow]),dateOverlap:data.dateOverlap,crossings:data.crossings,small:data.small.map(x=>x.name),overlaps:data.overlaps}));
  }
+ // Exercise the production asset route, not only the Pages preview route.
+ for(const name of ['pdf/pdf.worker.min.mjs','worker.min.js','tesseract-core-lstm.wasm','eng.traineddata']){
+  const url=new URL('_next/static/statement-assets/'+name,base),response=await fetch(url,{method:'HEAD'});
+  assert.equal(response.status,200,'Local extraction asset is unavailable: '+url);
+ }
  await p.goto(base);
  await nav('Books');await p.getByRole('heading',{name:'A place for your next chapter.',exact:true}).waitFor();
  for(const md of selectedModes){
@@ -249,6 +254,21 @@ for(const engine of engines){
    await click('Next 4');await snap('trail-last-page',md,w,{shot:shots});
    await p.locator('.garden-folded>button').first().click();await p.getByText('No entries in this category yet.',{exact:true}).waitFor();await snap('trail-empty',md,w,{shot:shots});
    await nav('Entries');await p.locator('.entry-filters').getByRole('button',{name:'All',exact:true}).click();await snap('entries-add',md,w,{shot:shots});
+   await click('Import statement');await p.getByLabel('Account label',{exact:true}).fill('Statement spacing account');await snap('statement-source-choice',md,w,{shot:shots});
+   await p.getByLabel('Choose CSV file',{exact:true}).setInputFiles('tests/fixtures/statement-import/statement.csv');
+   await p.getByRole('heading',{name:'Check your columns',exact:true}).waitFor();await snap('statement-csv-columns',md,w,{shot:shots});
+   await click('Check extracted rows');await snap('statement-reading',md,w,{shot:shots});
+   await p.getByLabel('Bank wording',{exact:true}).fill('A long bank merchant name that still needs to stay inside the row correction field');
+   await p.getByLabel('Payment amount (USD)',{exact:true}).fill('999999999.99');await p.getByLabel('This is a separate purchase, even if another payment looks the same.',{exact:true}).check();await snap('statement-large-reading',md,w,{shot:shots});
+   await click('Checked, next row');await click('Leave row out');await click('Leave row out');await snap('statement-review-needs',md,w,{shot:shots});
+   await p.getByRole('group',{name:'Payment review groups'}).getByRole('button',{name:/^Ready/}).click();await snap('statement-review-ready',md,w,{shot:shots});
+   await p.getByRole('group',{name:'Payment review groups'}).getByRole('button',{name:/^Left out/}).click();await snap('statement-review-left-out',md,w,{shot:shots});await click('Cancel import');
+   await click('Import statement');await p.getByLabel('Account label',{exact:true}).fill('Statement spacing account');await p.getByLabel('Choose PDF statement',{exact:true}).setInputFiles('tests/fixtures/statement-import/protected.pdf');
+   await p.getByRole('heading',{name:'This PDF has a password',exact:true}).waitFor();await snap('statement-password',md,w,{shot:shots});
+   await p.getByLabel('PDF password',{exact:true}).fill('wrong');await click('Open PDF');await p.getByText('That password did not open the PDF. Try again, or cancel and use screenshots.',{exact:true}).waitFor();await snap('statement-wrong-password',md,w,{shot:shots});
+   await p.getByLabel('PDF password',{exact:true}).fill('fixture-only');await click('Open PDF');await p.getByRole('heading',{name:'How does your bank write payments?',exact:true}).waitFor();await snap('statement-pdf-column',md,w,{shot:shots});await click('Check extracted rows');await snap('statement-pdf-reading',md,w,{shot:shots});await click('Cancel import');
+   await click('Import statement');await p.getByLabel('Account label',{exact:true}).fill('Statement spacing account');await p.getByLabel('Choose Screenshots',{exact:true}).setInputFiles('tests/fixtures/statement-import/screenshot.png');await snap('statement-image-order',md,w,{shot:shots});
+   await p.getByText('Crop edges',{exact:true}).click();await snap('statement-image-crop',md,w,{shot:shots});await click('Read these images');await p.getByRole('heading',{name:'How does your bank write payments?',exact:true}).waitFor({timeout:45000});await click('Check extracted rows');await snap('statement-ocr-reading',md,w,{shot:shots});await click('Cancel import');
    await p.getByLabel('Repeat',{exact:true}).selectOption('monthly');await snap('repeat-monthly-preview',md,w,{shot:shots});
    await p.getByLabel('End repeat',{exact:true}).selectOption('date');await p.getByLabel('Last bill date',{exact:true}).fill('2027-03-01');await snap('repeat-end-date',md,w,{shot:shots});
    await p.getByLabel('Repeat',{exact:true}).selectOption('none');

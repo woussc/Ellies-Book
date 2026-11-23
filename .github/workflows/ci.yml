@@ -51,6 +51,9 @@ jobs:
       - name: Build (vinext / Vite production build)
         run: pnpm run build
 
+      - name: Statement import (money rules, real CSV/PDF/password/scanned/image fixtures)
+        run: node --test tests/statement-*.test.mjs
+
       - name: Rendered-HTML contract
         # The build already ran above, so call the node test directly instead of
         # `pnpm run test` (which would run `vinext build` a second time).
