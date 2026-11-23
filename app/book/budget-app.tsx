@@ -32,6 +32,9 @@ import ProjectGarden, {Stage} from "./project-garden";
 import PeriodSwitcher from './period-switcher';
 import BudgetStartReview from './budget-start-review';
 import StatementImport,{StatementImportHistory} from './statement-import';
+import AutoSort,{type LearnPayee} from './auto-sort';
+import {normalizePayee,shouldOfferRule,suggestCategory} from './auto-sort-model.mjs';
+import {dismissPayeeOffer,isPayeeOfferDismissed} from './auto-sort-offers.mjs';
 import {budgetMonth,carryoverStatus,confirmBudgetStart,previousBudgetPeriod} from './carryover-model.mjs';
 import {displayDate,RepeatEditor,RepeatTiming} from './repeat-entry';
 import {openPeriod,periodId,repeatTiming,saveRepeatingEntry,skipOccurrence,stopRepeating,type RepeatOptions} from './repeat-model.mjs';
@@ -216,6 +219,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const storageError = status === "error";
   const [newCategory, setNewCategory] = useState("");
   const [draft, setDraft] = useState({
+    payee: "",
     description: "",
     amount: "",
     categoryId: "",
@@ -224,6 +228,13 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     notes: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [categoryManual,setCategoryManual]=useState(false);
+  const newCategoryManual=useRef(false);
+  const [learnPayee,setLearnPayee]=useState<LearnPayee|null>(null);
+  const quietPayees=useRef(new Set<string>());
+  const suggestion=!categoryManual&&!editingId?suggestCategory(budget,draft.payee):null;
+  const draftCategory=suggestion?.categoryId||draft.categoryId||budget.categories[0]?.id||'';
+  const bookName=library.books.find(b=>b.projects.some(p=>p.id===budget.id))?.name??'Example book';
   const [entryFilter, setEntryFilter] = useState("all");
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [repeatDraft,setRepeatDraft]=useState<RepeatOptions>({frequency:'none',endDate:'',scope:'this'});
@@ -235,6 +246,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const stopTrigger=useRef<HTMLButtonElement>(null);
   const newEntryDraft = useRef(draft);
   const spendingForm = useRef<HTMLFormElement>(null);
+  const entryNotice = useRef<HTMLDivElement>(null);
   const editingTrigger = useRef<HTMLButtonElement | null>(null);
   const entriesHeading = useRef<HTMLHeadingElement>(null);
   const removalHeading = useRef<HTMLHeadingElement>(null);
@@ -252,6 +264,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
   }, [toast, setToast]);
+  useEffect(()=>{
+    if(page==='spend'&&toast?.kind==='error'){
+      entryNotice.current?.focus({preventScroll:true});
+      entryNotice.current?.scrollIntoView({block:'center'});
+    }
+  },[page,toast]);
   function change(next: Budget, action: string) {
     return setBudget({
       ...next,
@@ -282,14 +300,17 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       return;
     }
     if (editingId && !window.confirm("Switch entries and discard these unsaved edits?")) return;
-    if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;}
+    // Opening an entry is not consent to the pending learn offer.
+    setLearnPayee(null);
+    if (!editingId) {newEntryDraft.current = draft;newRepeatDraft.current=repeatDraft;newCategoryManual.current=categoryManual;}
     editingTrigger.current = trigger ?? null;
     setEditingId(expense.id);
     setConfirmRemoval(false);
     setConfirmStop(false);
     const rule=budget.repeatRules?.find(r=>r.id===expense.repeatId);
     setRepeatDraft({frequency:rule?.frequency??'none',endDate:repeatTiming(budget,expense)?.endDate??'',scope:'this'});
-    setDraft({ ...expense, amount: String(expense.amount), notes: expense.notes ?? "" });
+    setDraft({ ...expense, payee:expense.payee??'', amount: String(expense.amount), notes: expense.notes ?? "" });
+    setCategoryManual(false);
     requestAnimationFrame(() => {
       spendingForm.current?.scrollIntoView({ block: "start" });
       spendingForm.current?.querySelector("input")?.focus({ preventScroll: true });
@@ -301,6 +322,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     setConfirmStop(false);
     setRepeatDraft(newRepeatDraft.current);
     setDraft(newEntryDraft.current);
+    setCategoryManual(newCategoryManual.current);
     if (returnFocus) requestAnimationFrame(() => {
       const target = editingTrigger.current?.isConnected ? editingTrigger.current : entriesHeading.current;
       target?.focus({ preventScroll: true });
@@ -358,7 +380,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   function selectProject(projectId: string) {
     const saved = libraryAction({ type: "select", id: projectId });
     setEditingId(null);
-    setDraft({description: "", amount: "", categoryId: "", status: "paid", date: localDate(), notes: ""});
+    setDraft({payee:"",description: "", amount: "", categoryId: "", status: "paid", date: localDate(), notes: ""});
+    setCategoryManual(false);setLearnPayee(null);
     go("home");
     if (!saved) notify("Project is open on this page only. Download all books before leaving.", "error");
   }
@@ -370,8 +393,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       notify("Give this entry a description.");
       return;
     }
-    const categoryId = budget.categories.some((c) => c.id === draft.categoryId)
-      ? draft.categoryId
+    const categoryId = budget.categories.some((c) => c.id === draftCategory)
+      ? draftCategory
       : budget.categories[0]?.id;
     if (!categoryId) return;
     if(editingId&&!editingExpense){closeExpense();notify('This entry is no longer available. Choose another entry.','error');return;}
@@ -379,6 +402,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       ...editingExpense,
       ...draft,
       categoryId,
+      payee:draft.payee.trim(),
       status: draft.status as Expense["status"],
       amount,
       id: editingId??crypto.randomUUID(),
@@ -387,8 +411,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     let saved;
     try {saved=setBudget(b=>saveRepeatingEntry(b,expense,{...repeatDraft,startDate:draft.date}));}
     catch(error){notify(error instanceof Error?error.message:'Could not save this entry.','error');return;}
+    let dismissed=quietPayees.current.has(normalizePayee(expense.payee));
+    try {dismissed ||= isPayeeOfferDismissed(sessionStorage,budget,expense.payee??'');} catch {/* Keep the in-page dismissal if session storage is unavailable. */}
+    setLearnPayee(saved&&!dismissed&&shouldOfferRule(budget,expense,categoryManual)?{payee:expense.payee!,categoryId,description:expense.description,amount,date:expense.date,status:expense.status}:null);
     if(editingId)closeExpense();
-    else {setDraft({...draft,description:'',amount:'',notes:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
+    else {setDraft({...draft,payee:'',description:'',amount:'',notes:'',categoryId:''});setRepeatDraft({frequency:'none',endDate:'',scope:'this'});}
+    setCategoryManual(editingId?newCategoryManual.current:false);
     notify(
       saved
         ? `${expense.description} saved as ${expense.status}.${repeatDraft.frequency!=='none'?' Future repeats start Planned.':''}`
@@ -538,7 +566,8 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
             <>
               {page === "start" && <BookSetup mode={mode} key={`${mode}:${setupBookId || "new-book"}`} book={modeLibrary.books.find(book => book.id === setupBookId)} onCancel={() => go("books")} onExample={() => { setMode("Household"); setBudget(exampleBudget()); go("home"); }} onCreate={(name, project) => {
                 const saved = libraryAction(setupBookId ? {type:"project",bookId:setupBookId,project} : {type:"book",name,project});
-                setDraft({description:"",amount:"",categoryId:"",status:"paid",date:localDate(),notes:""});
+                setDraft({payee:"",description:"",amount:"",categoryId:"",status:"paid",date:localDate(),notes:""});
+                setCategoryManual(false);setLearnPayee(null);
                 go("home");
                 notify(saved ? "Your project is ready. Welcome to your board." : "Project created on this page only. Download all books before leaving.", saved ? "success" : "error");
               }} />}
@@ -856,15 +885,17 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                     "Entries",
                     `${budget.name} · Add, correct or change the stage of one entry.`,
                   )}
-                  <div className="statement-entry-actions"><button className="secondary" onClick={()=>go('statement')} disabled={storageError}>Import statement</button><p className="hint">CSV, PDF or screenshots. Review before saving as Paid.</p></div>
+                  {toast&&<div ref={entryNotice} tabIndex={-1} className={`entries-notice entries-notice-${toast.kind}`} role={toast.kind==='error'?'alert':'status'}><Icon name={toast.kind==='success'?'check':toast.kind} size={18}/><span>{toast.text}</span><button className="icon-button" aria-label="Dismiss notification" onClick={()=>setToast(null)}><Icon name="close" size={16}/></button></div>}
                   <StatementImportHistory book={book}/>
+                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);requestAnimationFrame(()=>spendingForm.current?.querySelector('input')?.focus({preventScroll:true}));}} save={book.saveAutoSort} disabled={storageError} actions={<><button className="primary" onClick={()=>{if(editingId&&!window.confirm('Add a new entry and discard these unsaved edits?'))return;if(editingId)closeExpense(false);setLearnPayee(null);requestAnimationFrame(()=>{spendingForm.current?.scrollIntoView({block:'start'});spendingForm.current?.querySelector('input')?.focus({preventScroll:true});});}}>Add entry</button><button className="secondary auto-sort-import" onClick={()=>go('statement')} disabled={storageError}>Import statement</button></>}>{offerContent=>(
                   <div className="content-grid spend-grid">
-                    <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
+                    {offerContent || <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">
                         <h2>{editingId ? "Edit entry" : "Add entry"}</h2>
                         {editingId && <button type="button" className="text-button" onClick={() => closeExpense()}>Cancel</button>}
                       </div>
                       {editingId && <p className="hint editing-hint">Correct this entry below. Your totals update when you save.</p>}
+                      <label className="field">Payee (optional)<input maxLength={100} placeholder="e.g. Netflix" value={draft.payee} onChange={e=>setDraft({...draft,payee:e.target.value})}/></label>
                       <label className="field">
                         What’s it for?
                         <input
@@ -904,10 +935,10 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           <select
                             required
                             value={
-                              draft.categoryId || budget.categories[0]?.id || ""
+                              draftCategory
                             }
                             onChange={(e) =>
-                              setDraft({ ...draft, categoryId: e.target.value })
+                              {setDraft({ ...draft, categoryId: e.target.value });setCategoryManual(true);}
                             }
                           >
                             {budget.categories.map((c) => (
@@ -918,6 +949,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           </select>
                         </label>
                       </div>
+                      {suggestion&&<p className="auto-sort-suggestion" role="status">Suggested by your {suggestion.payee} rule. You can choose another category for this entry.</p>}
                       <fieldset className="status-field">
                         <legend>Where is it at?</legend>
                         {[
@@ -1022,7 +1054,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                           }}>Remove entry</button>
                         )
                       )}
-                    </form>
+                    </form>}
                     <section className="recent-spending">
                       <div className="entry-filters" role="group" aria-label="Filter entries">{["all","planned","committed","paid"].map(s=><button key={s} className="outline-button" aria-pressed={entryFilter===s} onClick={()=>setEntryFilter(s)}>{s[0].toUpperCase()+s.slice(1)}</button>)}</div>
                       <div className="section-heading">
@@ -1100,7 +1132,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                         pay” until you mark it paid.
                       </p>
                     </section>
-                  </div>
+                  </div>)}</AutoSort>
                 </>
               )}
               {budget.created && (
@@ -1318,7 +1350,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
         ))}
       </nav>
       {aiPack !== null && <AskAiSheet pack={aiPack} book={budget} onClose={() => setAiPack(null)} />}
-      {toast && (
+      {toast && page!=='spend' && (
         <div
           className={`toast toast-${toast.kind}`}
           role={toast.kind === "error" ? "alert" : "status"}

@@ -7,6 +7,7 @@ export type Category = {
   glCode: string;
 };
 export type Expense = {
+  payee?: string;
   repeatId?: string;
   occurrenceDate?: string;
   id: string;
@@ -19,6 +20,7 @@ export type Expense = {
   notes?: string;
 };
 export type Budget = {
+  autoSortRules?:import('./auto-sort-model.mjs').PayeeRule[];
   statementImports?:import('./statement-model.mjs').StatementData;
   budgetOrigins?: import('./carryover-model.mjs').BudgetOrigin[];
   periodId?: string;
@@ -80,7 +82,7 @@ export function advanceExpense(budget: Budget, id: string): Budget;
 export function editExpense(
   budget: Budget,
   id: string,
-  patch: Partial<Pick<Expense, "description" | "amount" | "categoryId" | "status" | "date" | "notes">>,
+  patch: Partial<Pick<Expense, "description" | "payee" | "amount" | "categoryId" | "status" | "date" | "notes">>,
 ): Budget;
 export function removeExpense(budget: Budget, id: string): Budget;
 export function editBudgetDetails(

@@ -14,6 +14,7 @@ export type StatementOptions = {
   in?: number;
   currency?: number;
   bankId?: number;
+  payee?: number;
   amountFromEnd?: number;
 };
 export function inspectCsv(content: string): {

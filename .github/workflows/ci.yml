@@ -52,7 +52,7 @@ jobs:
         run: pnpm run build
 
       - name: Statement import (money rules, real CSV/PDF/password/scanned/image fixtures)
-        run: node --test tests/statement-*.test.mjs
+        run: node --test tests/statement-*.test.mjs tests/auto-sort.test.mjs
 
       - name: Rendered-HTML contract
         # The build already ran above, so call the node test directly instead of

@@ -81,6 +81,8 @@ function draft(
     sourceId: `${o.sourceId}:${n}`,
     date,
     description: description.trim(),
+    payee: description.trim(),
+    payeeSource: 'bank',
     originalDescription: description.trim(),
     amount: Math.abs(amount ?? 0),
     direction: amount === null ? "unknown" : direction,
@@ -109,7 +111,7 @@ export function parseStatementCsv(content, o) {
   )
     throw new Error("Choose separate date, description and amount columns.");
   if (
-    [...cols, o.currency, o.bankId]
+    [...cols, o.currency, o.bankId, o.payee]
       .filter((v) => v !== undefined)
       .some((v) => !Number.isInteger(v) || v < 0 || v >= headers.length)
   )
@@ -139,7 +141,7 @@ export function parseStatementCsv(content, o) {
             ? "out"
             : "in";
     }
-    return draft(
+    const row = draft(
       o,
       i + 1,
       cells.join(" · "),
@@ -150,6 +152,7 @@ export function parseStatementCsv(content, o) {
       o.currency === undefined ? o.currencyCode : get(o.currency),
       get(o.bankId),
     );
+    return {...row, payee: o.payee === undefined ? row.description : get(o.payee), payeeSource: o.payee === undefined ? 'bank' : 'mapped'};
   });
 }
 // Bundled currency codes keep the same fail-closed behavior on older WebKit.

@@ -27,6 +27,7 @@ for(const [i,profile] of modes.entries()){
  const repeatEntry=b.expenses.at(-1),repeatId='spacing-repeat-'+i;
  repeatEntry.repeatId=repeatId;repeatEntry.occurrenceDate='2026-11-01';repeatEntry.date='2026-11-01';
  b.repeatRules=[{id:repeatId,frequency:'monthly',startDate:'2026-11-01',description:repeatEntry.description,amount:repeatEntry.amount,categoryId:repeatEntry.categoryId,skipped:[]}];
+ b.autoSortRules=[{id:'spacing-payee-'+i,payee:'Netflix',categoryId:b.categories[1].id,profile,paused:false},{id:'spacing-payee-long-'+i,payee:'A very long merchant payee name with extra receipt references and project details',categoryId:b.categories[0].id,profile,paused:true},{id:'spacing-payee-missing-'+i,payee:'Old category payee',categoryId:'missing-category',profile,paused:false}];
  b=prepareRepeats(b);
  library=lm.changeLibrary(library,{type:'book',name:profile+' book',project:b});
  const future={...openPeriod(structuredClone(b),'2026-12',{startDate:'2026-12-01',endDate:'2026-12-31'}),id:'spacing-future-'+i,name:'Future '+profile};
@@ -44,11 +45,16 @@ const selectedModes=process.env.MODES?process.env.MODES.split(','):modes;
 for(const engine of engines){
  const browser=await ({chromium,webkit}[engine]).launch({headless:true});
  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,deviceScaleFactor:1,...(engine==='webkit'?{isMobile:true}:{})});
- const p=await context.newPage();p.setDefaultTimeout(8000);
+ let p=await context.newPage();p.setDefaultTimeout(8000);
  const runtimeErrors=[];
  p.on('pageerror',e=>runtimeErrors.push(String(e)));
  const click=n=>p.getByRole('button',{name:n,exact:true}).click();
- const nav=async n=>{await p.locator(p.viewportSize().width<=640?'.mobile-nav':'.product-topbar nav').getByRole('button',{name:n,exact:true}).click();};
+ const nav=async n=>{
+  await p.locator(p.viewportSize().width<=640?'.mobile-nav':'.product-topbar nav').getByRole('button',{name:n,exact:true}).click();
+  // Match the screenshot driver's navigation contract: go() hands focus to
+  // H1 on the next task. Do not let that handoff interrupt a field edit.
+  await p.waitForFunction(()=>document.activeElement?.tagName==='H1');
+ };
  const mode=async n=>{await p.getByRole('group',{name:'Budget mode'}).getByRole('button',{name:n,exact:true}).click();};
  const getLibrary=async()=>{const s=await p.evaluate(()=>localStorage.getItem('ellies-book:library:v1.md'));return s?lm.parseLibrary(s):lm.emptyLibrary();};
  const finances=l=>JSON.stringify(l.books.flatMap(b=>b.projects).map(b=>{const x=structuredClone(b);delete x.board;return x;}).sort((a,b)=>a.id.localeCompare(b.id)));
@@ -57,7 +63,7 @@ for(const engine of engines){
   await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(90);
   const data=await p.evaluate((state)=>{
    const modal=document.querySelector('dialog[open],.ai-sheet');
-   const visible=e=>{let r=e.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'&&(!modal||modal.contains(e));};
+   const visible=e=>{let r=e.getBoundingClientRect();const closed=e.closest('details:not([open])');return (!closed||closed.querySelector('summary')?.contains(e))&&r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'&&(!modal||modal.contains(e));};
    const rr=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom};};
    const text=e=>(e.getAttribute('aria-label')||e.textContent||e.getAttribute('name')||e.type||'').trim().replace(/\s+/g,' ').slice(0,110);
    const fields=[...document.querySelectorAll('input:not([type=hidden]):not([type=file]):not([type=radio]):not([type=checkbox]),textarea,select')].filter(visible).map(e=>{
@@ -254,10 +260,36 @@ for(const engine of engines){
    await click('Next 4');await snap('trail-last-page',md,w,{shot:shots});
    await p.locator('.garden-folded>button').first().click();await p.getByText('No entries in this category yet.',{exact:true}).waitFor();await snap('trail-empty',md,w,{shot:shots});
    await nav('Entries');await p.locator('.entry-filters').getByRole('button',{name:'All',exact:true}).click();await snap('entries-add',md,w,{shot:shots});
+   // Saving and dismissing are stateful interactions, not view-only probes.
+   // Give each offer its own browser context so preferences, drafts and timed
+   // notices cannot leak between cases or alter the main financial fixture.
+   const mainPage=p,savedFixture=await p.evaluate(()=>localStorage.getItem('ellies-book:library:v1.md')),savedBaseline=baseline;
+   for(const [payee,state] of [['A long new merchant payee with receipt references and project details','auto-sort-remember'],['Netflix','auto-sort-update']]){
+    const offerContext=await browser.newContext({viewport:mainPage.viewportSize(),hasTouch:true,deviceScaleFactor:1,...(engine==='webkit'?{isMobile:true}:{})});
+    await offerContext.addInitScript(value=>localStorage.setItem('ellies-book:library:v1.md',value),savedFixture);
+    p=await offerContext.newPage();p.setDefaultTimeout(8000);p.on('pageerror',e=>runtimeErrors.push(String(e)));baseline=null;
+    try{
+     await p.goto(base);await nav('Entries');
+     const before=lm.activeBudget(await getLibrary());assert.equal(before.profile,md);
+     await p.getByLabel('Payee (optional)',{exact:true}).fill(payee);await p.getByLabel('What’s it for?',{exact:true}).fill('Spacing learning offer');
+     await p.getByLabel('Spending amount',{exact:true}).fill('15.49');await p.locator('.spending-form select').first().selectOption(template.categories[1].id);await p.locator('.spending-form select').first().selectOption(template.categories[0].id);
+     await p.locator('.spending-form').getByLabel('Date',{exact:true}).fill('2026-11-20');await click('Save entry');
+     await p.locator('.auto-sort-offer').waitFor({state:'visible'});
+     assert.equal(lm.activeBudget(await getLibrary()).expenses.length,before.expenses.length+1,'Learning starts only after one saved entry');
+     await snap(state,md,w,{shot:shots});await click('Not now');
+    }catch(error){console.error('Learning scenario failed',JSON.stringify({engine,mode:md,width:w,state,fields:await p.locator('.spending-form input,.spending-form select').evaluateAll(fields=>fields.map(e=>({type:e.type,value:e.value,valid:e.validity.valid}))),notice:await p.locator('.entries-notice').textContent().catch(()=>null)}));throw error;}
+    finally{await offerContext.close();p=mainPage;baseline=savedBaseline;}
+   }
+   await p.locator('.auto-sort-toggle').click();await snap('auto-sort-rules',md,w,{shot:shots});
+   await p.locator('.auto-sort-toggle').click();
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('Netflix');await snap('auto-sort-suggested',md,w,{shot:shots});
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('');
    await click('Import statement');await p.getByLabel('Account label',{exact:true}).fill('Statement spacing account');await snap('statement-source-choice',md,w,{shot:shots});
    await p.getByLabel('Choose CSV file',{exact:true}).setInputFiles('tests/fixtures/statement-import/statement.csv');
    await p.getByRole('heading',{name:'Check your columns',exact:true}).waitFor();await snap('statement-csv-columns',md,w,{shot:shots});
    await click('Check extracted rows');await snap('statement-reading',md,w,{shot:shots});
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('Netflix');await snap('auto-sort-import-suggested',md,w,{shot:shots});
+   await p.getByLabel('Payee (optional)',{exact:true}).fill('NETFL1X');await snap('auto-sort-import-uncertain',md,w,{shot:shots});
    await p.getByLabel('Bank wording',{exact:true}).fill('A long bank merchant name that still needs to stay inside the row correction field');
    await p.getByLabel('Payment amount (USD)',{exact:true}).fill('999999999.99');await p.getByLabel('This is a separate purchase, even if another payment looks the same.',{exact:true}).check();await snap('statement-large-reading',md,w,{shot:shots});
    await click('Checked, next row');await click('Leave row out');await click('Leave row out');await snap('statement-review-needs',md,w,{shot:shots});
@@ -336,6 +368,7 @@ for(const engine of engines){
    await p.setViewportSize({width:w,height:w<=430?844:900});
    await nav('Board');await snap('empty-board',md,w,{shot:w===390});
    await nav('Entries');await snap('empty-entries',md,w,{shot:w===390});
+   await p.locator('.auto-sort-toggle').click();await snap('auto-sort-empty',md,w,{shot:w===390});
   }
  }
  await browser.close();

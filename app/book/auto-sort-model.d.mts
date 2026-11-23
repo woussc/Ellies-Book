@@ -1,0 +1,13 @@
+import type {Budget, Profile} from './model.mjs';
+import type {StatementRow} from './statement-model.mjs';
+export type PayeeRule = {id:string;payee:string;categoryId:string;profile:Profile;paused:boolean};
+export function normalizePayee(value:unknown):string;
+export function validateAutoSort(budget:Budget):void;
+export function payeeRule(budget:Budget,payee:string):PayeeRule|null;
+export function suggestCategory(budget:Budget,payee:string):PayeeRule|null;
+export function shouldOfferRule(budget:Budget,entry:{payee?:string;categoryId:string},categoryChosen:boolean):boolean;
+export function rememberPayee(budget:Budget,payee:string,categoryId:string):Budget;
+export function changePayeeRule(budget:Budget,id:string,patch:Partial<Pick<PayeeRule,'categoryId'|'paused'>>):Budget;
+export function removePayeeRule(budget:Budget,id:string):Budget;
+export function undoPayeeRule(budget:Budget,before:PayeeRule|null,after:PayeeRule|null):Budget;
+export function suggestStatementCategory(budget:Budget,row:StatementRow,patch?:Partial<StatementRow>):StatementRow;

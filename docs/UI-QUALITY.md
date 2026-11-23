@@ -37,6 +37,8 @@ Review the generated screenshots at phone, tablet and desktop widths using the U
 
 ## Evidence limits
 
+Auto-sort changes also cover an empty rule list, saved-entry learning/update offer, editable payee suggestions, expanded rules with pause/resume/category/remove/undo controls, long payees and missing-category state. Statement review includes optional CSV payee mapping, editable payees, rule provenance and unreviewed readings. Rules never change saved money by themselves.
+
 Statement import also covers source/account choice, explicit CSV and amount-column mapping, editable/large readings, Ready/Needs a look/Already here/Left out review, PDF password and wrong-password recovery, PDF source previews, screenshot order/crop and actual local OCR reading. These matrix states never confirm a financial import; recorded acceptance and domain tests cover saving, duplicate rechecks and undo. Source previews and passwords stay out of persisted books.
 
 Month-to-month budget changes also cover the new-month choice, copy-ahead review with unavailable carryover, large source balances, optional positive/negative selection, inline negative-allocation recovery, empty categories, changed-source warnings, approved-adjustment review and immutable approval history. These draft-only spacing checks keep all stored money unchanged; money-rule tests and the recorded browser acceptance cover actual confirmation and restore.
