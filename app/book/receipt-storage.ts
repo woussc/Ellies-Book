@@ -1,6 +1,7 @@
 import {Capacitor} from '@capacitor/core';
 import {Filesystem, Directory} from '@capacitor/filesystem';
 import {receiptId, MAX_RECEIPT_BYTES} from './receipt-model.mjs';
+import type {Budget} from './model.mjs';
 import {base64Blob, blobBase64, checkReceiptBytes, receiptHash, type LocalReceipt} from './receipt-files.mjs';
 
 let database: Promise<IDBDatabase> | undefined;
@@ -78,6 +79,22 @@ export async function writeReceipts(assets: LocalReceipt[]) {
  }
  // Unreferenced bytes after an interrupted commit are deliberately not deleted:
  // another restored book/tab may share them. Historical photos are never GC'd.
+}
+// Reattaching an earlier photo is a new reference publication too. A Markdown
+// backup may contain its metadata without any bytes on this device.
+export async function receiptAssetsForSave(budget: Budget, entryId: string, ids: string[], drafts: LocalReceipt[]): Promise<LocalReceipt[]> {
+ const previous = budget.expenses.find(e => e.id === entryId)?.receiptIds ?? [], assets = [...drafts];
+ for (const id of ids) {
+   if (previous.includes(id) || drafts.some(a => a.meta.id === id)) continue;
+   const meta = budget.receiptData?.assets.find(a => a.id === id && a.entryId === entryId);
+   try {
+     if (!meta) throw new Error('Missing receipt metadata');
+     const blob = await readReceipt(id);
+     await checkReceiptBytes(meta, blob);
+     assets.push({meta, blob});
+   } catch {throw new Error('This earlier photo is unavailable on this device. Restore a full backup before attaching it again. Your entry was not saved.');}
+ }
+ return assets;
 }
 export async function prepareReceipt(file: File): Promise<LocalReceipt> {
  if (file.size > MAX_RECEIPT_BYTES) throw new Error('Choose a photo smaller than 15 MB.');

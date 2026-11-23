@@ -44,7 +44,7 @@ import { changeLibrary, emptyLibrary, serializeLibrary } from "./library-model.m
 import ReceiptEditor, {ReceiptCount, RemovedEntryReceipts, emptyReceiptDraft, type ReceiptDraft} from './receipt-photos';
 import {setEntryReceipts} from './receipt-model.mjs';
 import {createReceiptBackup, parseReceiptBackup} from './receipt-files.mjs';
-import {readReceipt} from './receipt-storage';
+import {readReceipt, receiptAssetsForSave} from './receipt-storage';
 import "./workspace.css";
 import { renderMarkdownDocument } from "../markdown-render";
 import type { Budget, Category, Expense, Profile } from "./model.mjs";
@@ -446,7 +446,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     try {
       if (photoChanges) {
         setSavingReceipt(true);
-        const assets = receiptDraft.assets.map(a => ({...a, meta: {...a.meta, entryId: expense.id}}));
+        const assets = await receiptAssetsForSave(budget, expense.id, receiptDraft.ids, receiptDraft.assets.map(a => ({...a, meta: {...a.meta, entryId: expense.id}})));
         const baseline = receiptBaseline.current;
         saved = await book.saveReceiptEntry(b => {
           if (editingId && JSON.stringify(b.expenses.find(e => e.id === editingId)) !== baseline) throw new Error('This entry changed while you were editing. Cancel and reopen it before attaching photos. Your draft is still here.');
