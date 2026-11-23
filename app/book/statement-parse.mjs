@@ -150,8 +150,17 @@ export function parseStatementCsv(content, o) {
     );
   });
 }
+// Bundled currency codes keep the same fail-closed behavior on older WebKit.
+const bankCurrencies=new Set('AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP CRC CUC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HRK HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE SLL SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VES VND VUV WST XAF XCD XCG XDR XOF XPF XSU YER ZAR ZMW ZWG ZWL RMB GBX'.split(' '));
+function statementCurrency(raw){
+ const found=new Set((raw.match(/\b[A-Z]{3}(?=[^A-Z]|$)/g)??[]).filter(c=>bankCurrencies.has(c)));
+ for(const [pattern,code] of [[/€/,'EUR'],[/£/,'GBP'],[/\bC\$/,'CAD'],[/\bS\$/,'SGD'],[/\bA\$/,'AUD'],[/\bNZ\$/,'NZD'],[/\bHK\$/,'HKD'],[/\bNT\$/,'TWD'],[/\bR\$/,'BRL']])if(pattern.test(raw))found.add(code);
+ if((!found.size||found.has('USD'))&&/\p{Sc}/u.test(raw.replace(/[$€£]/g,'')))found.add('FOREIGN');
+ return found.size>1?'MIXED':found.values().next().value;
+}
 export function extractStatementLines(content, o) {
   const lines = Array.isArray(content) ? content : content.split(/\r?\n/),
+    headerCurrency=statementCurrency(lines.filter(line=>!/^\s*\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}\b/.test(line)).join('\n')),
     rows = [];
   lines.forEach((raw, i) => {
     const date = raw.match(/^\s*(\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4})\b/);
@@ -182,11 +191,7 @@ export function extractStatementLines(content, o) {
         description,
         amount,
         direction,
-        /€|\bEUR\b/.test(raw)
-          ? "EUR"
-          : /£|\bGBP\b/.test(raw)
-            ? "GBP"
-            : o.currencyCode,
+        statementCurrency(raw)??headerCurrency??o.currencyCode,
       ),
     );
   });

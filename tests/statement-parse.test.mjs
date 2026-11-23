@@ -20,6 +20,18 @@ test('Unicode minus signs retain spending direction in CSV and PDF readings',()=
   assert.equal(r.amount,24.9);assert.equal(r.direction,'out');
  }
 });
+test('PDF currency hints never silently become USD, including page headers',()=>{
+ for(const currency of ['CAD','SGD','AUD','JPY','CHF']){
+  const [r]=extractStatementLines(`05/11/2026 SHOP ${currency} -24.90`,options);
+  assert.equal(r.currency,currency);assert.equal(r.amount,24.9);
+ }
+ const [header]=extractStatementLines('Account currency: CAD\n05/11/2026 SHOP -24.90',options);
+ assert.equal(header.currency,'CAD');
+ const [symbol]=extractStatementLines('05/11/2026 SHOP C$-24.90',options);
+ assert.equal(symbol.currency,'CAD');
+ const [plain]=extractStatementLines('05/11/2026 SHOP -24.90',options);
+ assert.equal(plain.currency,'USD');
+});
 test("quoted CSV, explicit dates, signed amounts and bank IDs produce unchecked drafts", () => {
   const csv =
     'Date,Merchant,Amount,ID\n05/11/2026,"Corner store, Main St",-12.50,txn-1\n06/11/2026,Refund,5.00,txn-2';
