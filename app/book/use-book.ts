@@ -20,6 +20,7 @@ import {
 import type { Library, LibraryAction } from "./library-model.mjs";
 import {periodId} from './repeat-model.mjs';
 import {applyStatement,undoStatement,type StatementRequest} from './statement-model.mjs';
+import {saveStatement} from './statement-storage.mjs';
 
 type Snapshot = {
   library: Library;
@@ -191,9 +192,7 @@ async function statementTransaction(change:(library:Library)=>Library) {
   return navigator.locks.request('ellies-book:statement-import',()=>{
     const previous=getSnapshot();
     if(previous.blocked||previous.status==='error')throw new Error('Save or download your book before importing. Nothing changed.');
-    const fresh=readLibrary(localStorage),raw=localStorage.getItem(LIBRARY_KEY),next=change(fresh),markdown=serializeLibrary(next);
-    if(localStorage.getItem(LIBRARY_KEY)!==raw)throw new Error('Your book changed in another tab. Review again before importing.');
-    try{localStorage.setItem(LIBRARY_KEY,markdown);}catch{throw new Error('Device storage is full or unavailable. Nothing was imported. Download your books before trying again.');}
+    const next=saveStatement(localStorage,change);
     current={...previous,library:next,budget:activeBudget(next)??initialProject(),status:'saved',error:''};emit();return next;
   });
 }
