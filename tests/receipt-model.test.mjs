@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {exampleBudget,totals,serializeBook,parseBook,removeExpense,advanceExpense} from '../app/book/model.mjs';
-import {setEntryReceipts,entryReceiptHistory} from '../app/book/receipt-model.mjs';
+import {setEntryReceipts,entryReceiptHistory,earlierEntryStages} from '../app/book/receipt-model.mjs';
 import {saveRepeatingEntry,openPeriod} from '../app/book/repeat-model.mjs';
 const id='b2ef0b72-62c7-48ba-9aac-b78314795946';
 const at='2026-11-21T10:48:00.000Z';
@@ -16,6 +16,19 @@ test('entry history presents dated receipt and stage events without inventing da
  assert.ok(history.some(x=>x.label==='Entry saved as Paid'&&Number.isFinite(Date.parse(x.at))));
  assert.deepEqual(entryReceiptHistory(parseBook(serializeBook(b)),saved),history);
  assert.deepEqual(saved.receiptIds,[id]);assert.deepEqual(saved.history,['planned','committed','paid']);
+ assert.deepEqual(earlierEntryStages(b,saved),['planned']);
+});
+test('dated updates retain the complete undated legacy path without duplicating new-entry history',()=>{
+ let b=exampleBudget();b.events=[];let entry=b.expenses[0];entry.history=['planned','committed','paid'];entry.status='paid';
+ assert.deepEqual(earlierEntryStages(b,entry),entry.history);
+ b=saveRepeatingEntry(b,{...entry,notes:'Updated legacy note'},{frequency:'none'});
+ entry=b.expenses.find(e=>e.id===entry.id);
+ assert.equal(entryReceiptHistory(b,entry)[0].label,'Entry updated');
+ assert.deepEqual(earlierEntryStages(b,entry),['planned','committed','paid']);
+ const fresh={...entry,id:'fresh-entry',history:['paid']};
+ b=saveRepeatingEntry(b,fresh,{frequency:'none'});
+ assert.deepEqual(earlierEntryStages(b,fresh),[]);
+ assert.deepEqual(earlierEntryStages(parseBook(serializeBook(b)),entry),entry.history);
 });
 test('photos persist with entry history and exact notes without changing money',()=>{
  const b=exampleBudget(),entry=b.expenses[0];entry.notes='## Dinner\n\n[[Groceries]]\n';

@@ -4,7 +4,7 @@
 
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import type {Budget, Expense} from './model.mjs';
-import {MAX_RECEIPTS, entryReceiptHistory, type ReceiptAsset} from './receipt-model.mjs';
+import {MAX_RECEIPTS, entryReceiptHistory, earlierEntryStages, type ReceiptAsset} from './receipt-model.mjs';
 import {checkReceiptBytes, type LocalReceipt} from './receipt-files.mjs';
 import {prepareReceipt, readReceipt} from './receipt-storage';
 import './receipt-photos.css';
@@ -116,6 +116,7 @@ export function SavedReceipts({budget, entry, onAdd, history = true}: {budget: B
 }
 export function ReceiptEntryDetail({budget, entry, onEdit, children}: {budget: Budget; entry: Expense; onEdit: () => void; children: ReactNode}) {
  const history = entryReceiptHistory(budget, entry);
+ const earlierStages = earlierEntryStages(budget, entry);
  const historyRef = useRef<HTMLDetailsElement>(null);
  useEffect(() => {
    const media = window.matchMedia('(min-width: 641px)');
@@ -130,7 +131,7 @@ export function ReceiptEntryDetail({budget, entry, onEdit, children}: {budget: B
        <details ref={historyRef} className="receipt-entry-history"><summary><ReceiptGlyph kind="history"/>Entry history<span aria-hidden="true">⌄</span></summary>
          <div className="receipt-timeline">
            {history.length > 0 && <ol>{history.map((event, i) => <li key={i}><ReceiptGlyph kind={event.kind === 'photo' ? 'photo' : 'check'}/><div><strong>{event.label}</strong><time dateTime={event.at}>{added(event.at)}</time></div></li>)}</ol>}
-           {!history.some(e => e.kind === 'entry') && <p>Earlier entry stages: {entry.history.map(s => s[0].toUpperCase() + s.slice(1)).join(' → ')}. Dates were not recorded for these stages.</p>}
+           {earlierStages.length > 0 && <p>Earlier entry stages: {earlierStages.map(s => s[0].toUpperCase() + s.slice(1)).join(' → ')}. Dates were not recorded for these stages.</p>}
            <p>Photos stay with this entry’s history.</p>
            <ReceiptHistory budget={budget} entryId={entry.id} ids={entry.receiptIds ?? []} earlierOnly/>
          </div>
