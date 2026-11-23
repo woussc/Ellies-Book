@@ -11,10 +11,12 @@ export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled,
   const [open,setOpen]=useState(false);
   const managerId=useId(),toggleId=useId();
   const heading=useRef<HTMLHeadingElement>(null);
+  const errorNotice=useRef<HTMLParagraphElement>(null);
   const rules=(budget.autoSortRules??[]).filter(r=>r.profile===budget.profile);
   const existing=offer?payeeRule(budget,offer.payee):null;
   const category=budget.categories.find(c=>c.id===offer?.categoryId);
   useEffect(()=>{if(offer){heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:'center',behavior:'instant'});}},[offer]);
+  useEffect(()=>{if(error){errorNotice.current?.focus({preventScroll:true});errorNotice.current?.scrollIntoView({block:'center'});}},[error]);
   async function run(change:(b:Budget)=>Budget,message:string) {
     setError('');setBusy(true);
     let before:PayeeRule|null=null,after:PayeeRule|null=null;
@@ -35,7 +37,7 @@ export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled,
     <div className="auto-sort-toolbar">{actions}<button id={toggleId} className="secondary auto-sort-toggle" aria-expanded={open} aria-controls={managerId} onClick={()=>setOpen(!open)}>Auto-sort · {rules.length}<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>
     <p className="hint auto-sort-import-hint">CSV, PDF or screenshots. Review before saving as Paid.</p>
     {undo&&<div className="auto-sort-feedback" role="status"><p>{undo.message} Saved entries are unchanged.</p><button className="secondary" disabled={disabled||busy} onClick={async()=>{setBusy(true);try{await save(b=>undoPayeeRule(b,undo.before,undo.after));setUndo(null);setError('');}catch(e){setError(e instanceof Error?e.message:'Could not undo this change.');}finally{setBusy(false);}}}>Undo</button></div>}
-    {error&&<p className="error" role="alert">{error}</p>}
+    {error&&<p ref={errorNotice} tabIndex={-1} className="error" role="alert">{error}</p>}
     {open&&<section id={managerId} className="paper auto-sort-manager" aria-labelledby={toggleId}>
       <p className="hint">{budget.name} in {bookName} only · Across months. Exact payees, ignoring case and extra spaces. No other books or modes are changed.</p>
       {!rules.length&&<p>No rules yet. Add a payee and choose a category when you save an entry. We’ll offer to remember it.</p>}

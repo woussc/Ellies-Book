@@ -246,6 +246,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
   const stopTrigger=useRef<HTMLButtonElement>(null);
   const newEntryDraft = useRef(draft);
   const spendingForm = useRef<HTMLFormElement>(null);
+  const entryNotice = useRef<HTMLDivElement>(null);
   const editingTrigger = useRef<HTMLButtonElement | null>(null);
   const entriesHeading = useRef<HTMLHeadingElement>(null);
   const removalHeading = useRef<HTMLHeadingElement>(null);
@@ -263,6 +264,12 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
     const id = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(id);
   }, [toast, setToast]);
+  useEffect(()=>{
+    if(page==='spend'&&toast?.kind==='error'){
+      entryNotice.current?.focus({preventScroll:true});
+      entryNotice.current?.scrollIntoView({block:'center'});
+    }
+  },[page,toast]);
   function change(next: Budget, action: string) {
     return setBudget({
       ...next,
@@ -878,7 +885,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                     "Entries",
                     `${budget.name} · Add, correct or change the stage of one entry.`,
                   )}
-                  {toast&&<div className={`entries-notice entries-notice-${toast.kind}`} role={toast.kind==='error'?'alert':'status'}><Icon name={toast.kind==='success'?'check':toast.kind} size={18}/><span>{toast.text}</span><button className="icon-button" aria-label="Dismiss notification" onClick={()=>setToast(null)}><Icon name="close" size={16}/></button></div>}
+                  {toast&&<div ref={entryNotice} tabIndex={-1} className={`entries-notice entries-notice-${toast.kind}`} role={toast.kind==='error'?'alert':'status'}><Icon name={toast.kind==='success'?'check':toast.kind} size={18}/><span>{toast.text}</span><button className="icon-button" aria-label="Dismiss notification" onClick={()=>setToast(null)}><Icon name="close" size={16}/></button></div>}
                   <StatementImportHistory book={book}/>
                   <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);requestAnimationFrame(()=>spendingForm.current?.querySelector('input')?.focus({preventScroll:true}));}} save={book.saveAutoSort} disabled={storageError} actions={<><button className="primary" onClick={()=>{if(editingId&&!window.confirm('Add a new entry and discard these unsaved edits?'))return;if(editingId)closeExpense(false);setLearnPayee(null);requestAnimationFrame(()=>{spendingForm.current?.scrollIntoView({block:'start'});spendingForm.current?.querySelector('input')?.focus({preventScroll:true});});}}>Add entry</button><button className="secondary auto-sort-import" onClick={()=>go('statement')} disabled={storageError}>Import statement</button></>}>{offerContent=>(
                   <div className="content-grid spend-grid">

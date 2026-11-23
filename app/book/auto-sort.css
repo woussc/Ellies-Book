@@ -5,7 +5,7 @@
 .auto-sort-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
 .auto-sort-toolbar .auto-sort-import:not(:disabled){border-color:var(--control-boundary);background:var(--surface);color:var(--text);opacity:1}
 .auto-sort .auto-sort-import-hint{margin:-4px 0 0;overflow-wrap:anywhere}
-.entries-notice{display:flex;align-items:center;gap:12px;padding:12px 16px;margin:0 0 16px;border:1px solid var(--control-boundary);border-radius:16px;background:var(--surface);color:var(--text);min-width:0}
+.entries-notice{display:flex;align-items:center;gap:12px;padding:12px 16px;margin:0 0 16px;border:1px solid var(--control-boundary);border-radius:16px;background:var(--surface);color:var(--text);min-width:0;scroll-margin-block:100px}
 .entries-notice span{flex:1;overflow-wrap:anywhere;line-height:1.5}
 .entries-notice .icon-button{flex-shrink:0;min-width:44px;min-height:44px}
 .entries-notice-error{border-color:var(--danger)}
