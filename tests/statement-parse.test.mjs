@@ -13,6 +13,21 @@ const options = {
   currencyCode: "USD",
   sourceId: "a".repeat(64),
 };
+test("an explicit spaced plus is positive, not a blank debit-column marker", () => {
+  for (const sign of ["+", "＋"]) {
+    const [spending] = extractStatementLines(`05/11/2026 SHOP ${sign} 24.90`, {
+      ...options,
+      outSign: "positive",
+    });
+    assert.equal(spending.direction, "out");
+    assert.equal(spending.description, "SHOP");
+    const [income] = extractStatementLines(
+      `05/11/2026 SHOP ${sign} 24.90`,
+      options,
+    );
+    assert.equal(income.direction, "in");
+  }
+});
 test("a spaced blank-column dash cannot turn a credit into spending", () => {
   const [r] = extractStatementLines("05/11/2026 CREDIT - 24.90", options);
   assert.equal(r.amount, 24.9);

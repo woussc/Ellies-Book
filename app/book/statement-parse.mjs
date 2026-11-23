@@ -225,7 +225,7 @@ export function extractStatementLines(content, o) {
     const rest = raw.slice(date[0].length).trim(),
       amounts = [
         ...rest.matchAll(
-          /(?:USD\s*|\$\s*)?[+＋−﹣－-]?\(?\d[\d,.]*[.,]\d{2}\)?(?:\s*(?:USD))?(?!\d)/g,
+          /(?:USD\s*|\$\s*)?(?:[+＋]\s*|[−﹣－-])?\(?\d[\d,.]*[.,]\d{2}\)?(?:\s*(?:USD))?(?!\d)/g,
         ),
       ],
       selected = amounts.at(-1 - (o.amountFromEnd ?? 0)),
