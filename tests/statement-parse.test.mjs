@@ -13,6 +13,15 @@ const options = {
   currencyCode: "USD",
   sourceId: "a".repeat(64),
 };
+test("an attached USD prefix stays with its own column, not the previous amount", () => {
+  const [r] = extractStatementLines("05/11/2026 SHOP 10.00 -24.90 USD1240.00", {
+    ...options,
+    amountFromEnd: 1,
+  });
+  assert.equal(r.amount, 24.9);
+  assert.equal(r.direction, "out");
+  assert.equal(r.description, "SHOP");
+});
 test("malformed monetary tokens keep their column and require correction", () => {
   for (const bad of ["24.90)", "(24.90", "((24.90))", "24.900", "24.90X"]) {
     const [r] = extractStatementLines(`05/11/2026 SHOP 10.00 ${bad} 1,240.00`, {

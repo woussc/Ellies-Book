@@ -227,7 +227,7 @@ export function extractStatementLines(content, o) {
         ...rest.matchAll(
           // Tokenize amount-shaped cells, including malformed punctuation.
           // Validation below must reject a cell, not drop it and shift columns.
-          /(?:^|\s)(?:USD\s*|\$\s*)?(?:[+＋]\s*(?=\d))?[+＋−﹣－$(\d-][^\s]*[.,]\d{2}[^\s]*(?:\s+USD)?/g,
+          /(?:^|\s)(?:USD\s*|\$\s*)?(?:[+＋]\s*(?=\d))?[+＋−﹣－$(\d-][^\s]*[.,]\d{2}[^\s]*(?:\s+USD\b)?/g,
         ),
       ],
       selected = amounts.at(-1 - (o.amountFromEnd ?? 0)),
