@@ -156,7 +156,7 @@ export function reviewStatement(library, request) {
         "needs",
         "This bank transaction ID appears twice. Leave one copy out.",
       );
-    if (others.some((o) => o.sourceId === r.sourceId))
+    if (request.rows.some((o) => o.id!==r.id&&o.decision!=='skip'&&o.sourceId===r.sourceId))
       return result(
         "needs",
         "This source row was selected more than once. Leave one copy out.",

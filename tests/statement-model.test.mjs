@@ -61,6 +61,12 @@ const request = (rows = [row()], patch = {}) => ({
   rows,
   ...patch,
 });
+test('a corrected duplicate source row cannot create two payments',()=>{
+ const l=setup(),q=request([row(),row({id:'copy',amount:99,separate:true})]);
+ assert.deepEqual(reviewStatement(l,q).map(r=>r.state),['needs','needs']);
+ assert.throws(()=>applyStatement(l,q));
+ assert.equal(project(l).expenses.length,0);
+});
 test("review is inert; an import adds Paid exactly once and survives Markdown restore", () => {
   const l = setup(),
     before = serializeLibrary(l);
