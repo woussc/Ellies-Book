@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {blankBudget, editExpense, parseBook, serializeBook, totals, validateBudget} from '../app/book/model.mjs';
 import {changeLibrary, emptyLibrary, parseLibrary, restoreLibrary, serializeLibrary} from '../app/book/library-model.mjs';
 import {openPeriod} from '../app/book/repeat-model.mjs';
+import {saveRepeatingEntry} from '../app/book/repeat-model.mjs';
 import {rememberPayee, suggestCategory, changePayeeRule, removePayeeRule, undoPayeeRule, suggestStatementCategory, shouldOfferRule} from '../app/book/auto-sort-model.mjs';
 import {parseStatementCsv, extractStatementLines} from '../app/book/statement-parse.mjs';
 import {applyStatement, reviewStatement, undoStatement} from '../app/book/statement-model.mjs';
@@ -94,4 +95,14 @@ test('rule storage failures leave the previously saved entry intact; retry uses 
   assert.throws(()=>saveAutoSortRules(storage,'other-project',p=>p),/open project changed/);
   let reads=0;
   assert.throws(()=>saveAutoSortRules({...storage,getItem:()=>++reads===1?raw:stored},b.id,p=>rememberPayee(p,'Other','category-1')),/changed in another tab/);
+});
+test('saving an unchanged imported entry with blank optional payee does not block import undo',()=>{
+  const b=project(),library=changeLibrary(emptyLibrary(),{type:'book',name:'Home',project:b});
+  const row={...parseStatementCsv('Date,Description,Amount,Payee\n2026-11-20,Bank wording,-15.49,',{...options,payee:3})[0],categoryId:'category-1',checked:true};
+  const request={id:'blank-payee-import',projectId:b.id,period:'2026-11',account:{id:'bank',label:'Bank'},rows:[row]};
+  const imported=applyStatement(library,request),projectBefore=imported.books[0].projects[0],entry=projectBefore.expenses[0];
+  assert.equal(entry.payee,undefined);
+  const edited=saveRepeatingEntry(projectBefore,{...entry,payee:''},{frequency:'none'});
+  assert.deepEqual(edited.expenses,projectBefore.expenses);assert.equal(edited.events.length,projectBefore.events.length);
+  assert.equal(undoStatement(changeLibrary(imported,{type:'update',project:edited}),b.id,request.id).books[0].projects[0].expenses.length,0);
 });

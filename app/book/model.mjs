@@ -390,6 +390,8 @@ export function editExpense(budget, id, patch) {
   if (after.payee !== undefined) {
     if (typeof after.payee !== 'string' || after.payee.length > 100) throw new Error('Enter a payee of up to 100 characters.');
     after.payee = after.payee.trim();
+    // An untouched optional field is not an edit to an older/imported entry.
+    if (!after.payee && before.payee === undefined) delete after.payee;
   }
   if (typeof after.amount !== "number" || !Number.isFinite(after.amount) || after.amount <= 0 || after.amount > 1e9)
     throw new Error("Enter an amount between $0.01 and $1,000,000,000.");
