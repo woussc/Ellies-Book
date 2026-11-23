@@ -72,6 +72,19 @@ test('manual and OCR suggestions never approve readings or replace explicit cate
   const linked=suggestStatementCategory(b,{...row,categoryId:'category-2',decision:'match'});assert.equal(linked.categoryId,'category-2');assert.equal(linked.suggestedBy,undefined);
   const ocr=extractStatementLines('2026-11-20 NETFL1X -15.49',options)[0];assert.equal(suggestStatementCategory(b,ocr).suggestedBy,undefined);assert.equal(ocr.checked,false);
 });
+test('correcting bank wording updates only its derived payee; mapped and edited payees stay independent',()=>{
+  const b=rememberPayee(project(),'Netflix','category-1');
+  const row=parseStatementCsv('Date,Description,Amount\n2026-11-20,NETFL1X,-15.49',{...options,payee:undefined})[0];
+  const corrected=suggestStatementCategory(b,row,{description:'Netflix'});
+  assert.equal(corrected.payee,'Netflix');assert.equal(corrected.categoryId,'category-1');assert.equal(corrected.checked,false);assert.equal(corrected.originalDescription,'NETFL1X');
+  const changed=suggestStatementCategory(b,corrected,{description:'Other merchant'});assert.equal(changed.payee,'Other merchant');assert.equal(changed.suggestedBy,undefined);assert.equal(changed.categoryId,'');
+  const manual=suggestStatementCategory(b,corrected,{payee:'Netflix Games'});
+  assert.equal(suggestStatementCategory(b,manual,{description:'TV subscription'}).payee,'Netflix Games');
+  const mapped=parseStatementCsv('Date,Description,Amount,Payee\n2026-11-20,Bank reference,-15.49,Netflix',options)[0];
+  assert.equal(suggestStatementCategory(b,mapped,{description:'Corrected reference'}).payee,'Netflix');
+  const long=parseStatementCsv(`Date,Description,Amount\n2026-11-20,${'x'.repeat(110)},-15.49`,{...options,payee:undefined})[0];
+  const shorter=suggestStatementCategory(b,long,{description:'Netflix'});assert.equal(shorter.payee,'Netflix');assert.equal(shorter.originalDescription.length,110);
+});
 test('import persists payee, keeps original bank wording, duplicate checks and undo',()=>{
   const b=rememberPayee(project(),'Netflix','category-1');const library=changeLibrary(emptyLibrary(),{type:'book',name:'Home',project:b});
   const row={...suggestStatementCategory(b,parseStatementCsv('Date,Description,Amount,Payee\n2026-11-20,Netflix reference 123,-15.49,Netflix',options)[0]),checked:true};

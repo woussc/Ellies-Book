@@ -3,6 +3,7 @@ import type { Library } from "./library-model.mjs";
 export type StatementAccount = { id: string; label: string };
 export type StatementRow = {
   payee?:string;
+  payeeSource?:'bank'|'mapped'|'manual';
   categorySource?:'manual'|'rule';
   suggestedBy?:string;
   originalDescription?: string;

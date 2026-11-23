@@ -52,6 +52,8 @@ export function undoPayeeRule(budget, before, after) {
 }
 export function suggestStatementCategory(budget, row, patch = {}) {
   const next = {...row, ...patch};
+  if (Object.hasOwn(patch, 'payee')) next.payeeSource = 'manual';
+  else if (Object.hasOwn(patch, 'description') && row.payeeSource === 'bank') next.payee = patch.description;
   if (Object.hasOwn(patch, 'categoryId')) return {...next, categorySource: 'manual', suggestedBy: undefined};
   if (next.categorySource === 'manual' || next.decision !== 'new') return {...next, suggestedBy: undefined};
   const rule = suggestCategory(budget, next.payee ?? next.description);

@@ -82,6 +82,7 @@ function draft(
     date,
     description: description.trim(),
     payee: description.trim(),
+    payeeSource: 'bank',
     originalDescription: description.trim(),
     amount: Math.abs(amount ?? 0),
     direction: amount === null ? "unknown" : direction,
@@ -151,7 +152,7 @@ export function parseStatementCsv(content, o) {
       o.currency === undefined ? o.currencyCode : get(o.currency),
       get(o.bankId),
     );
-    return {...row, payee: o.payee === undefined ? row.description : get(o.payee)};
+    return {...row, payee: o.payee === undefined ? row.description : get(o.payee), payeeSource: o.payee === undefined ? 'bank' : 'mapped'};
   });
 }
 // Bundled currency codes keep the same fail-closed behavior on older WebKit.
