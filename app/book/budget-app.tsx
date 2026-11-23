@@ -878,9 +878,9 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
                     "Entries",
                     `${budget.name} · Add, correct or change the stage of one entry.`,
                   )}
-                  <div className="statement-entry-actions"><button className="secondary" onClick={()=>go('statement')} disabled={storageError}>Import statement</button><p className="hint">CSV, PDF or screenshots. Review before saving as Paid.</p></div>
+                  {toast&&<div className={`entries-notice entries-notice-${toast.kind}`} role={toast.kind==='error'?'alert':'status'}><Icon name={toast.kind==='success'?'check':toast.kind} size={18}/><span>{toast.text}</span><button className="icon-button" aria-label="Dismiss notification" onClick={()=>setToast(null)}><Icon name="close" size={16}/></button></div>}
                   <StatementImportHistory book={book}/>
-                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);requestAnimationFrame(()=>spendingForm.current?.querySelector('input')?.focus({preventScroll:true}));}} save={book.saveAutoSort} disabled={storageError}>{offerContent=>(
+                  <AutoSort budget={budget} bookName={bookName} offer={learnPayee} onDismiss={quiet=>{if(quiet&&learnPayee){quietPayees.current.add(normalizePayee(learnPayee.payee));try{dismissPayeeOffer(sessionStorage,budget,learnPayee.payee);}catch{/* Optional session-only preference. */}}setLearnPayee(null);requestAnimationFrame(()=>spendingForm.current?.querySelector('input')?.focus({preventScroll:true}));}} save={book.saveAutoSort} disabled={storageError} actions={<><button className="primary" onClick={()=>{if(editingId&&!window.confirm('Add a new entry and discard these unsaved edits?'))return;if(editingId)closeExpense(false);setLearnPayee(null);requestAnimationFrame(()=>{spendingForm.current?.scrollIntoView({block:'start'});spendingForm.current?.querySelector('input')?.focus({preventScroll:true});});}}>Add entry</button><button className="secondary auto-sort-import" onClick={()=>go('statement')} disabled={storageError}>Import statement</button></>}>{offerContent=>(
                   <div className="content-grid spend-grid">
                     {offerContent || <form ref={spendingForm} className="paper spending-form" onSubmit={addExpense}>
                       <div className="spending-form-heading">
@@ -1343,7 +1343,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
         ))}
       </nav>
       {aiPack !== null && <AskAiSheet pack={aiPack} book={budget} onClose={() => setAiPack(null)} />}
-      {toast && (
+      {toast && page!=='spend' && (
         <div
           className={`toast toast-${toast.kind}`}
           role={toast.kind === "error" ? "alert" : "status"}

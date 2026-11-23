@@ -261,6 +261,8 @@ for(const engine of engines){
    // Each width is a new learning scenario; real session dismissals correctly
    // survive reload, so reset only this synthetic context's offer preferences.
    await p.evaluate(()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('ellies-book:auto-sort-dismissed:'))sessionStorage.removeItem(key);});
+   // Reset the component's matching in-memory fallback too, not only storage.
+   await p.reload();await nav('Entries');
    baseline=null;
    for(const [payee,state] of [['A long new merchant payee with receipt references and project details','auto-sort-remember'],['Netflix','auto-sort-update']]){
      await p.getByLabel('Payee (optional)',{exact:true}).fill(payee);await p.getByLabel('What’s it for?',{exact:true}).fill('Spacing learning offer');
@@ -268,8 +270,8 @@ for(const engine of engines){
      await p.locator('.spending-form').getByLabel('Date',{exact:true}).fill('2026-11-20');await click('Save entry');await snap(state,md,w,{shot:shots});await click('Not now');
    }
    await p.evaluate(value=>localStorage.setItem('ellies-book:library:v1.md',value),savedFixture);await p.reload();await nav('Entries');baseline=savedBaseline;
-   await p.locator('.auto-sort-manager summary').click();await snap('auto-sort-rules',md,w,{shot:shots});
-   await p.locator('.auto-sort-manager summary').click();
+   await p.locator('.auto-sort-toggle').click();await snap('auto-sort-rules',md,w,{shot:shots});
+   await p.locator('.auto-sort-toggle').click();
    await p.getByLabel('Payee (optional)',{exact:true}).fill('Netflix');await snap('auto-sort-suggested',md,w,{shot:shots});
    await p.getByLabel('Payee (optional)',{exact:true}).fill('');
    await click('Import statement');await p.getByLabel('Account label',{exact:true}).fill('Statement spacing account');await snap('statement-source-choice',md,w,{shot:shots});
@@ -356,7 +358,7 @@ for(const engine of engines){
    await p.setViewportSize({width:w,height:w<=430?844:900});
    await nav('Board');await snap('empty-board',md,w,{shot:w===390});
    await nav('Entries');await snap('empty-entries',md,w,{shot:w===390});
-   await p.locator('.auto-sort-manager summary').click();await snap('auto-sort-empty',md,w,{shot:w===390});
+   await p.locator('.auto-sort-toggle').click();await snap('auto-sort-empty',md,w,{shot:w===390});
   }
  }
  await browser.close();

@@ -1,13 +1,15 @@
 "use client";
-import {useEffect, useRef, useState,type ReactNode} from 'react';
+import {useEffect, useId, useRef, useState,type ReactNode} from 'react';
 import type {Budget} from './model.mjs';
 import {displayDate,money} from './model.mjs';
 import {rememberPayee, payeeRule, changePayeeRule, removePayeeRule, undoPayeeRule, type PayeeRule} from './auto-sort-model.mjs';
 import './auto-sort.css';
 export type LearnPayee = {payee:string;categoryId:string;description:string;amount:number;date:string;status:string};
-export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled,children}:{budget:Budget;bookName:string;offer:LearnPayee|null;onDismiss:(quiet?:boolean)=>void;save:(change:(b:Budget)=>Budget)=>Promise<void>;disabled:boolean;children:(offer:ReactNode)=>ReactNode}) {
+export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled,children,actions}:{budget:Budget;bookName:string;offer:LearnPayee|null;onDismiss:(quiet?:boolean)=>void;save:(change:(b:Budget)=>Budget)=>Promise<void>;disabled:boolean;children:(offer:ReactNode)=>ReactNode;actions:ReactNode}) {
   const [error,setError]=useState(''),[undo,setUndo]=useState<{before:PayeeRule|null;after:PayeeRule|null;message:string}|null>(null);
   const [busy,setBusy]=useState(false);
+  const [open,setOpen]=useState(false);
+  const managerId=useId(),toggleId=useId();
   const heading=useRef<HTMLHeadingElement>(null);
   const rules=(budget.autoSortRules??[]).filter(r=>r.profile===budget.profile);
   const existing=offer?payeeRule(budget,offer.payee):null;
@@ -29,10 +31,12 @@ export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled,
       <p className="hint">{budget.name} in {bookName} only · Across months</p>
       <div className="auto-sort-actions"><button className="primary" disabled={disabled||busy} onClick={async()=>{if(await run(b=>rememberPayee(b,offer.payee,offer.categoryId),`Rule saved for ${offer.payee}.`))onDismiss();}}>{busy?'Saving rule…':error?'Retry saving rule':existing?'Update rule':'Yes, remember this'}</button><button className="secondary" disabled={busy} onClick={()=>{onDismiss(true);setError('');}}>Not now</button></div>
     </div>:null;
-  return <section className="auto-sort" aria-label="Auto-sort">
+  return <section className="auto-sort" aria-label="Entries and auto-sort">
+    <div className="auto-sort-toolbar">{actions}<button id={toggleId} className="secondary auto-sort-toggle" aria-expanded={open} aria-controls={managerId} onClick={()=>setOpen(!open)}>Auto-sort · {rules.length}<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>
+    <p className="hint auto-sort-import-hint">CSV, PDF or screenshots. Review before saving as Paid.</p>
     {undo&&<div className="auto-sort-feedback" role="status"><p>{undo.message} Saved entries are unchanged.</p><button className="secondary" disabled={disabled||busy} onClick={async()=>{setBusy(true);try{await save(b=>undoPayeeRule(b,undo.before,undo.after));setUndo(null);setError('');}catch(e){setError(e instanceof Error?e.message:'Could not undo this change.');}finally{setBusy(false);}}}>Undo</button></div>}
     {error&&<p className="error" role="alert">{error}</p>}
-    <details className="paper auto-sort-manager"><summary>Auto-sort{rules.length?` · ${rules.length} ${rules.length===1?'rule':'rules'}`:''}</summary>
+    {open&&<section id={managerId} className="paper auto-sort-manager" aria-labelledby={toggleId}>
       <p className="hint">{budget.name} in {bookName} only · Across months. Exact payees, ignoring case and extra spaces. No other books or modes are changed.</p>
       {!rules.length&&<p>No rules yet. Add a payee and choose a category when you save an entry. We’ll offer to remember it.</p>}
       {rules.map(rule=>{const missing=!budget.categories.some(c=>c.id===rule.categoryId);return <div className="auto-sort-rule" key={rule.id}>
@@ -41,7 +45,7 @@ export default function AutoSort({budget,bookName,offer,onDismiss,save,disabled,
         <div className="auto-sort-actions"><button className="secondary" disabled={disabled||busy||missing} onClick={()=>run(b=>changePayeeRule(b,rule.id,{paused:!rule.paused}),`${rule.payee} ${rule.paused?'resumed':'paused'}.`)} aria-label={`${rule.paused?'Resume':'Pause'} ${rule.payee} rule`}>{rule.paused?'Resume':'Pause'}</button><button className="secondary" disabled={disabled||busy} aria-label={`Remove ${rule.payee} rule`} onClick={()=>run(b=>removePayeeRule(b,rule.id),`Rule removed for ${rule.payee}.`)}>Remove</button></div>
       </div>;})}
       <p className="hint">Rules only suggest a category. They never add payments, move old entries or change amounts.</p>
-    </details>
+    </section>}
     {children(offerContent)}
   </section>;
 }
