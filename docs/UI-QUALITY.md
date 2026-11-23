@@ -37,6 +37,8 @@ Review the generated screenshots at phone, tablet and desktop widths using the U
 
 ## Evidence limits
 
+Statement import also covers source/account choice, explicit CSV and amount-column mapping, editable/large readings, Ready/Needs a look/Already here/Left out review, PDF password and wrong-password recovery, PDF source previews, screenshot order/crop and actual local OCR reading. These matrix states never confirm a financial import; recorded acceptance and domain tests cover saving, duplicate rechecks and undo. Source previews and passwords stay out of persisted books.
+
 Month-to-month budget changes also cover the new-month choice, copy-ahead review with unavailable carryover, large source balances, optional positive/negative selection, inline negative-allocation recovery, empty categories, changed-source warnings, approved-adjustment review and immutable approval history. These draft-only spacing checks keep all stored money unchanged; money-rule tests and the recorded browser acceptance cover actual confirmation and restore.
 
 Repeating-bill changes also cover the monthly preview, optional end date, this-and-future edit scope, stop confirmation, next-period date confirmation, and an unbudgeted future period on Board, category trail, Entries and Report in every mode and width. The financial-invariance fixture includes repeating cards with large amounts; layout review never saves money edits or changes repeat rules.

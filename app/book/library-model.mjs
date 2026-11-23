@@ -220,9 +220,14 @@ export function restoreLibrary(library, markdown) {
     ? parseLibrary(markdown)
     : { books: [{ name: "Restored book", projects: [parseBook(markdown)] }] };
   let merged = library;
+  const usedIds=new Set(library.books.flatMap(b=>b.projects.map(p=>p.id)));
   for (const book of incoming.books) {
     let bookId;
-    for (const project of book.projects) {
+    // A restored copy can sit beside its original. Import history points into
+    // the restored book, never at the old project's identically named entries.
+    const ids=new Map(book.projects.map(p=>{const id=usedIds.has(p.id)||p.id===EXAMPLE_ID?newId():p.id;usedIds.add(id);return [p.id,id];}));
+    for (const original of book.projects) {
+      const project={...original,id:ids.get(original.id),...(original.statementImports?{statementImports:{...original.statementImports,batches:original.statementImports.batches.map(b=>({...b,items:b.items.map(i=>({...i,projectId:ids.get(i.projectId)??i.projectId}))}))}}:{})};
       merged = changeLibrary(
         merged,
         bookId

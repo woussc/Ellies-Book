@@ -1,0 +1,2 @@
+# PDF fixture offsets and whitespace must remain byte-exact.
+tests/fixtures/statement-import/*.pdf binary

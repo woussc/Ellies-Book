@@ -19,6 +19,7 @@ import {
 } from "./library-model.mjs";
 import type { Library, LibraryAction } from "./library-model.mjs";
 import {periodId} from './repeat-model.mjs';
+import {applyStatement,undoStatement,type StatementRequest} from './statement-model.mjs';
 
 type Snapshot = {
   library: Library;
@@ -183,6 +184,20 @@ function removeExample() {
   return getSnapshot().budget;
 }
 
+// Import writes get a fresh library under a same-origin Web Lock. A failed
+// setItem never publishes a half-import or a success/undo message in memory.
+async function statementTransaction(change:(library:Library)=>Library) {
+  if(!navigator.locks)throw new Error('Safe import is unavailable in this browser. Use a current browser, or add entries by hand.');
+  return navigator.locks.request('ellies-book:statement-import',()=>{
+    const previous=getSnapshot();
+    if(previous.blocked||previous.status==='error')throw new Error('Save or download your book before importing. Nothing changed.');
+    const fresh=readLibrary(localStorage),raw=localStorage.getItem(LIBRARY_KEY),next=change(fresh),markdown=serializeLibrary(next);
+    if(localStorage.getItem(LIBRARY_KEY)!==raw)throw new Error('Your book changed in another tab. Review again before importing.');
+    try{localStorage.setItem(LIBRARY_KEY,markdown);}catch{throw new Error('Device storage is full or unavailable. Nothing was imported. Download your books before trying again.');}
+    current={...previous,library:next,budget:activeBudget(next)??initialProject(),status:'saved',error:''};emit();return next;
+  });
+}
+
 export function useBook() {
   const snapshot = useSyncExternalStore(
     subscribe,
@@ -194,6 +209,8 @@ export function useBook() {
     setBudget,
     removeExample,
     libraryAction,
+    importStatement:(request:StatementRequest)=>statementTransaction(library=>applyStatement(library,request)),
+    undoStatement:(projectId:string,batchId:string)=>statementTransaction(library=>undoStatement(library,projectId,batchId)),
     restoreBooks: (markdown: string) => {
       const prev = getSnapshot();
       return saveLibrary(restoreLibrary(prev.library, markdown), prev.blocked);
