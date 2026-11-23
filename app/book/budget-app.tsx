@@ -498,7 +498,7 @@ function ProjectWorkspace({book, mode, setMode, activePage, setPage, toast, setT
       </div>
       {action}
     </header>{budget.created&&['home','spend','plan','settings','report'].includes(page)&&<PeriodSwitcher budget={budget} onSettings={()=>go('settings')} onStart={()=>go('carryover')} onOpen={(id,dates)=>{
-      if((editingId||draft.description.trim()||draft.amount||draft.notes.trim())&&!window.confirm('Switch periods and discard these unsaved edits?'))return false;
+      if((editingId||draft.description.trim()||draft.amount||draft.notes.trim()||receiptDraft.ids.length||receiptDraft.assets.length||photoBusy||savingReceipt)&&!window.confirm('Switch periods and discard these unsaved edits?'))return false;
       try {const saved=setBudget(b=>openPeriod(b,id,dates));if(!saved)notify('This period is open on this page only. Download all books before leaving.','error');return true;}
       catch(error){notify(error instanceof Error?error.message:'Could not open this period.','error');return false;}
     }}/>}</>
