@@ -386,8 +386,8 @@ export default function StatementImport({
               ...(split
                 ? {
                     amount: undefined,
-                    out: options.out ?? 2,
-                    in: options.in ?? 3,
+                    out: options.out,
+                    in: options.in,
                   }
                 : { out: undefined, in: undefined }),
             })
